@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+/out/
+/runtime/
+*.sqlite*
+*.pem
+*.key
+.env

@@ -1,0 +1,7 @@
+[project]
+name = "commons-relay"
+version = "0.1.0"
+description = "Durable owner-controlled task engine for a Logos Core module"
+requires-python = ">=3.11"
+license = "MIT OR Apache-2.0"
+dependencies = []

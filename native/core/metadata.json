@@ -1,0 +1,15 @@
+{
+  "name": "commons_relay_module",
+  "display_name": "Commons Relay runtime",
+  "version": "0.1.0",
+  "description": "Durable signed task control for Logos agents",
+  "author": "NotRithik",
+  "type": "core",
+  "category": "utilities",
+  "main": "commons_relay_module_plugin",
+  "dependencies": [
+    "storage_module",
+    "chat_module"
+  ],
+  "capabilities": []
+}
