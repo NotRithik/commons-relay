@@ -33,6 +33,15 @@ class VaultTests(unittest.TestCase):
     def tearDown(self):
         for v in self.vaults:v.close()
         self.temp.cleanup()
+    def test_usage_is_an_aggregate_not_secret_or_network_capacity(self):
+        self.assertEqual(self.alice.usage()['file_count'],0)
+        self.upload()
+        usage=self.alice.usage()
+        self.assertEqual(usage['file_count'],1)
+        self.assertEqual(usage['plaintext_bytes'],str(len('private fixture content'.encode())))
+        self.assertGreater(int(usage['ciphertext_reference_bytes']),int(usage['plaintext_bytes']))
+        self.assertEqual(set(usage),{'file_count','plaintext_bytes','ciphertext_reference_bytes'})
+
     def upload(self):
         self.alice.prepare_upload('task1','report.txt','Q3 report');return self.alice.upload('task1',self.store)
     def test_upload_download_roundtrip(self):

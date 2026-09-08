@@ -1,72 +1,668 @@
 #include "commons_relay_ui_backend.h"
 #include "logos_sdk.h"
 #include "logos_api.h"
+#include <QDateTime>
+#include <QFileInfo>
 #include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QTimer>
+#include <QJsonParseError>
+#include <QPointer>
+#include <QProcessEnvironment>
+#include <QRegularExpression>
+#include <QStandardPaths>
+#include <dlfcn.h>
 
-void CommonsRelayUiBackend::onContextReady(){
-    client_=modules().api->getClient("commons_relay_module");
-    if(!client_){setLastError("CommonsRelay core module is unavailable.");return;}
-    auto* object=client_->requestObject("commons_relay_module");
-    if(!object){setLastError("Load the CommonsRelay runtime module in this Basecamp instance.");return;}
-    QPointer<CommonsRelayUiBackend> self(this);
-    client_->onEvent(object,QString("commons_relayResult"),[self](const QString& name,const QVariantList& args){if(self)self->receive(name,args);});
-    setReady(true);setStatusText("Core module connected. Select an agent profile.");
-    const auto profile=qEnvironmentVariable("COMMONS_RELAY_DEFAULT_PROFILE");
-    if(!profile.isEmpty())QTimer::singleShot(0,this,[this,profile](){configure(profile);});
+namespace {
+void ownerUiLocation() {}
+QString compact(const QJsonObject& value) {
+    return QString::fromUtf8(QJsonDocument(value).toJson(QJsonDocument::Compact));
 }
-QString CommonsRelayUiBackend::configure(QString profile){
-    if(!client_)return "CORE_UNAVAILABLE";
-    const auto reply=client_->invokeRemoteMethod(QString("commons_relay_module"),QString("configure"),QVariantList{profile}).toString();
-    setStatusText(reply);
-    if(reply=="STARTING_LOCAL_RUNTIME" || reply=="RUNTIME_ALREADY_CONFIGURED")QTimer::singleShot(700,this,[this](){refresh();});
-    else setLastError(reply);
-    return reply;
+QString compact(const QJsonArray& value) {
+    return QString::fromUtf8(QJsonDocument(value).toJson(QJsonDocument::Compact));
 }
-QString CommonsRelayUiBackend::dispatch(const QString& json){
-    if(!client_)return "CORE_UNAVAILABLE";
-    const auto reply=client_->invokeRemoteMethod(QString("commons_relay_module"),QString("request"),QVariantList{json}).toString();
-    if(reply.size()!=36){setLastError(reply);setStatusText("The request was not accepted.");}
-    return reply;
+QJsonObject object(const QString& value) { return QJsonDocument::fromJson(value.toUtf8()).object(); }
+QJsonArray array(const QString& value) { return QJsonDocument::fromJson(value.toUtf8()).array(); }
+QString friendlyError(const QString& raw) {
+    const QHash<QString, QString> messages = {
+        {"TESTNET_HISTORY_CHANGED", "The testnet restarted after this wallet was used. Its old balance is not current. Keep the archived wallet and deploy a fresh testnet profile."},
+        {"PROFILE_IN_USE", "This messaging identity is already open in another Logos instance. Close that instance or choose a different local profile; do not run the same identity twice."},
+        {"PROFILE_ALREADY_SELECTED", "This instance already owns a different messaging profile. Restart it before changing the local connection."},
+        {"PLANNER_NOT_CONFIGURED", "Text chat is not configured for this agent yet. You can still use Tasks without a model or API charges."},
+        {"PLANNER_BUSY", "This agent is already answering a message. Wait for it or stop the conversation before sending another."},
+        {"PLANNER_RESTARTED", "The agent restarted during this message. It did not repeat the paid model request. Check Activity for any task already started."},
+        {"TEST_BUDGET_EXHAUSTED", "The shared model-test budget is used up or reserved by an uncertain request. No new model request was sent."},
+        {"INVALID_PLANNER_PROMPT", "Write a message of up to 4,000 characters. Large messages may need to be split into shorter questions."},
+        {"OWNER_ROOT_NOT_CONFIGURED", "Set the local owner-profile directory before controlling agents."},
+        {"OWNER_ROOT_PERMISSIONS", "The owner-profile directory must be private to your macOS user."},
+        {"OWNER_KEY_BINDING_CHANGED", "This owner key does not match the selected agent. Nothing was signed."},
+        {"OWNER_PROFILE_UNAVAILABLE", "The selected owner profile could not be read."},
+        {"PRIVATE_KEY_PERMISSIONS", "The owner key must be a private, regular file. Nothing was signed."},
+        {"OWNER_COMMAND_EXPIRED", "The command expired before the agent received it. Read current task state before retrying."},
+        {"AUTHORIZATION_EXPIRED", "This task's authorization expired. It was not newly authorized by a retry."},
+        {"OWNER_RESULT_TOO_LARGE", "This agent needs the bounded owner-channel update to display its status."},
+        {"OWNER_PROFILE_OUTSIDE_ROOT", "Choose a profile from the configured owner directory."},
+        {"APPROVAL_INTENT_MISMATCH", "The task changed. Reload its exact details before approving."},
+        {"APPROVAL_REVIEW_REQUIRED", "Read the complete current task details before approving it."},
+        {"INVALID_SKILL_ARGUMENTS", "Complete all required fields for this skill."},
+        {"RUNTIME_NOT_CONFIGURED", "The local owner transport is not connected yet."},
+        {"RUNTIME_STOPPED", "The local owner transport stopped. Existing agent tasks remain on the agent."},
+        {"RUNTIME_NOT_READY", "Wait for an authenticated agent response before sending a task."},
+        {"OWNER_HELPER_TIMEOUT", "Local signing timed out. No automatic resend was attempted."},
+        {"OWNER_REPLY_PENDING", "The command is queued, but an authenticated reply has not arrived. Do not resubmit it blindly."},
+        {"LOCAL_TRANSPORT_NO_REPLY", "The local messaging service did not reply. Your request was not automatically resent. Check Connection or reconnect the local service."},
+        {"LOCAL_REPLY_TIMEOUT", "The local messaging service is taking too long. A sent task may still be working; check its status before sending it again."},
+        {"TASK_NOT_FOUND", "The agent could not find that task. Refresh the task list."},
+        {"INVALID_OWNER_PROFILE_NAME", "Choose one of the named owner profiles."},
+    };
+    if (messages.contains(raw)) return messages.value(raw);
+    if (QRegularExpression("^[A-Z][A-Z0-9_]{0,99}$").match(raw).hasMatch())
+        return QStringLiteral("The request was not accepted (%1). Check its fields and technical details.").arg(raw);
+    return QStringLiteral("The request could not be completed. See the technical details.");
 }
-QString CommonsRelayUiBackend::refresh(){return dispatch("{\"method\":\"status\",\"params\":{}}");}
-QString CommonsRelayUiBackend::pollOwnerChannel(){return dispatch("{\"method\":\"messaging.pump\",\"params\":{}}");}
-QString CommonsRelayUiBackend::sendSignedCommand(QString json){
-    if(json.toUtf8().size()>60000){setLastError("Request is too large.");return "REQUEST_LIMIT";}
-    return dispatch(json);
+QJsonObject command(const QString& method, const QJsonObject& params = {}) {
+    return {{"method", method}, {"params", params}};
 }
-void CommonsRelayUiBackend::receive(const QString&,const QVariantList& args){
-    if(args.size()!=2)return;
-    const auto doc=QJsonDocument::fromJson(args[1].toString().toUtf8());
-    if(!doc.isObject()){setLastError("Invalid runtime reply.");return;}
-    const auto object=doc.object();
-    setLastResultJson(QString::fromUtf8(doc.toJson(QJsonDocument::Indented)));
-    if(!object.value("success").toBool()){
-        setLastError(object.value("error").toString());setStatusText("The runtime rejected this request.");return;
+}
+
+CommonsRelayUiBackend::CommonsRelayUiBackend() {
+    helper_.setProcessChannelMode(QProcess::SeparateChannels);
+    helperTimeout_.setSingleShot(true);
+    helperTimeout_.setInterval(15000);
+    connect(&helper_, &QProcess::readyReadStandardOutput, this, [this] {
+        helperOutput_ += helper_.readAllStandardOutput();
+        if (helperOutput_.size() > 60000) helperFailure("OWNER_UI_RESPONSE_LIMIT");
+    });
+    connect(&helper_, &QProcess::readyReadStandardError, this, [this] {
+        // Local signing diagnostics can contain paths. They never enter QML or the agent.
+        helper_.readAllStandardError();
+    });
+    connect(&helper_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+            [this](int code, QProcess::ExitStatus) { finishHelper(code); });
+    connect(&helper_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) helperFailure("OWNER_HELPER_UNAVAILABLE");
+    });
+    connect(&helperTimeout_, &QTimer::timeout, this, [this] { helperFailure("OWNER_HELPER_TIMEOUT"); });
+    pollTimer_.setInterval(2500);
+    connect(&pollTimer_, &QTimer::timeout, this, [this] {
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        for (const auto& id : rpcStarted_.keys()) {
+            if (now - rpcStarted_.value(id) > 120000) {
+                rpcStarted_.remove(id);
+                rpcKinds_.remove(id);
+                fail("LOCAL_REPLY_TIMEOUT");
+            }
+        }
+        for (const auto& id : ownerPending_.keys()) {
+            const auto pending = ownerPending_.value(id);
+            if (now - pending.value("started").toInteger() > 600000) {
+                ownerPending_.remove(id);
+                fail("OWNER_REPLY_PENDING");
+            }
+        }
+        updatePending();
+        if (connected() && !selectedAgent().isEmpty()) pollOwnerChannel();
+        if (connected() && !activeGoalId().isEmpty() && now - lastGoalPoll_ > 4000) {
+            bool pending = false;
+            for (const auto& item : ownerPending_) if (item.value("kind") == "planner_goal") pending = true;
+            if (!pending) {
+                lastGoalPoll_ = now;
+                compose({{"kind", "planner_goal"}, {"goal_id", activeGoalId()}});
+            }
+        }
+        if (connected() && !selectedAgent().isEmpty() && now - lastHealthCheck_ > 30000 && !hasPendingKind("health")) {
+            lastHealthCheck_ = now;
+            dispatch(command("transport.status"), "health");
+        }
+    });
+}
+
+CommonsRelayUiBackend::~CommonsRelayUiBackend() {
+    helperTimeout_.stop();
+    pollTimer_.stop();
+    helperActive_ = false;
+    if (helper_.state() != QProcess::NotRunning) {
+        helper_.terminate();
+        if (!helper_.waitForFinished(250)) {
+            helper_.kill();
+            helper_.waitForFinished(1000);
+        }
     }
-    setLastError("");const auto data=object.value("result").toObject();
-    if(data.contains("tasks") && data.contains("skills")){
-        setConnected(true);setAgentId(data.value("agent_id").toString());
-        setTasksJson(QString::fromUtf8(QJsonDocument(data.value("tasks").toArray()).toJson(QJsonDocument::Compact)));
-        setSkillsJson(QString::fromUtf8(QJsonDocument(data.value("skills").toArray()).toJson(QJsonDocument::Compact)));
-        auto summary=data;summary.remove("tasks");summary.remove("skills");
-        setSummaryJson(QString::fromUtf8(QJsonDocument(summary).toJson(QJsonDocument::Compact)));
-        setStatusText("Relay profile connected. Inference is off; no model charges.");
-    }else if(data.contains("received")){
-        setStatusText("Owner channel checked. Reading authenticated replies...");
-        QTimer::singleShot(250,this,[this](){
-            dispatch(QString("{\"method\":\"messaging.messages\",\"params\":{\"after\":%1}}").arg(ownerCursor_));
-        });
-    }else if(data.contains("messages")){
-        const auto messages=data.value("messages").toArray();
-        for(const auto& value:messages)if(value.isObject())ownerCursor_=qMax(ownerCursor_,value.toObject().value("cursor").toVariant().toULongLong());
-        setOwnerMessagesJson(QString::fromUtf8(QJsonDocument(messages).toJson(QJsonDocument::Compact)));
-        setStatusText(messages.isEmpty()?"No new owner-channel replies.":"Authenticated owner-channel replies received over Logos Messaging.");
-    }else if(data.contains("message_id") && data.contains("recipient")){
-        setStatusText("Encrypted owner command queued over Logos Messaging. Poll replies to read the remote result.");
-    }else{
-        setStatusText("Command processed. Refresh to inspect current tasks.");
+}
+
+void CommonsRelayUiBackend::onContextReady() {
+    client_ = modules().api->getClient("commons_relay_module");
+    if (!client_) { fail("CORE_UNAVAILABLE"); return; }
+    auto* remote = client_->requestObject("commons_relay_module");
+    if (!remote) { fail("CORE_UNAVAILABLE"); return; }
+    QPointer<CommonsRelayUiBackend> self(this);
+    client_->onEvent(remote, "commons_relayResult",
+                    [self](const QString& name, const QVariantList& args) {
+                        if (self) self->receive(name, args);
+                    });
+    setReady(true);
+    setStatusText("Local owner transport found. Connecting...");
+    loadOwnerProfiles();
+    const auto profile = qEnvironmentVariable("COMMONS_RELAY_DEFAULT_PROFILE");
+    if (!profile.isEmpty()) QTimer::singleShot(0, this, [this, profile] { configure(profile); });
+    pollTimer_.start();
+}
+
+void CommonsRelayUiBackend::fail(const QString& code) {
+    const QString safe = QRegularExpression("^[A-Z][A-Z0-9_]{0,99}$").match(code).hasMatch()
+        ? code : QStringLiteral("LOCAL_TRANSPORT_NO_REPLY");
+    setLastError(safe);
+    setLastResultJson(compact(QJsonObject{{"success", false}, {"error", safe}}));
+    setStatusText(friendlyError(safe));
+}
+
+void CommonsRelayUiBackend::updatePending() {
+    setSigning(helperActive_);
+    // Queued transport is not completion. A slow agent must not lock every other
+    // read or independent task; task submission itself always requires a new review.
+    setRequestPending(helperActive_ || !helperQueue_.isEmpty() || hasPendingKind("owner-send"));
+}
+
+QString CommonsRelayUiBackend::configure(QString profile) {
+    if (!client_) { fail("CORE_UNAVAILABLE"); return "CORE_UNAVAILABLE"; }
+    if (dispatchActive_ || !dispatchQueue_.isEmpty()) return "CONNECTION_BUSY";
+    setLastError("");
+    setStatusText("Connecting the local owner transport...");
+    QPointer<CommonsRelayUiBackend> self(this);
+    client_->invokeRemoteMethodAsync(QString("commons_relay_module"), QString("configure"), QVariantList{profile},
+        [self](QVariant result) {
+            if (!self) return;
+            const auto reply = result.toString();
+            if (reply == "STARTING_LOCAL_RUNTIME" || reply == "RUNTIME_ALREADY_CONFIGURED") {
+                QTimer::singleShot(700, self, [self] { if (self) self->refresh(); });
+            } else self->fail(reply);
+        }, Timeout(20000));
+    return "CONNECTING_OWNER_TRANSPORT";
+}
+
+bool CommonsRelayUiBackend::hasPendingKind(const QString& kind) const {
+    if (rpcKinds_.values().contains(kind) || (dispatchActive_ && activeDispatch_.kind == kind)) return true;
+    for (const auto& item : dispatchQueue_) if (item.kind == kind) return true;
+    return false;
+}
+
+QString CommonsRelayUiBackend::dispatch(const QJsonObject& request, const QString& kind) {
+    if (!client_) { fail("CORE_UNAVAILABLE"); return "CORE_UNAVAILABLE"; }
+    if (rpcKinds_.size() + dispatchQueue_.size() >= 24) { fail("REQUEST_LIMIT"); return "REQUEST_LIMIT"; }
+    dispatchQueue_.enqueue({request, kind});
+    updatePending();
+    startNextDispatch();
+    return "QUEUED_FOR_LOCAL_TRANSPORT";
+}
+
+void CommonsRelayUiBackend::startNextDispatch() {
+    if (dispatchActive_ || dispatchQueue_.isEmpty() || !client_) return;
+    activeDispatch_ = dispatchQueue_.dequeue();
+    dispatchActive_ = true;
+    updatePending();
+    QPointer<CommonsRelayUiBackend> self(this);
+    // Synchronous IPC runs a nested event loop. Poll timers could re-enter it,
+    // and fast Python results could arrive before the returned request ID was
+    // registered. Serialize acceptance asynchronously and retain early replies.
+    client_->invokeRemoteMethodAsync(QString("commons_relay_module"), QString("request"),
+        QVariantList{compact(activeDispatch_.request)}, [self](QVariant result) {
+            if (!self) return;
+            const auto kind = self->activeDispatch_.kind;
+            self->dispatchActive_ = false;
+            const auto id = result.toString();
+            if (!QRegularExpression("^[a-f0-9-]{36}$").match(id).hasMatch()) {
+                self->fail(id);
+            } else {
+                self->rpcKinds_.insert(id, kind);
+                self->rpcStarted_.insert(id, QDateTime::currentMSecsSinceEpoch());
+                if (self->earlyReplies_.contains(id)) self->receive(QString(), self->earlyReplies_.take(id));
+            }
+            self->earlyReplies_.clear();
+            self->updatePending();
+            QTimer::singleShot(0, self, [self] { if (self) self->startNextDispatch(); });
+        }, Timeout(20000));
+}
+
+QString CommonsRelayUiBackend::refresh() {
+    return dispatch(command("status"), "local-status");
+}
+
+QString CommonsRelayUiBackend::pollOwnerChannel() {
+    if (!connected()) return "RUNTIME_NOT_READY";
+    if (hasPendingKind("pump") || hasPendingKind("messages"))
+        return "POLL_ALREADY_PENDING";
+    return dispatch(command("messaging.pump"), "pump");
+}
+
+QString CommonsRelayUiBackend::loadOwnerProfiles() {
+    runHelper({{"action", "catalog"}});
+    return "READING_OWNER_PROFILES";
+}
+
+QString CommonsRelayUiBackend::selectOwnerProfile(QString name) {
+    if (chatBusy()) { fail("CONVERSATION_ALREADY_RUNNING"); return "CONVERSATION_ALREADY_RUNNING"; }
+    QJsonObject selected;
+    for (const auto& value : array(profilesJson())) {
+        const auto candidate = value.toObject();
+        if (candidate.value("name").toString() == name) { selected = candidate; break; }
+    }
+    if (selected.isEmpty()) { fail("INVALID_OWNER_PROFILE_NAME"); return "INVALID_OWNER_PROFILE_NAME"; }
+    ++generation_;
+    helperQueue_.clear();
+    ownerPending_.clear();
+    setSelectedProfile(name);
+    setSelectedAgent(selected.value("agent_id").toString());
+    setRemoteReady(false);
+    setPlannerInfoJson("{}"); setConversationJson("[]"); setActiveGoalId(""); setChatBusy(false);
+    setSummaryJson("{}");
+    setTasksJson("[]");
+    setSkillsJson("[]");
+    setTaskDetailsJson("{}");
+    setSkillDetailsJson("{}");
+    setHasMoreTasks(false);
+    requestedSkill_.clear();
+    requestedTask_.clear();
+    nextTaskOffset_ = 0;
+    setLastError("");
+    setStatusText("Requesting authenticated agent status over Logos Messaging...");
+    refreshAgent();
+    requestSkillsPage(0);
+    refreshPlanner();
+    loadConversation();
+    return "AGENT_SELECTED";
+}
+
+QString CommonsRelayUiBackend::compose(const QJsonObject& value) {
+    if (!connected() || selectedProfile().isEmpty()) { fail("RUNTIME_NOT_READY"); return "RUNTIME_NOT_READY"; }
+    if (ownerPending_.size() >= 64) { fail("REQUEST_LIMIT"); return "REQUEST_LIMIT"; }
+    runHelper({{"action", "compose"}, {"profile", selectedProfile()}, {"command", value}});
+    return "SIGNING_OWNER_COMMAND";
+}
+
+QString CommonsRelayUiBackend::refreshAgent() {
+    return compose({{"kind", "snapshot"}, {"offset", 0}});
+}
+QString CommonsRelayUiBackend::refreshPlanner() {
+    if (selectedAgent().isEmpty()) return "CHOOSE_AN_AGENT";
+    return compose({{"kind", "planner_status"}});
+}
+
+QString CommonsRelayUiBackend::loadConversation() {
+    if (selectedAgent().isEmpty()) return "CHOOSE_AN_AGENT";
+    return compose({{"kind", "planner_history"}, {"offset", 0}});
+}
+
+QString CommonsRelayUiBackend::startConversation(QString prompt, bool allowActions, QString maximumSpend) {
+    if (!remoteReady() || selectedAgent().isEmpty()) { fail("CHOOSE_AN_AGENT"); return "CHOOSE_AN_AGENT"; }
+    const auto info = object(plannerInfoJson());
+    if (!info.value("enabled").toBool()) { fail("PLANNER_NOT_CONFIGURED"); return "PLANNER_NOT_CONFIGURED"; }
+    if (chatBusy() || requestPending()) { fail("PLANNER_BUSY"); return "PLANNER_BUSY"; }
+    prompt = prompt.trimmed();
+    if (prompt.isEmpty() || prompt.size() > 4000) { fail("INVALID_PLANNER_PROMPT"); return "INVALID_PLANNER_PROMPT"; }
+    const auto policy = object(summaryJson()).value("policy").toObject();
+    const auto scope = info.value(allowActions ? "action_skills" : "read_skills").toArray();
+    if (!allowActions) maximumSpend = "0";
+    if (!QRegularExpression("^(0|[1-9][0-9]{0,38})$").match(maximumSpend).hasMatch()) {
+        fail("INVALID_PLANNER_LIMITS"); return "INVALID_PLANNER_LIMITS";
+    }
+    const int ttl = qMin(allowActions ? 7200 : 600, policy.value("approval_ttl").toInt(600));
+    setChatBusy(true); setLastError("");
+    setStatusText("Authorizing this conversation. No model request is repeated automatically.");
+    return compose({{"kind", "planner_start"}, {"goal", prompt},
+        {"delegate_key_id", info.value("delegate_key_id")}, {"mode", allowActions ? "actions" : "read"},
+        {"allowed_skills", scope}, {"maximum_spend", maximumSpend}, {"max_steps", 8},
+        {"expires_in", ttl}, {"policy_version", policy.value("version").toInt(1)}});
+}
+
+QString CommonsRelayUiBackend::cancelConversation() {
+    if (activeGoalId().isEmpty()) return "NO_ACTIVE_CONVERSATION";
+    return compose({{"kind", "planner_cancel"}, {"goal_id", activeGoalId()}});
+}
+
+void CommonsRelayUiBackend::mergeGoal(const QJsonObject& goal) {
+    auto goals = array(conversationJson());
+    bool found = false;
+    for (int index = 0; index < goals.size(); ++index) {
+        if (goals[index].toObject().value("id") == goal.value("id")) {
+            goals[index] = goal; found = true; break;
+        }
+    }
+    if (!found) goals.append(goal);
+    while (goals.size() > 30) goals.removeFirst();
+    setConversationJson(compact(goals));
+    const auto state = goal.value("state").toString();
+    if (state == "queued" || state == "thinking" || state == "working") {
+        setActiveGoalId(goal.value("id").toString()); setChatBusy(true);
+    } else if (activeGoalId().isEmpty() || activeGoalId() == goal.value("id").toString()) {
+        setActiveGoalId(""); setChatBusy(false);
+    }
+}
+
+QString CommonsRelayUiBackend::loadMoreTasks() {
+    if (!hasMoreTasks()) return "NO_MORE_TASKS";
+    return compose({{"kind", "snapshot"}, {"offset", nextTaskOffset_}});
+}
+void CommonsRelayUiBackend::requestSkillsPage(int offset) {
+    compose({{"kind", "skills"}, {"offset", offset}});
+}
+QString CommonsRelayUiBackend::requestSkill(QString name) {
+    requestedSkill_ = name;
+    setSkillDetailsJson("{}");
+    return compose({{"kind", "skill"}, {"name", name}});
+}
+QString CommonsRelayUiBackend::requestTask(QString taskId) {
+    requestedTask_ = taskId;
+    setTaskDetailsJson("{}");
+    return compose({{"kind", "task"}, {"task_id", taskId}});
+}
+
+QString CommonsRelayUiBackend::submitTask(QString skill, QString argumentsJson, int expiresIn) {
+    if (!remoteReady()) { fail("RUNTIME_NOT_READY"); return "RUNTIME_NOT_READY"; }
+    QJsonParseError error;
+    const auto arguments = QJsonDocument::fromJson(argumentsJson.toUtf8(), &error);
+    if (error.error != QJsonParseError::NoError || !arguments.isObject() || argumentsJson.toUtf8().size() > 18000) {
+        fail("INVALID_SKILL_ARGUMENTS"); return "INVALID_SKILL_ARGUMENTS";
+    }
+    setLastError("");
+    setStatusText("Signing this exact task on the owner device...");
+    return compose({{"kind", "submit"}, {"skill", skill}, {"arguments", arguments.object()}, {"expires_in", expiresIn}});
+}
+
+QString CommonsRelayUiBackend::approveTask(QString taskId, QString intentHash, int policyVersion) {
+    const auto task = object(taskDetailsJson());
+    if (!remoteReady() || task.value("id").toString() != taskId
+        || task.value("state").toString() != "input-required"
+        || !task.value("arguments_complete").toBool()
+        || task.value("intent_hash").toString() != intentHash
+        || task.value("policy_version").toInt() != policyVersion) {
+        fail("APPROVAL_REVIEW_REQUIRED"); return "APPROVAL_REVIEW_REQUIRED";
+    }
+    const int ttl = qBound(30, object(summaryJson()).value("policy").toObject().value("approval_ttl").toInt(300), 7200);
+    return compose({{"kind", "approve"}, {"task_id", taskId}, {"intent_hash", intentHash},
+                    {"policy_version", policyVersion}, {"expires_in", ttl}});
+}
+
+QString CommonsRelayUiBackend::cancelTask(QString taskId) {
+    if (!remoteReady() || object(taskDetailsJson()).value("id").toString() != taskId) {
+        fail("APPROVAL_REVIEW_REQUIRED"); return "APPROVAL_REVIEW_REQUIRED";
+    }
+    return compose({{"kind", "cancel"}, {"task_id", taskId}, {"expires_in", 120}});
+}
+
+QString CommonsRelayUiBackend::sendSignedCommand(QString json) {
+    const auto request = object(json);
+    if (json.toUtf8().size() > 60000 || request.size() != 2
+        || request.value("method").toString() != "owner.send"
+        || !request.value("params").isObject()) {
+        fail("OWNER_UI_ACTION_NOT_ALLOWED"); return "OWNER_UI_ACTION_NOT_ALLOWED";
+    }
+    // Advanced import is a signed owner-channel wrapper, never an unsigned local
+    // service method or a general-purpose module/shell proxy.
+    return dispatch(request, "owner-send");
+}
+
+void CommonsRelayUiBackend::runHelper(const QJsonObject& request) {
+    if (helperQueue_.size() >= 12) { fail("REQUEST_LIMIT"); return; }
+    helperQueue_.enqueue({request, generation_});
+    updatePending();
+    startNextHelper();
+}
+
+void CommonsRelayUiBackend::startNextHelper() {
+    if (helperActive_ || helper_.state() != QProcess::NotRunning || helperQueue_.isEmpty()) return;
+    activeHelper_ = helperQueue_.dequeue();
+    const auto ownerRoot = qEnvironmentVariable("COMMONS_RELAY_OWNER_ROOT");
+    if (ownerRoot.isEmpty()) { fail("OWNER_ROOT_NOT_CONFIGURED"); helperQueue_.clear(); updatePending(); return; }
+    Dl_info location{};
+    if (!dladdr(reinterpret_cast<void*>(&ownerUiLocation), &location) || !location.dli_fname) {
+        fail("OWNER_HELPER_UNAVAILABLE"); helperQueue_.clear(); updatePending(); return;
+    }
+    const auto directory = QFileInfo(QString::fromUtf8(location.dli_fname)).canonicalPath();
+    const auto script = directory + "/commons_relay_owner_ui.py";
+    if (!QFileInfo(script).isFile() || QFileInfo(script).isSymLink()) {
+        fail("OWNER_HELPER_UNAVAILABLE"); helperQueue_.clear(); updatePending(); return;
+    }
+    QString python = qEnvironmentVariable("COMMONS_RELAY_PYTHON");
+    if (python.isEmpty()) python = QStandardPaths::findExecutable("python3");
+    QProcessEnvironment environment;
+    environment.insert("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
+    environment.insert("HOME", ownerRoot);
+    environment.insert("COMMONS_RELAY_OWNER_ROOT", ownerRoot);
+    helper_.setProcessEnvironment(environment);
+    helper_.setWorkingDirectory(directory);
+    helper_.setProgram(python);
+    helper_.setArguments({"-I", script});
+    helperOutput_.clear();
+    helperActive_ = true;
+    updatePending();
+    helper_.start();
+    helper_.write(QJsonDocument(activeHelper_.request).toJson(QJsonDocument::Compact) + "\n");
+    helper_.closeWriteChannel();
+    helperTimeout_.start();
+}
+
+void CommonsRelayUiBackend::helperFailure(const QString& code) {
+    if (activeHelper_.request.value("command").toObject().value("kind") == "planner_start") setChatBusy(false);
+    if (!helperActive_) return;
+    helperActive_ = false;
+    helperTimeout_.stop();
+    fail(code);
+    if (helper_.state() != QProcess::NotRunning) helper_.kill();
+    updatePending();
+    QTimer::singleShot(0, this, [this] { startNextHelper(); });
+}
+
+void CommonsRelayUiBackend::finishHelper(int code) {
+    helperTimeout_.stop();
+    if (!helperActive_) { startNextHelper(); return; }
+    helperOutput_ += helper_.readAllStandardOutput();
+    helperActive_ = false;
+    const auto work = activeHelper_;
+    if (helperOutput_.size() > 60000) {
+        helperOutput_.clear(); fail("OWNER_UI_RESPONSE_LIMIT"); updatePending(); startNextHelper(); return;
+    }
+    QJsonParseError error;
+    const auto parsed = QJsonDocument::fromJson(helperOutput_, &error);
+    helperOutput_.clear();
+    if (code != 0 || error.error != QJsonParseError::NoError || !parsed.isObject()) {
+        if (work.generation == generation_ && work.request.value("command").toObject().value("kind") == "planner_start") setChatBusy(false);
+        fail("OWNER_HELPER_INVALID_REPLY");
+    } else if (work.request.value("action") == "catalog" || work.generation == generation_) {
+        const auto reply = parsed.object();
+        if (reply.value("success").toBool()) applyHelperResult(reply.value("result").toObject(), work);
+        else {
+            if (work.request.value("command").toObject().value("kind") == "planner_start") setChatBusy(false);
+            fail(reply.value("error").toString());
+        }
+    }
+    updatePending();
+    startNextHelper();
+}
+
+void CommonsRelayUiBackend::applyHelperResult(const QJsonObject& result, const HelperWork& work) {
+    if (work.request.value("action") == "catalog") {
+        setProfilesJson(compact(result.value("profiles").toArray()));
+        if (result.value("profiles").toArray().isEmpty()) fail("OWNER_PROFILE_UNAVAILABLE");
+        return;
+    }
+    if (result.value("agent_id").toString() != selectedAgent()) return;
+    const auto id = result.value("command_id").toString();
+    const auto request = result.value("request").toObject();
+    if (id.isEmpty() || request.value("method") != "owner.send"
+        || request.value("params").toObject().value("recipient").toString() != selectedAgent()) {
+        fail("OWNER_HELPER_INVALID_REPLY"); return;
+    }
+    if (result.value("command_kind").toString() == "planner_start") {
+        const auto goalId = result.value("conversation_id").toString();
+        if (!QRegularExpression("^chat-[a-f0-9]{24}$").match(goalId).hasMatch()) {
+            setChatBusy(false); fail("OWNER_HELPER_INVALID_REPLY"); return;
+        }
+        setActiveGoalId(goalId);
+        setChatBusy(true);
+    }
+    ownerPending_.insert(id, {{"kind", result.value("command_kind")},
+                             {"agent", selectedAgent()}, {"generation", generation_},
+                             {"started", QDateTime::currentMSecsSinceEpoch()}});
+    dispatch(request, "owner-send");
+}
+
+void CommonsRelayUiBackend::receive(const QString&, const QVariantList& args) {
+    if (args.size() != 2) return;
+    const auto id = args[0].toString();
+    if (!rpcKinds_.contains(id)) {
+        // Only a result subsequently matched to this UI's accepted UUID is used.
+        if (dispatchActive_ && earlyReplies_.size() < 32 && args[1].toString().size() <= 60000)
+            earlyReplies_.insert(id, args);
+        return;
+    }
+    const auto kind = rpcKinds_.take(id);
+    rpcStarted_.remove(id);
+    const auto document = QJsonDocument::fromJson(args[1].toString().toUtf8());
+    updatePending();
+    if (!document.isObject()) { fail("INVALID_RUNTIME_REPLY"); return; }
+    const auto reply = document.object();
+    if (reply.contains("id") && reply.value("id").toString() != id) { fail("RUNTIME_REPLY_ID_MISMATCH"); return; }
+    if (!reply.value("success").toBool()) {
+        if (kind == "health") {
+            setTransportHealthJson(compact(QJsonObject{{"checked", false}, {"error", "HEALTH_UNAVAILABLE"}}));
+            return; // Optional diagnostics must not replace a task's real result.
+        }
+        setLastResultJson(QString::fromUtf8(document.toJson(QJsonDocument::Indented)));
+        fail(reply.value("error").toString()); return;
+    }
+    const auto data = reply.value("result").toObject();
+    if (kind == "health") {
+        setTransportHealthJson(compact(data.value("transport_health").toObject()));
+        return;
+    }
+    if (kind == "local-status") {
+        setConnected(true);
+        setAgentId(data.value("agent_id").toString());
+        if (selectedAgent().isEmpty()) setStatusText("Owner transport connected. Choose an agent to begin.");
+    } else if (kind == "pump") {
+        dispatch(command("owner.inbox", {{"after", static_cast<qint64>(ownerCursor_)}}), "messages");
+    } else if (kind == "messages") {
+        for (const auto& value : data.value("messages").toArray()) {
+            const auto message = value.toObject();
+            const auto cursor = static_cast<quint64>(qMax<qint64>(0, message.value("cursor").toInteger()));
+            if (cursor <= ownerCursor_) continue;
+            ownerCursor_ = cursor;
+            ownerMessages_.append(message);
+            while (ownerMessages_.size() > 20) ownerMessages_.removeFirst();
+            consumeOwnerMessage(message);
+        }
+        setOwnerMessagesJson(compact(ownerMessages_));
+    } else if (kind == "owner-send") {
+        if (!remoteReady()) setStatusText("Encrypted command queued. Waiting for an authenticated agent reply...");
+        QTimer::singleShot(0, this, [this] { pollOwnerChannel(); });
+    }
+}
+
+void CommonsRelayUiBackend::consumeOwnerMessage(const QJsonObject& message) {
+    if (message.value("kind") != "owner-result" || message.value("sender").toString() != selectedAgent()) return;
+    if (message.value("payload_omitted").toBool()) return;
+    const auto encoded = message.value("payload_json").toString();
+    if (encoded.toUtf8().size() > 30000) return;
+    const auto payload = encoded.isEmpty() ? message.value("payload").toObject() : object(encoded);
+    const auto id = payload.value("command_id").toString();
+    if (!id.isEmpty()) {
+        if (!ownerPending_.contains(id)) return;
+        const auto pending = ownerPending_.take(id);
+        if (pending.value("generation").toInt() != generation_ || pending.value("agent").toString() != selectedAgent()) return;
+        setLastResultJson(QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Indented)));
+        if (!payload.value("success").toBool()) {
+            if (pending.value("kind").toString().startsWith("planner_")) setChatBusy(false);
+            fail(payload.value("error").toString()); return;
+        }
+        setLastError("");
+        applyOwnerResult(payload.value("result").toObject(), pending.value("kind").toString());
+    } else if (remoteReady() && payload.contains("task_update")) {
+        const auto update = payload.value("task_update").toObject();
+        const auto taskId = update.value("task_id").toString();
+        auto tasks = array(tasksJson());
+        for (int index = 0; index < tasks.size(); ++index) {
+            auto task = tasks.at(index).toObject();
+            if (task.value("id").toString() != taskId) continue;
+            task["state"] = update.value("state");
+            tasks[index] = task;
+        }
+        setTasksJson(compact(tasks));
+        if (taskId == requestedTask_) requestTask(taskId);
+    } else if (remoteReady() && payload.contains("notice")) {
+        refreshAgent();
+        if (payload.value("notice").toObject().value("task_id").toString() == requestedTask_)
+            requestTask(requestedTask_);
+    }
+}
+
+void CommonsRelayUiBackend::mergeTask(const QJsonObject& task) {
+    auto tasks = array(tasksJson());
+    for (int index = 0; index < tasks.size(); ++index) {
+        if (tasks.at(index).toObject().value("id") == task.value("id")) {
+            tasks[index] = task; setTasksJson(compact(tasks)); return;
+        }
+    }
+    tasks.prepend(task);
+    while (tasks.size() > 100) tasks.removeLast();
+    setTasksJson(compact(tasks));
+}
+
+void CommonsRelayUiBackend::applyOwnerResult(const QJsonObject& result, const QString& kind) {
+    if (result.contains("agent_id") && result.value("agent_id").toString() != selectedAgent()) {
+        fail("OWNER_REPLY_AGENT_MISMATCH"); return;
+    }
+    if (result.value("planner_status").toBool()) {
+        setPlannerInfoJson(compact(result));
+        if (result.value("active_goal").isString() && !result.value("active_goal").toString().isEmpty()) {
+            setActiveGoalId(result.value("active_goal").toString()); setChatBusy(true);
+        }
+        return;
+    }
+    if (result.value("planner_history").toBool()) {
+        auto goals = result.value("goals").toArray();
+        QJsonArray chronological;
+        for (int index = goals.size() - 1; index >= 0; --index) chronological.append(goals[index]);
+        setConversationJson(compact(chronological));
+        return;
+    }
+    if (result.value("planner_goal").toBool()) {
+        mergeGoal(result.value("goal").toObject());
+        if (!chatBusy()) { refreshPlanner(); refreshAgent(); }
+        return;
+    }
+    if (result.value("owner_snapshot").toBool()) {
+        setRemoteReady(true);
+        auto summary = result; summary.remove("tasks");
+        setSummaryJson(compact(summary));
+        auto tasks = result.value("offset").toInt() == 0 ? QJsonArray() : array(tasksJson());
+        for (const auto& value : result.value("tasks").toArray()) {
+            bool exists = false;
+            for (const auto& old : tasks) if (old.toObject().value("id") == value.toObject().value("id")) { exists = true; break; }
+            if (!exists) tasks.append(value);
+        }
+        setTasksJson(compact(tasks));
+        nextTaskOffset_ = result.value("next_offset").toInt();
+        setHasMoreTasks(result.value("has_more").toBool());
+        setStatusText("Authenticated agent status received. Tasks and spending policy are live.");
+    } else if (result.value("owner_skills").toBool()) {
+        auto skills = result.value("offset").toInt() == 0 ? QJsonArray() : array(skillsJson());
+        for (const auto& value : result.value("skills").toArray()) skills.append(value);
+        setSkillsJson(compact(skills));
+        if (result.value("has_more").toBool() && skills.size() < 128)
+            requestSkillsPage(result.value("next_offset").toInt());
+    } else if (result.value("owner_skill").toBool()) {
+        const auto skill = result.value("skill").toObject();
+        if (skill.value("id").toString() == requestedSkill_) setSkillDetailsJson(compact(skill));
+    } else if (result.value("owner_task").toBool()) {
+        const auto task = result.value("task").toObject();
+        mergeTask(task);
+        if (task.value("id").toString() == requestedTask_) setTaskDetailsJson(compact(task));
+    } else if (result.contains("id") && result.contains("state")) {
+        mergeTask(result);
+        setStatusText(result.value("state") == "input-required"
+            ? "Task received. It is waiting for your approval; no spending has been authorized."
+            : kind == "approve" ? "Exact intent approved. The agent will execute it under the recorded policy."
+            : kind == "cancel" ? "The agent processed the cancellation request. Read the final task state."
+            : "Task accepted by the agent. Completion will be reported over the owner channel.");
+        refreshAgent();
+        if (result.value("id").toString() == requestedTask_) requestTask(requestedTask_);
     }
 }

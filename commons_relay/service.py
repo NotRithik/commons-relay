@@ -17,6 +17,7 @@ class Service:
     def __init__(self,profile:Path,bridge=None):
         self.bridge=bridge;self.vault=None;self.store=None;self.adapter=None
         self.adapter_guard=threading.RLock()
+        self.planner=None
         self.messaging=None;self.mailbox=None;self.message_adapter=None;self.wallet_adapter=None;self.controller=None;self.meta_adapter=None;self.agent_protocol=None;self.agent_adapter=None;self.program_adapter=None;self.external_adapter=None
         self.root=protected_directory(profile)
         settings=self.root/'settings.json'
@@ -48,6 +49,7 @@ class Service:
         price=amount(payment['params']['prices'][args['skill']])
         return Quote('LEZ-testnet',price,True)
     def close(self):
+        if self.planner:self.planner.close()
         if self.controller:self.controller.stop()
         if self.agent_protocol:self.agent_protocol.close()
         if self.messaging:self.messaging.stop()
@@ -140,18 +142,40 @@ class Service:
                 with self.engine.tx() as db:override=db.execute("SELECT value FROM metadata WHERE key='runtime:owner_address'").fetchone()
                 self.controller=Controller(self,json.loads(override[0]) if override else config['address'])
             return self.controller
+    def get_planner(self):
+        with self.adapter_guard:
+            if self.planner is None:
+                from .planner import Planner
+                self.planner=Planner(self,clock=self.engine.clock)
+            return self.planner
     def handle(self,request:dict)->dict:
         if not isinstance(request,dict) or set(request)!={'id','method','params'}:raise Rejected('INVALID_SERVICE_REQUEST')
         if not isinstance(request['id'],str) or len(request['id'])>80:raise Rejected('INVALID_REQUEST_ID')
         method=request['method'];params=request['params']
         if not isinstance(params,dict):raise Rejected('INVALID_PARAMETERS')
+        if method in ('owner.snapshot', 'owner.skills') and set(params) == {'offset'}:
+            from . import owner_views
+            view = owner_views.snapshot if method == 'owner.snapshot' else owner_views.skills_page
+            return view(self.engine, params['offset'])
+        if method == 'owner.skill' and set(params) == {'name'}:
+            from .owner_views import skill_details
+            return skill_details(self.engine, params['name'])
+        if method == 'owner.task' and set(params) == {'task_id'}:
+            from .owner_views import task_details
+            return task_details(self.engine, params['task_id'])
+        if method == 'planner.status' and not params:
+            return self.get_planner().status()
+        if method == 'planner.history' and set(params) == {'offset'}:
+            return self.get_planner().history(params['offset'])
+        if method == 'planner.goal' and set(params) == {'goal_id'}:
+            return self.get_planner().view(params['goal_id'])
+        if method == 'planner.start' and set(params) == {'envelope'}:
+            return self.get_planner().start(params['envelope'])
+        if method == 'planner.cancel' and set(params) == {'goal_id','envelope'}:
+            return self.get_planner().cancel(params['goal_id'],params['envelope'])
         if method=='status' and not params:
-            result=self.engine.overview()
-            result['transport']='Logos Core local IPC'
-            result['adapters_connected']=['storage-vault'] if self.adapter else []
-            result['wallet_funded']=False
-            result['inference_enabled']=False
-            return result
+            from .status_views import local_status
+            return local_status(self)
         if method=='storage.connect_local' and set(params)=={'peer_id','addresses'}:
             self.storage_adapter().store.initialize()
             result=self.bridge.call('storage.connect-local',params)
@@ -188,10 +212,18 @@ class Service:
         if method=='messaging.start' and not params:
             runtime=self.get_messaging();runtime.start()
             return {'started':True,'address':runtime.mailbox.address,'node':self.bridge.call('delivery.info',{})}
+        if method == 'owner.inbox' and set(params) == {'after'}:
+            from .owner_views import inbox_page
+            return inbox_page(self.get_messaging().mailbox, params['after'])
         if method=='messaging.messages' and set(params)=={'after'}:
             runtime=self.get_messaging();return {'messages':runtime.mailbox.messages(params['after'])}
         if method=='messaging.pump' and not params:
             runtime=self.get_messaging();received=runtime.pump();return {'received':len(received),'last_error':runtime.last_error}
+        if method == 'transport.status' and not params:
+            runtime = self.get_messaging()
+            runtime.initialize()
+            health = self.bridge.call('delivery.health', {})
+            return {'transport_health': health, 'last_delivery_error': runtime.last_error}
         if method=='diagnostics' and not params:
             if self.bridge is None:raise Rejected('NATIVE_BRIDGE_NOT_CONNECTED')
             return {'modules':self.bridge.call('modules.probe',{}),'storage_version':self.bridge.call('storage.version',{})}
@@ -247,6 +279,10 @@ def serve_native(profile:Path,source=None,sink=None):
             try:reply={'id':request_id,'success':True,'result':service.handle(request)}
             except Rejected as e:reply={'id':request_id,'success':False,'error':str(e)}
             except Exception:reply={'id':request_id,'success':False,'error':'SERVICE_OPERATION_FAILED'}
+            try:
+                canonical(reply)
+            except Rejected:
+                reply={'id':request_id,'success':False,'error':'RESPONSE_TOO_LARGE_OR_INVALID'}
             wire.write(reply)
         finally:slots.release()
     try:

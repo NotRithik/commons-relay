@@ -120,6 +120,15 @@ class Vault:
         return {'address':address,'label':row['label'],'bytes':row['bytes']}
     def list(self)->list[dict]:
         with self.guard:return [dict(r) for r in self.db.execute('SELECT address,label,bytes,sender FROM files ORDER BY address LIMIT 1000')]
+    def usage(self) -> dict:
+        """Aggregate known references without returning labels, keys or paths."""
+        with self.guard:
+            count, plain, encrypted = self.db.execute(
+                'SELECT COUNT(*), COALESCE(SUM(bytes),0), COALESCE(SUM(ciphertext_bytes),0) FROM files'
+            ).fetchone()
+        return {'file_count': count, 'plaintext_bytes': str(plain),
+                'ciphertext_reference_bytes': str(encrypted)}
+
     def _file(self,address):
         cid(address)
         with self.guard:row=self.db.execute('SELECT * FROM files WHERE address=?',(address,)).fetchone()

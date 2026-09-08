@@ -12,7 +12,7 @@ from .codec import Rejected,canonical,parse
 
 ACTIONS=frozenset(['modules.probe','storage.version','storage.init','storage.start',
                     'storage.upload','storage.download','storage.manifests','storage.publish-card','storage.connect-local',
- 'delivery.init','delivery.start','delivery.info','delivery.subscribe','delivery.unsubscribe','delivery.send','delivery.events','delivery.publish-card','wallet.init','wallet.invoke'])
+ 'delivery.init','delivery.start','delivery.info','delivery.health','delivery.subscribe','delivery.unsubscribe','delivery.send','delivery.events','delivery.publish-card','wallet.init','wallet.invoke'])
 
 class Wire:
     def __init__(self,source:BinaryIO,sink:BinaryIO):

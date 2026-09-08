@@ -1,0 +1,64 @@
+{
+  "version": "6.9.2",
+  "source": "Official Qt online repository, SHA256 values pinned after matching the published archive checksum.",
+  "platforms": {
+    "linux-x86_64": [
+      {
+        "name": "qtremoteobjects-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_692/qt6_692/qt.qt6.692.addons.qtremoteobjects.linux_gcc_64/6.9.2-0-202508181146qtremoteobjects-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "sha256": "9459992a39a397c0e24de71b3ab4a1c7ba4ffeb365c8209faa30787780a5e7c6",
+        "bytes": 492922
+      },
+      {
+        "name": "qtbase-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_692/qt6_692/qt.qt6.692.linux_gcc_64/6.9.2-0-202508181146qtbase-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "sha256": "80d12a9668a900f0a7acd4607952a7e15a30308c87c1b5529c180d30118f9d79",
+        "bytes": 26123511
+      },
+      {
+        "name": "qtsvg-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_692/qt6_692/qt.qt6.692.linux_gcc_64/6.9.2-0-202508181146qtsvg-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "sha256": "15d2427216f5e5e2b6cf77a76bd40266de73efd9062e898da29eb9dc5a9daf72",
+        "bytes": 285450
+      },
+      {
+        "name": "qtdeclarative-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_692/qt6_692/qt.qt6.692.linux_gcc_64/6.9.2-0-202508181146qtdeclarative-Linux-RHEL_8_10-GCC-Linux-RHEL_8_10-X86_64.7z",
+        "sha256": "062668f30a0ae73ec5ae84fcc677f1e560c893d1d799664363765c5ffd3f0eaf",
+        "bytes": 132872121
+      },
+      {
+        "name": "icu-linux-Rhel8.6-x86_64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_692/qt6_692/qt.qt6.692.linux_gcc_64/6.9.2-0-202508181146icu-linux-Rhel8.6-x86_64.7z",
+        "sha256": "447f9a60f4b698811c79e0438bb0df25de9cd5124a3ea29f8ec67244c6eeb882",
+        "bytes": 9660630
+      }
+    ],
+    "macos-arm64": [
+      {
+        "name": "qtremoteobjects-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/mac_x64/desktop/qt6_692/qt6_692/qt.qt6.692.addons.qtremoteobjects.clang_64/6.9.2-0-202508181146qtremoteobjects-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "sha256": "8be59ade09eb55438917ffd078550d08b00576322198416acda25164d12f3f2b",
+        "bytes": 662355
+      },
+      {
+        "name": "qtbase-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/mac_x64/desktop/qt6_692/qt6_692/qt.qt6.692.clang_64/6.9.2-0-202508181146qtbase-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "sha256": "d2a2a80de2e049dab5521318cc359ce2a02d1f3bc5235804de158b7342201e11",
+        "bytes": 34027496
+      },
+      {
+        "name": "qtdeclarative-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/mac_x64/desktop/qt6_692/qt6_692/qt.qt6.692.clang_64/6.9.2-0-202508181146qtdeclarative-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "sha256": "e64487e53d1216ef0a3fe003117364657bdf7a67de6fb587d160d00954cdcc80",
+        "bytes": 114420084
+      },
+      {
+        "name": "qtsvg-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "url": "https://download.qt.io/online/qtsdkrepository/mac_x64/desktop/qt6_692/qt6_692/qt.qt6.692.clang_64/6.9.2-0-202508181146qtsvg-MacOS-MacOS_15-Clang-MacOS-MacOS_15-X86_64-ARM64.7z",
+        "sha256": "4c96fd240f554eb211234b3fbae38d4b83f2078634f158eb67b115548fc37bf2",
+        "bytes": 385055
+      }
+    ]
+  }
+}

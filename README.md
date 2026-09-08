@@ -4,9 +4,31 @@ Commons Relay is a Logos Core module for autonomous agents with a shielded LEZ w
 
 The model loop is replaceable. Wallet authority is not. A planner may propose a typed skill call, while deterministic code verifies signatures, schemas, spending policy, exact payment quotes, effect hashes, and network receipts before state is marked complete.
 
-## What is working
+## Review status after the 8 September testnet reset
 
-The current testnet build has been exercised as a real Logos Core module, not only as unit-test fixtures.
+The public testnet restarted after the earlier acceptance runs. Receipts referring
+to blocks around 42,557 are historical evidence, not current spendable balances or
+live deployment state. Existing wallets and receipts are preserved; the wallet
+rejects a network head older than its recorded checkpoint instead of showing old
+funds as available. This is a rollback-height check, not universal reorg detection.
+
+The owner UI now separates **Chat**, **Activity**, and **Skills & tools**. It reads
+the selected agent's live registry; the three demo agent names are independent
+identities, not hardcoded task categories. A verified manual UI request for
+`storage.list` completed with an empty file list and zero spending. The new chat
+path requires explicit local model configuration and user data-sharing consent;
+it must not be described as live-accepted until a real model conversation succeeds.
+No model starts merely because Basecamp opens.
+
+The corrected standalone private-proof workflow has passed on commit `43ea9c1`.
+See `evidence/local-real-proof-macos.json` for the separate local 5-unit proof.
+New UI and wallet changes still need their own matching-commit CI and release
+checks. A builder-narrated video, current testnet recovery evidence, and the
+submission's human attestations are separate gates, not implied by passing tests.
+
+## Previously recorded integration evidence
+
+The pre-reset testnet build was exercised as a real Logos Core module, not only as unit-test fixtures.
 
 - Three separate agents run in Logos Core for Storage, Messaging, and Blockchain roles. Each has its own shielded LEZ account and Messaging identity. See `evidence/three-testnet-agents.json` and `evidence/module-load.json`.
 - A private paid A2A task completed on the public LEZ testnet. The client paid 3 testnet base units, the provider executed `program.query`, and the balances moved from 50 → 47 and 50 → 53. `RISC0_DEV_MODE=0` was active. See `evidence/paid-a2a-private-lez.json`.
@@ -97,7 +119,7 @@ The optional Pi adapter tests are under `tests/pi/`.
 
 CI has two workflows:
 
-- `core-tests.yml` runs the Python suite and wallet tests on every push/PR.
+- `core-tests.yml` runs the Python, wallet, actual QML-function tests, and clean native Linux builds on every push/PR.
 - `real-local-proof.yml` is a manual clean standalone LEZ run that builds the pinned sequencer and wallet, forces `RISC0_DEV_MODE=0`, generates a private proof, submits the prepared transaction, and checks the resulting private balance.
 
 ## Reproducible real-proof demo

@@ -47,9 +47,25 @@ QString CommonsRelayModule::configure(const QString& rawProfile) {
     env.insert("PATH","/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
     env.insert("HOME",canonical);env.insert("TMPDIR",canonical+"/tmp/");
     QDir().mkpath(canonical+"/tmp");
+    const auto extensions=qEnvironmentVariable("COMMONS_RELAY_EXTENSION_ROOT");
+    if(!extensions.isEmpty()) {
+        const QFileInfo root(extensions);
+        if(!root.isAbsolute() || !root.isDir() || root.isSymLink() || root.canonicalFilePath().isEmpty())
+            return "EXTENSION_ROOT_INVALID";
+        env.insert("COMMONS_RELAY_EXTENSION_ROOT",root.canonicalFilePath());
+    }
     const auto sodium=qEnvironmentVariable("COMMONS_RELAY_SODIUM_LIBRARY");
     if(!sodium.isEmpty())env.insert("COMMONS_RELAY_SODIUM_LIBRARY",sodium);
     env.insert("PYTHONNOUSERSITE","1");env.insert("RISC0_DEV_MODE","0");
+    // The native module owns the transport identity even while its Python
+    // worker is stopped. A second Core/Basecamp instance must not reuse it.
+    if (profileLease_ && profile_ != canonical) return "PROFILE_ALREADY_SELECTED";
+    if (!profileLease_) {
+        auto lease = std::make_unique<QLockFile>(canonical + "/.core-owner.lock");
+        lease->setStaleLockTime(0);
+        if (!lease->tryLock(0)) return "PROFILE_IN_USE";
+        profileLease_ = std::move(lease);
+    }
     process_.setProcessEnvironment(env);process_.setWorkingDirectory(canonical);
     process_.setProgram(python);process_.setArguments({"-I",script,"--profile",canonical,"--native-bridge"});
     process_.start();profile_=canonical;error_.clear();
@@ -62,7 +78,7 @@ QString CommonsRelayModule::request(const QString& raw) {
     auto doc=QJsonDocument::fromJson(raw.toUtf8(),&parse);
     if(parse.error!=QJsonParseError::NoError || !doc.isObject())return "INVALID_REQUEST_JSON";
     auto object=doc.object();QString method=object.value("method").toString();
-    const QSet<QString> methods={"status","skills","submit","approve","grant","revoke","recover","diagnostics","run","reconcile","task","messaging.contact","messaging.start","messaging.messages","messaging.pump","messaging.reload_contacts","controller.start","controller.status","schedule","owner.send","cancel","agent.start","agent.cards","storage.connect_local"};
+    const QSet<QString> methods={"status","skills","submit","approve","grant","revoke","recover","diagnostics","run","reconcile","task","messaging.contact","messaging.start","messaging.messages","messaging.pump","messaging.reload_contacts","controller.start","controller.status","schedule","owner.send","cancel","agent.start","agent.cards","storage.connect_local","transport.status","owner.inbox","planner.status","planner.history","planner.goal","planner.start","planner.cancel"};
     if(!methods.contains(method) || !object.value("params").isObject() || object.size()!=2)return "METHOD_NOT_ALLOWED";
     const auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);
     object.insert("id",id);pending_.insert(id);
@@ -272,6 +288,26 @@ void CommonsRelayModule::moduleEvent(const QString& module,const QString& event,
 }
 
 void CommonsRelayModule::handleDeliveryBridge(const QString& id,const QString& action,const QJsonObject& params) {
+    if (action == "delivery.health" && params.isEmpty()) {
+        bool ok = false;
+        const auto value = unwrapModuleResult(invokeModule("delivery_module", "getNodeInfo", {QString("Metrics")}), &ok);
+        if (!ok) { bridgeReply(id, false, {}, "DELIVERY_HEALTH_UNAVAILABLE"); return; }
+        const auto text = value.toString();
+        if (text.size() > 500000) { bridgeReply(id, false, {}, "DELIVERY_METRICS_LIMIT"); return; }
+        const QHash<QString, QString> accepted = {
+            {"libp2p_peers", "connected_peers"}, {"libp2p_pubsub_peers", "relay_peers"},
+            {"libp2p_pubsub_topics", "subscribed_shards"}, {"libp2p_gossipsub_no_peers_topics", "unreachable_shards"}
+        };
+        QJsonObject health;
+        const QRegularExpression metric("^([a-z0-9_]+) ([0-9]+)(?:[.]0+)?$");
+        for (const auto& line : text.split('\n')) {
+            const auto match = metric.match(line.trimmed());
+            if (match.hasMatch() && accepted.contains(match.captured(1)))
+                health.insert(accepted.value(match.captured(1)), match.captured(2).toInt());
+        }
+        health.insert("checked", true);
+        bridgeReply(id, true, health); return;
+    }
     const auto topicOk=[](const QString& topic){return QRegularExpression("^/commons-relay/1/[A-Za-z0-9_-]{1,128}/json$").match(topic).hasMatch();};
     if(action=="delivery.events" && params.size()==1 && params.value("after").isString()) {
         bool valid=false;const quint64 after=params.value("after").toString().toULongLong(&valid);

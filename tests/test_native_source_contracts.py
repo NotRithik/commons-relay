@@ -92,3 +92,23 @@ class StorageBootstrapSourceContracts(unittest.TestCase):
         branch=text.split('action=="storage.init"',1)[1].split('action=="storage.start"',1)[0]
         self.assertIn('storageMode=="local" && !bootstraps.isEmpty()',branch)
         self.assertIn('LOCAL_STORAGE_BOOTSTRAP_DENIED',branch)
+
+class RuntimeOwnershipContracts(unittest.TestCase):
+    def test_native_identity_lease_outlives_a_stopped_python_worker(self):
+        source=(ROOT/'native/core/commons_relay_module.cpp').read_text()
+        header=(ROOT/'native/core/commons_relay_module.h').read_text()
+        self.assertIn('std::unique_ptr<QLockFile> profileLease_',header)
+        self.assertIn('lease->tryLock(0)',source)
+        self.assertIn('PROFILE_IN_USE',source)
+        stop=source.split('void CommonsRelayModule::stop()',1)[1].split('namespace {',1)[0]
+        self.assertNotIn('profileLease_.reset',stop)
+        self.assertNotIn('unlock',stop)
+    def test_ui_ipc_acceptance_is_nonblocking_and_correlates_early_replies(self):
+        source=(ROOT/'native/ui/src/commons_relay_ui_backend.cpp').read_text()
+        self.assertIn('invokeRemoteMethodAsync',source)
+        self.assertIn('earlyReplies_.take(id)',source)
+        self.assertNotIn('invokeRemoteMethod(',source)
+    def test_owner_inbox_uses_a_flat_payload_frame(self):
+        source=(ROOT/'native/ui/src/commons_relay_ui_backend.cpp').read_text()
+        self.assertIn('command("owner.inbox"',source)
+        self.assertIn('message.value("payload_json")',source)

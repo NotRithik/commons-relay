@@ -15,6 +15,10 @@ import re
 import sqlite3
 import stat
 import subprocess
+import selectors
+import signal
+import tempfile
+import time
 from .codec import Rejected,canonical,identifier
 from .engine import Prepared,Receipt
 from .schema import check_schema
@@ -95,12 +99,56 @@ class ExternalAdapter:
     def _invoke(self,spec:ExtensionSpec,request:dict)->dict:
         scratch=protected_directory(self.runtime/spec.id.replace('/','_'))
         env={'PATH':'/opt/homebrew/bin:/usr/bin:/bin','HOME':str(scratch),'TMPDIR':str(scratch),'LANG':'C.UTF-8'}
+        # Validate the pinned executable at every phase, not only at startup.
+        if spec.executable.is_symlink() or not spec.executable.is_file():
+            raise Rejected('EXTENSION_EXECUTABLE_INVALID')
+        if spec.executable.stat().st_size > 64*1024*1024:
+            raise Rejected('EXTENSION_EXECUTABLE_LIMIT')
+        if hashlib.sha256(spec.executable.read_bytes()).hexdigest()!=spec.executable_sha256:
+            raise Rejected('EXTENSION_HASH_MISMATCH')
+        payload=canonical(request)+b'\n'
+        if len(payload)>MAX_RESPONSE:raise Rejected('EXTENSION_REQUEST_LIMIT')
+        output=bytearray();errors=0;child=None
         try:
-            completed=subprocess.run([str(spec.executable)],input=canonical(request)+b'\n',stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,cwd=scratch,timeout=spec.timeout_seconds)
-        except subprocess.TimeoutExpired:raise Rejected('EXTENSION_TIMEOUT') from None
-        if completed.returncode!=0 or len(completed.stdout)>MAX_RESPONSE or completed.stderr and len(completed.stderr)>MAX_RESPONSE:raise Rejected('EXTENSION_PROCESS_FAILED')
-        try:value=json.loads(completed.stdout)
-        except Exception:raise Rejected('EXTENSION_RESPONSE_INVALID') from None
+            with tempfile.TemporaryFile(dir=scratch) as incoming, selectors.DefaultSelector() as selector:
+                incoming.write(payload);incoming.seek(0)
+                child=subprocess.Popen([str(spec.executable)],stdin=incoming,stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,env=env,cwd=scratch,start_new_session=True)
+                for stream in (child.stdout,child.stderr):
+                    os.set_blocking(stream.fileno(),False);selector.register(stream,selectors.EVENT_READ)
+                deadline=time.monotonic()+spec.timeout_seconds
+                while selector.get_map():
+                    remaining=deadline-time.monotonic()
+                    if remaining<=0:raise Rejected('EXTENSION_TIMEOUT')
+                    for event,_ in selector.select(min(.1,remaining)):
+                        data=os.read(event.fileobj.fileno(),8192)
+                        if not data:
+                            selector.unregister(event.fileobj);continue
+                        if event.fileobj is child.stdout:
+                            output.extend(data)
+                            if len(output)>MAX_RESPONSE:raise Rejected('EXTENSION_OUTPUT_LIMIT')
+                        else:
+                            errors+=len(data)
+                            if errors>MAX_RESPONSE:raise Rejected('EXTENSION_OUTPUT_LIMIT')
+                try:code=child.wait(timeout=max(.01,deadline-time.monotonic()))
+                except subprocess.TimeoutExpired:raise Rejected('EXTENSION_TIMEOUT') from None
+                if code!=0:raise Rejected('EXTENSION_PROCESS_FAILED')
+        except OSError:
+            raise Rejected('EXTENSION_PROCESS_FAILED') from None
+        finally:
+            if child:
+                if child.poll() is None:
+                    try:os.killpg(child.pid,signal.SIGTERM)
+                    except ProcessLookupError:pass
+                    try:child.wait(timeout=.5)
+                    except subprocess.TimeoutExpired:
+                        try:os.killpg(child.pid,signal.SIGKILL)
+                        except ProcessLookupError:pass
+                        child.wait(timeout=2)
+                for stream in (child.stdout,child.stderr):
+                    if stream:stream.close()
+        try:value=json.loads(output)
+        except (ValueError,UnicodeError):raise Rejected('EXTENSION_RESPONSE_INVALID') from None
         if not isinstance(value,dict):raise Rejected('EXTENSION_RESPONSE_INVALID')
         canonical(value);return value
     def prepare(self,task):

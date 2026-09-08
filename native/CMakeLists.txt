@@ -66,3 +66,10 @@ if(APPLE)
 endif()
 install(TARGETS commons_relay_wallet_plugin LIBRARY DESTINATION commons_relay_wallet)
 install(FILES wallet/metadata.json DESTINATION commons_relay_wallet)
+
+# OWNER_UI_LOCAL_SIGNER: this is bundled with the trusted owner UI, not a service API.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../commons_relay_owner_ui.py"
+        DESTINATION commons_relay_owner_ui)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../commons_relay/"
+        DESTINATION commons_relay_owner_ui/commons_relay
+        FILES_MATCHING PATTERN "*.py" PATTERN "__pycache__" EXCLUDE)

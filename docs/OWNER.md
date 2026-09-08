@@ -4,18 +4,41 @@ Commons Relay separates the owner authorization key from the agent wallet and ag
 
 ## Basecamp
 
-The owner UI is a loadable Logos app module under `native/ui/`. It uses `Logos.Theme` and `Logos.Controls`, so it follows the Basecamp theme rather than carrying a separate web design system.
+Relay is a control panel for agent instances. The Storage, Messaging and Blockchain
+names identify three independently deployed demo agents required by the prize.
+They use the same extensible registry; one instance can choose among all of its
+permitted tools. They are not fixed-response bots or mandatory task categories.
 
-The owner UI can:
+Choose an instance, then wait for an authenticated owner-channel reply. Opening
+the app proves neither an agent connection nor a completed task.
 
-- read agent status and current policy;
-- inspect registered skills and task state;
-- submit signed owner commands;
-- approve an exact above-threshold intent;
-- read owner-channel responses;
-- show wallet, Storage, Messaging, and A2A status returned by the Core module.
+**Chat** accepts ordinary language. Read-only is the default. The owner must accept
+the model data-sharing notice before sending a message. To allow file changes,
+messages or a payment, enable actions and review the goal and maximum test-token
+spend. The owner's local signer creates a bounded goal grant; the remote planner
+gets only delegated authority. Per-task limits and exact approvals still apply.
+A missing model configuration disables Send and explains why. Suggestions merely
+fill the input; they do not execute a hidden fixed scenario.
 
-The UI does not receive wallet private keys or an unrestricted shell. It calls the `commons_relay_module` methods exposed by Logos Core.
+**Activity** shows the task engine's receipts and uncertainty states, not a model's
+claim of success. Open a task for its exact arguments and recorded result. Above-
+threshold approval signs that one intent, policy version and expiry. A changed
+agent invalidates an open review. Incomplete argument previews cannot be approved.
+
+**Skills & tools** lists the selected agent's registered capabilities. Manual forms
+are generated from their schemas, including custom skills. Use these forms to
+exercise the engine without a language-model charge. Numbers, arrays and structured
+inputs are validated before the review, and are validated again by the agent.
+
+The ordinary flow does not require copying signed JSON. Private signing keys stay
+in owner-only local files and never enter QML or an API prompt. The native UI uses
+`Logos.Theme` and `Logos.Controls`; it is installed beside Commons for Logos in the
+same Basecamp instance. The in-app **How to use Relay** guide explains these steps.
+
+A testnet reset can invalidate historical wallets and receipts. An unavailable
+balance is reported as unknown, not zero. The `meta.status` tool observes wallet
+balance, bounded active-task state and local encrypted-file-reference usage.
+Storage usage is not a claim about network capacity or provider retention.
 
 ## CLI owner commands
 

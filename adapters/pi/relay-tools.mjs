@@ -24,7 +24,7 @@ function publicTask(task,expectedSkill) {
  */
 export function signedTransport({agentId,grantId,signer,request,clock=()=>Math.floor(Date.now()/1000),ttl=120}) {
   if(!NAME.test(agentId)||!NAME.test(grantId)||typeof request!=='function'||!signer)throw new Error('INVALID_RELAY_TRANSPORT');
-  if(!Number.isInteger(ttl)||ttl<1||ttl>600)throw new Error('INVALID_REQUEST_TTL');
+  if(!Number.isInteger(ttl)||ttl<1||ttl>86400)throw new Error('INVALID_REQUEST_TTL');
   return Object.freeze({
     async submit(skill,args,toolCallId,signal) {
       if(signal?.aborted)throw new Error('ABORTED');

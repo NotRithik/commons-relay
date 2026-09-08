@@ -7,6 +7,8 @@
 #include <QHash>
 #include <QQueue>
 #include <QJsonArray>
+#include <QLockFile>
+#include <memory>
 #include "interface.h"
 #include "logos_api_client.h"
 
@@ -48,6 +50,7 @@ private:
     QHash<QString,PendingBridge> bridgePending_;
     QHash<QString,QVariantList> earlyEvents_;
     void publish(const QString& requestId,const QString& result);
+    std::unique_ptr<QLockFile> profileLease_;
     QProcess process_;
     QByteArray buffer_;
     QString error_,profile_;

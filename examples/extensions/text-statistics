@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Example zero-spend extension: deterministic text statistics, no I/O effects."""
+import hashlib
+import json
+import re
+import sys
+
+
+def main():
+    raw=sys.stdin.buffer.read(65537)
+    if len(raw)>65536:raise ValueError('REQUEST_LIMIT')
+    request=json.loads(raw)
+    phase=request.get('phase') if isinstance(request,dict) else None
+    fields={'protocol','phase','task_id','arguments'} | ({'effect_id'} if phase in ('execute','lookup') else set())
+    if (not isinstance(request,dict) or set(request)!=fields
+        or request['protocol']!='commons-relay-extension/v1'
+        or phase not in ('prepare','execute','lookup')):raise ValueError('INVALID_REQUEST')
+    task=request['task_id'];arguments=request['arguments']
+    if not isinstance(task,str) or not re.fullmatch('[A-Za-z0-9_-]{1,80}',task):raise ValueError('INVALID_TASK')
+    if not isinstance(arguments,dict) or set(arguments)!={'text'}:raise ValueError('INVALID_ARGUMENTS')
+    text=arguments['text']
+    if not isinstance(text,str) or len(text)>10000:raise ValueError('INVALID_TEXT')
+    encoded=json.dumps({'task':task,'text':text},sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+    effect='text-stats-'+hashlib.sha256(encoded).hexdigest()
+    if phase=='prepare':value={'effect_id':effect}
+    else:
+        if request['effect_id']!=effect:raise ValueError('EFFECT_CHANGED')
+        value={'state':'confirmed','result':{'characters':len(text),'words':len(text.split()),
+            'lines':len(text.splitlines()),'utf8_bytes':len(text.encode('utf-8'))}}
+    print(json.dumps(value,separators=(',',':')))
+
+
+if __name__=='__main__':
+    try:main()
+    except (ValueError,TypeError,KeyError):raise SystemExit(2)

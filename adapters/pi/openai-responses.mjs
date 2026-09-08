@@ -44,6 +44,16 @@ export class TokenBudget {
   summary(){const s=this.read();return {limit_usd:s.maximum_micro_usd/1e6,estimated_spend_usd:s.settled_micro_usd/1e6,reserved_for_unconfirmed_requests_usd:Object.values(s.reservations).reduce((a,b)=>a+b,0)/1e6,completed_requests:s.requests.length};}
 }
 function textParts(content){if(typeof content==='string')return content;if(!Array.isArray(content))throw new Error('INVALID_MESSAGE_CONTENT');return content.map(x=>{if(x.type!=='text'||typeof x.text!=='string')throw new Error('TEXT_ONLY_TEST_TRANSPORT');return x.text;}).join('\n');}
+export function supportsStrictSchema(schema) {
+  if (!schema || typeof schema !== 'object') return false;
+  if (schema.type === 'object') {
+    const keys=Object.keys(schema.properties || {});
+    if (schema.additionalProperties !== false || !Array.isArray(schema.required) || keys.some(k=>!schema.required.includes(k))) return false;
+    return keys.every(k=>supportsStrictSchema(schema.properties[k]));
+  }
+  if (schema.type === 'array') return supportsStrictSchema(schema.items);
+  return ['string','integer','number','boolean','null'].includes(schema.type);
+}
 export function responsePayload(context,model,maxOutput,reasoning='none') {
   if(!context || !Array.isArray(context.messages)||context.messages.length>100)throw new Error('INVALID_PLANNER_CONTEXT');
   const input=[];
@@ -56,7 +66,7 @@ export function responsePayload(context,model,maxOutput,reasoning='none') {
     }else if(message.role==='toolResult')input.push({type:'function_call_output',call_id:message.toolCallId,output:textParts(message.content)});
     else throw new Error('UNSUPPORTED_PLANNER_MESSAGE_ROLE');
   }
-  const tools=(context.tools||[]).map(tool=>({type:'function',name:tool.name,description:tool.description,parameters:tool.parameters,strict:true}));
+  const tools=(context.tools||[]).map(tool=>({type:'function',name:tool.name,description:tool.description,parameters:tool.parameters,strict:supportsStrictSchema(tool.parameters)}));
   return {model,input,instructions:context.systemPrompt||'',tools,tool_choice:'auto',parallel_tool_calls:false,store:false,stream:false,max_output_tokens:maxOutput,reasoning:{effort:reasoning}};
 }
 export function createOpenAIStream({modelId,apiKey,budget,maxOutputTokens=3072,maxRequests=6,fetchImpl=globalThis.fetch,onStatus=()=>{}}) {

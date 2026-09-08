@@ -37,7 +37,9 @@ class MetaAdapter:
         if row['result']:return
         args=json.loads(row['args'])
         if row['skill']=='meta.skills':result={'skills':self.engine.registry.describe()}
-        elif row['skill']=='meta.status':result=self.engine.overview()
+        elif row['skill']=='meta.status':
+            from .status_views import observed_status
+            result=observed_status(self.service)
         elif row['skill']=='agent.card':result=self.service.get_agent_protocol().card()
         else:
             config=self.configuration(args);policy=self.validate_config(config)

@@ -37,6 +37,26 @@ class ExternalSkillTests(unittest.TestCase):
     def task(self):
         skill=self.engine.registry.get('example.text_count');quote=skill.validate({'text':'abcd'})
         return {'id':'task1','skill':skill.name,'arguments':{'text':'abcd'},'maximum_spend':str(quote.maximum)}
+    def replace_fixture(self,body):
+        self.exe.write_text('#!/usr/bin/env python3\n'+body);self.exe.chmod(0o700)
+        path=self.root/'text-count.json';manifest=json.loads(path.read_text())
+        manifest['executable_sha256']=hashlib.sha256(self.exe.read_bytes()).hexdigest()
+        manifest['timeout_seconds']=1;path.write_text(json.dumps(manifest))
+        return ExternalAdapter(self.profile,ExternalSkills(self.profile),self.engine)
+    def test_changed_executable_is_rejected_after_registry_load(self):
+        adapter=ExternalAdapter(self.profile,self.extensions,self.engine)
+        self.exe.write_text(SCRIPT+'# changed after load\n')
+        with self.assertRaisesRegex(Rejected,'EXTENSION_HASH_MISMATCH'):adapter.prepare(self.task())
+    def test_stdout_limit_is_enforced_during_execution(self):
+        adapter=self.replace_fixture("import os\nwhile True:os.write(1,b'x'*8192)\n")
+        with self.assertRaisesRegex(Rejected,'EXTENSION_OUTPUT_LIMIT'):adapter.prepare(self.task())
+    def test_stderr_limit_is_enforced_without_returning_diagnostics(self):
+        adapter=self.replace_fixture("import os\nwhile True:os.write(2,b'x'*8192)\n")
+        with self.assertRaisesRegex(Rejected,'EXTENSION_OUTPUT_LIMIT'):adapter.prepare(self.task())
+    def test_hanging_extension_does_not_hold_the_engine(self):
+        adapter=self.replace_fixture("import time\ntime.sleep(30)\n")
+        with self.assertRaisesRegex(Rejected,'EXTENSION_TIMEOUT'):adapter.prepare(self.task())
+        self.assertEqual(self.engine.overview()['agent_id'],'agent')
     def test_manifest_extends_registry_without_core_source_edit(self):self.assertEqual(self.engine.registry.get('example.text_count').description,'Count characters in text')
     def test_extension_is_zero_spend(self):self.assertEqual(self.engine.registry.get('example.text_count').validate({'text':'x'}).maximum,0)
     def test_prepare_execute_lookup_roundtrip(self):

@@ -52,6 +52,12 @@ fn storage_private_identity(storage:&wallet::storage::Storage,id:AccountId)->Res
   "identifier":entry.kind.identifier().to_string()}))
 }
 fn public_identity(w:&WalletCore,id:AccountId)->Result<Value>{storage_private_identity(w.storage(),id)}
+fn validate_network_checkpoint(marker: &Value, current_block: u64) -> Result<()> {
+ let birthday = marker["birthday_block"].as_u64().context("INVALID_WALLET_BIRTHDAY")?;
+ ensure!(current_block >= birthday, "TESTNET_HISTORY_CHANGED");
+ Ok(())
+}
+
 async fn open(root:&Path)->Result<WalletCore>{
  let marker=read_json(&root.join("relay-wallet.json"),8192)?;
  let config:WalletConfig=serde_json::from_value(read_json(&root.join("config.json"),65536)?)?;
@@ -59,9 +65,15 @@ async fn open(root:&Path)->Result<WalletCore>{
  let u=endpoint(config.sequencers[0].sequencer_addr.as_str())?;
  ensure!(marker["endpoint"].as_str()==Some(u.as_str()),"WALLET_ENDPOINT_CHANGED");
  ensure!(config.sequencers[0].basic_auth.is_none(),"UNSUPPORTED_AUTH");
+ // A reset may retain the same circuit IDs while removing the old balances.
+ // Check the public checkpoint before opening or updating private wallet state.
+ let probe = SequencerClientBuilder::default().request_timeout(Duration::from_secs(20)).build(u.clone())?;
+ let current_block = probe.get_last_block_id().await?;
+ validate_network_checkpoint(&marker, current_block)?;
  let storage_meta=fs::symlink_metadata(root.join("storage.json"))?;
  ensure!(storage_meta.is_file()&&!storage_meta.file_type().is_symlink()&&(storage_meta.permissions().mode()&0o077)==0,"INSECURE_WALLET_STORAGE");
  let w=WalletCore::new_update_chain(root.join("config.json"),root.join("storage.json"),root.join("statistics.json"),None).await?;
+ ensure!(w.storage().last_synced_block() <= current_block, "TESTNET_HISTORY_CHANGED");
  let programs=w.get_program_ids().await?;ensure!(programs.get("privacy_preserving_circuit")==Some(&PROTOCOL),"PROTOCOL_FINGERPRINT_CHANGED");
  Ok(w)
 }
@@ -189,5 +201,27 @@ async fn main(){
  if let Err(error)=run().await {
   let message=error.to_string();let code=if message.len()<=100 && message.bytes().all(|b|b.is_ascii_uppercase()||b.is_ascii_digit()||b==b'_'){message}else{"WALLET_OPERATION_FAILED".into()};
   eprintln!("Relay wallet: {code}");std::process::exit(1);
+ }
+}
+
+#[cfg(test)]
+mod network_checkpoint_tests {
+ use super::*;
+ #[test]
+ fn reset_head_rejects_an_old_wallet_before_opening_it() {
+  let marker=json!({"birthday_block":42000});
+  assert_eq!(validate_network_checkpoint(&marker,260).unwrap_err().to_string(),"TESTNET_HISTORY_CHANGED");
+ }
+ #[test]
+ fn current_and_initial_local_checkpoints_are_accepted() {
+  assert!(validate_network_checkpoint(&json!({"birthday_block":260}),260).is_ok());
+  assert!(validate_network_checkpoint(&json!({"birthday_block":260}),261).is_ok());
+  assert!(validate_network_checkpoint(&json!({"birthday_block":0}),0).is_ok());
+ }
+ #[test]
+ fn missing_or_malformed_birthdays_are_not_silently_zero() {
+  for marker in [json!({}),json!({"birthday_block":-1}),json!({"birthday_block":true}),json!({"birthday_block":"260"})] {
+   assert!(validate_network_checkpoint(&marker,300).is_err());
+  }
  }
 }

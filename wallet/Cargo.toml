@@ -36,3 +36,13 @@ keccak = { git = "https://github.com/logos-blockchain/sponges", rev = "3a56e9977
 
 [profile.dev]
 debug = "line-tables-only"
+
+# Keep the bounded faucet work solver usable in ordinary developer builds.
+# Proving remains real and uses the pinned external IPC prover.
+[profile.dev.package.commons-relay-wallet]
+opt-level = 2
+
+# SHA-256's compression backend is a separately compiled dependency. Optimizing
+# only this executable leaves the bounded public faucet work search very slow.
+[profile.dev.package."sha2:0.10.9"]
+opt-level = 3

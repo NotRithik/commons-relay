@@ -133,3 +133,25 @@ leave only that task pending; they do not terminate the Relay Core worker.
 The implementation is in `commons_relay/external_skills.py`, with executable
 round-trip, hash, symlink, namespace and environment tests in
 `tests/test_external_skills.py`.
+
+## Native Core configuration and the included example
+
+`COMMONS_RELAY_EXTENSION_ROOT` must be set in the environment that starts the
+Logos Core daemon. The native Relay module validates and forwards that one path
+to its isolated worker; no ambient model credentials are forwarded. Set
+`extensions.json` in the chosen agent profile, then restart that idle agent.
+The example in `examples/extensions/text-statistics.json` pins the accompanying
+executable. Copy both files into the configured root and list that manifest in
+`extensions.json`. It computes real word, character, line and UTF-8 byte counts
+without a network call or token spend.
+
+The next authenticated capability refresh shows the new tool in the existing
+Basecamp interface. Neither QML nor the planner has a hardcoded menu entry for
+that tool. The model can select it when the owner grants actions for a message;
+read-only grants do not silently gain newly installed third-party permissions.
+
+Executable integrity is checked again at each protocol phase. Output and stderr
+are bounded while the process runs, and timeout/error termination applies only
+to that extension task. These safeguards are not a claim that arbitrary hostile
+executables are safe: extensions are trusted, operator-installed programs running
+as the same operating-system user. Use additional OS isolation for untrusted code.

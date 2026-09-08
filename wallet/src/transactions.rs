@@ -224,14 +224,36 @@ fn valid_solution(data:&[u8],candidate:u128)->bool{
 }
 pub async fn faucet_solution(w:&WalletCore)->Result<Value>{
  let state=w.get_account_public(system_accounts::pinata_account_id()).await?;ensure!(state.data.len()==33,"FAUCET_DATA_INVALID");let difficulty=state.data[0];ensure!(difficulty<=3,"FAUCET_DIFFICULTY_EXCEEDS_LOCAL_LIMIT");
+ // The public challenge is constant throughout this bounded search. Reuse
+ // its SHA-256 prefix state; the wallet revalidates the solution before send.
+ let mut prefix=Sha256::new();prefix.update(&state.data[1..]);
  let start=std::time::Instant::now();for candidate in 0..100_000_000u128{
   if candidate%65536==0&&start.elapsed()>Duration::from_secs(120){bail!("FAUCET_SEARCH_TIME_LIMIT");}
-  if valid_solution(&state.data,candidate){return Ok(json!({"solution":candidate.to_string(),"difficulty":difficulty,"seconds":start.elapsed().as_secs_f64(),"testnet_only":true}));}
+  let mut hasher=prefix.clone();hasher.update(candidate.to_le_bytes());
+  let digest=hasher.finalize();
+  if digest[..usize::from(difficulty)].iter().all(|b|*b==0){
+   ensure!(valid_solution(&state.data,candidate),"FAUCET_SOLUTION_CHECK_FAILED");
+   return Ok(json!({"solution":candidate.to_string(),"difficulty":difficulty,"candidates_checked":(candidate+1).to_string(),"seconds":start.elapsed().as_secs_f64(),"testnet_only":true}));
+  }
  }
  bail!("FAUCET_SEARCH_LIMIT")
 }
 
 #[cfg(test)]mod tests{
+ #[test]
+ fn cached_public_challenge_hash_matches_the_original_validator() {
+  let mut data=[3u8;33];data[0]=1;
+  let mut prefix=Sha256::new();prefix.update(&data[1..]);
+  let mut found=false;
+  for candidate in 0..4096u128 {
+   let mut hash=prefix.clone();hash.update(candidate.to_le_bytes());
+   let digest=hash.finalize();let fast=digest[0]==0;
+   assert_eq!(fast,valid_solution(&data,candidate));
+   found|=fast;
+  }
+  assert!(found);
+ }
+
  use super::*;
  #[test]fn view_uses_integer_proof_millis_not_a_json_float(){let op=Operation{version:1,id:"x".into(),intent:json!({}),intent_sha256:"x".into(),network:"test".into(),state:"prepared".into(),private:true,maximum_spend:"1".into(),transaction_hash:None,transaction_file:None,program_id:None,confirmed_block:None,proof_seconds:Some(1.2346),error:None};let v=view(&op);assert_eq!(v["proof_millis"],json!(1235));assert!(v.get("proof_seconds").is_none());}
  #[test]fn rejects_ambiguous_amounts(){for value in [json!(1),json!(true),json!("01"),json!("-1"),json!("1e2"),json!(" 1")]{assert!(bounded_amount(&value).is_err());}}

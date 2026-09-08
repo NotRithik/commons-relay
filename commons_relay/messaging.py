@@ -163,8 +163,19 @@ class Mailbox:
         return {**body,'duplicate':duplicate}
     def messages(self,after=0,limit=100):
         if type(after)is not int or after<0:raise Rejected('INVALID_INBOX_CURSOR')
-        with self.guard:rows=self.db.execute("SELECT rowid,body FROM inbox WHERE rowid>? AND kind!='ack' ORDER BY rowid LIMIT ?",(after,min(100,limit))).fetchall()
-        return [{'cursor':r[0],**json.loads(r[1])} for r in rows]
+        if type(limit)is not int or not 1<=limit<=100:raise Rejected('INVALID_INBOX_LIMIT')
+        with self.guard:rows=self.db.execute("SELECT rowid,body FROM inbox WHERE rowid>? AND kind!='ack' ORDER BY rowid LIMIT ?",(after,limit)).fetchall()
+        page=[];used=32
+        # A row-count bound alone is insufficient: 100 valid encrypted replies
+        # can expand past the Core link's 64 KiB frame. Return complete messages
+        # only; the last returned cursor resumes without losing later replies.
+        for row in rows:
+            item={'cursor':row[0],**json.loads(row[1])}
+            size=len(canonical(item))+1
+            if size>48000:raise Rejected('INBOX_MESSAGE_TOO_LARGE')
+            if used+size>48000:break
+            page.append(item);used+=size
+        return page
     def create_group(self,members:list[str],group_id=None):
         if not isinstance(members,list) or not 1<=len(members)<=31 or any(not isinstance(x,str) for x in members) or len(set(members))!=len(members):raise Rejected('INVALID_GROUP_MEMBERS')
         members=sorted(set(members+[self.address]))
