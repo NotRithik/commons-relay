@@ -108,3 +108,16 @@ a conversation finishes, the next message defaults to read-only again. Use
 **Latest reply** to reach the newest response without losing earlier records.
 The owner may set a private `display_name` in a profile's `agent.json`; that is a
 label only and never changes the signed agent identity or its key binding.
+
+
+### Waiting for short peer tasks
+
+The conversation runner observes the same zero-spend task for a bounded period
+before returning its result to the model. Observation only reads the recorded
+task; it never submits, executes or approves it again. A task that needs owner
+approval stops immediately. Nonzero-spend tasks are not placed in this polling
+window, and unknown payment outcomes still require reconciliation.
+
+Capability counts in model-visible results are derived directly from completed
+receipt arrays. The original receipts remain intact in Activity. A reply can
+still be mistaken; the recorded task result, not the prose, is authoritative.

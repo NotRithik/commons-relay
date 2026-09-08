@@ -29,6 +29,12 @@ complete original Relay schema and permission checks remain authoritative.
 Chat requires explicit local model configuration and user data-sharing consent.
 No model starts merely because Basecamp opens.
 
+A current two-peer workflow has also completed through owner chat: discovery,
+two zero-price capability requests, and a final summary with receipt-derived
+counts. See `evidence/current-multiagent-ui.json`. Short zero-spend tasks are
+observed without repeating the task or model request; approval-gated and paid
+tasks retain their separate safety boundaries.
+
 The current agent also retrieved a 49-byte synthetic file through owner chat.
 The downloaded plaintext matched the original byte for byte and by SHA-256;
 the signed task reported authenticated decryption. See

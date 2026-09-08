@@ -102,7 +102,7 @@ try {
     signer, request, ttl });
   const taskViews = [];
   const runner = createPiRelayAgent({ goal: grant.goal, model, streamFn, skills: init.skills,
-    allowedSkills: grant.allowed_skills, transport, maxSteps: grant.max_steps, maxTurns: 4,
+    allowedSkills: grant.allowed_skills, transport, maxSteps: grant.max_steps, maxTurns: 4, completionWaitMs: 45000,
     onTask: task => { taskViews.push(task); emit({ kind: 'status', event: 'tool_task' }); } });
   runner.agent.state.systemPrompt += '\nSpeak in plain, helpful English to a person new to Logos. '
     + 'You are this user\'s selected agent, reached through Commons Relay in Basecamp. Explain what you can do. '

@@ -1,0 +1,31 @@
+{
+  "checked_at": "2026-09-08T21:10:39.611195+00:00",
+  "passed": true,
+  "mock": false,
+  "current_network": true,
+  "ui_input_verified": true,
+  "ui_result_verified": true,
+  "peer_counts": [
+    {
+      "peer": "lez-a9a5fa584a25ce62828a8980a8e83b1b0246f395c0a95841686a303a2c4007aa",
+      "task_id": "b3a993c7a8844b24bda4d836ed5d2422",
+      "skill_count": 21,
+      "paid_amount": "0"
+    },
+    {
+      "peer": "lez-f66f3fb8aa1bee88c6084f8bafd1f5b3af23be2e6c07599400c8c41922912949",
+      "task_id": "43c151921a944e4984b1ddfabe7e0f1a",
+      "skill_count": 21,
+      "paid_amount": "0"
+    }
+  ],
+  "model_numeric_summary_verified": true,
+  "testnet_spend": 0,
+  "goal_id": "chat-6aa7e928db0d9d7c6ecd7b44",
+  "reply": "Fresh verification completed at zero cost. Both tasks completed, and both returned exactly 21 capabilities.\n\n1. Messaging Agent\n- Task completed: yes\n- Capability count: 21\n- Paid amount: 0 LEZ-testnet\n\n2. Blockchain Agent\n- Task completed: yes\n- Capability count: 21\n- Paid amount: 0 LEZ-testnet\n\nNo testnet tokens were spent.",
+  "task_ids": [
+    "1e22c73b7f1b45c68f2de0df9fc4f831",
+    "b3a993c7a8844b24bda4d836ed5d2422",
+    "43c151921a944e4984b1ddfabe7e0f1a"
+  ]
+}

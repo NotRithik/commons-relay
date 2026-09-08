@@ -1,16 +1,16 @@
 {
-  "checked_at": "2026-09-08T20:55:27.259606+00:00",
+  "checked_at": "2026-09-08T21:13:29.338292+00:00",
   "scope": "Automated regression checks. Real UI and network acceptance are recorded in separate evidence files.",
   "checks": {
     "python": {
       "passed": true,
       "count": 446,
-      "log_sha256": "ea4e810d3f541aa036bb7620f3095f226c938a883c602ef6246b389d852769bf"
+      "log_sha256": "000e34842d83a2b1743a0b0d9518db3c086b11e227098a2399db30b8da7273b4"
     },
     "javascript": {
       "passed": true,
-      "count": 76,
-      "log_sha256": "d69a64bb68804f25d33ea5b7d7a591e92c83bd04d9f4853a0e6bc1325dc29207"
+      "count": 89,
+      "log_sha256": "301e7ff4fc4c81989a0b04f7478801fe07537daed8b20d9f1efab6a5ead1d0a3"
     },
     "native_clean_build": {
       "passed": true,
