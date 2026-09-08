@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-09-08T20:10:45.288193+00:00",
+  "passed": true,
+  "mock": false,
+  "ui_test": true,
+  "skill": "example.text_statistics",
+  "task_id": "5cdb589b2642469fbca3eab7786d6018",
+  "state": "completed",
+  "input": {
+    "text": "Hello Logos world"
+  },
+  "result": {
+    "characters": 17,
+    "lines": 1,
+    "utf8_bytes": 17,
+    "words": 3
+  },
+  "maximum_spend": "0",
+  "model_requests": 0,
+  "ui_flow": [
+    "search extension",
+    "load verified form",
+    "enter synthetic text via accessibility",
+    "review exact arguments",
+    "send locally signed command",
+    "view Completed result"
+  ],
+  "installed_qml_sha256": "740d818a4d3e9336592cdcf0f9d7570f63461dab0ecd917acce053a5a29a9ab2"
+}

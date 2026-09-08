@@ -57,6 +57,13 @@ Item {
             rejected: "Not authorized", canceled: "Canceled" }
         return names[state] || state
     }
+    function showLatestMessage() {
+        Qt.callLater(function() {
+            const view = mainScroll.contentItem
+            if (view && typeof view.contentY === "number")
+                view.contentY = Math.max(0, view.contentHeight - view.height)
+        })
+    }
     function chatState(state) {
         const names = { queued: "Queued", thinking: "Thinking", working: "Using tools", completed: "Complete",
             waiting: "Waiting on a task or approval", failed: "Could not complete", cancelled: "Stopped",
@@ -259,6 +266,9 @@ Item {
         const messages = {
             TESTNET_HISTORY_CHANGED: "This wallet belongs to an earlier testnet. Its old balance is not usable on the restarted network.",
             AUTHORIZATION_EXPIRED: "The permission expired before this task could finish. It was not automatically approved again.",
+            OPENAI_HTTP_400: "The model provider rejected the request format. Check the model and tool configuration before sending a new message; no automatic retry was made.",
+            OPENAI_HTTP_401: "The model credential was not accepted. Ask the operator to check the private model configuration; never paste an API key into chat.",
+            OPENAI_HTTP_429: "The model provider reported a usage or rate limit. This message was not repeated automatically.",
             GOAL_GRANT_NOT_ACTIVE: "Permission for this conversation was stopped or expired. No new action is authorized.",
             INSUFFICIENT_PUBLIC_BALANCE: "There are not enough testnet units in the sending account.",
             WALLET_BUSY: "Another wallet operation is in progress. Check its result before starting another.",
@@ -291,12 +301,20 @@ Item {
             root.pendingDraftAgent = ""
             detailsDialog.close()
         }
+        function onChatBusyChanged() {
+            if (root.backend && !root.backend.chatBusy) {
+                allowChatActions.checked = false
+                chatSpend.text = "0"
+                root.showLatestMessage()
+            }
+        }
         function onConversationJsonChanged() {
             if (!root.pendingDraft || !root.backend || root.pendingDraftAgent !== root.backend.selectedAgent) return
             for (let i = root.conversation.length - 1; i >= 0; --i) {
                 const goal = root.conversation[i]
                 if (goal.id === root.backend.activeGoalId && goal.prompt === root.pendingDraft) {
                     if (chatInput.text.trim() === root.pendingDraft) chatInput.text = ""
+                    root.showLatestMessage()
                     root.pendingDraft = ""
                     break
                 }
@@ -589,7 +607,7 @@ Item {
                             Caption { text: "You" }
                             Copy { text: modelData.prompt || ""; Layout.fillWidth: true }
                             Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.palette.backgroundElevated }
-                            Caption { text: root.selectedLabel + " agent  /  " + root.chatState(modelData.state); color: modelData.state === "failed" ? Theme.palette.error : Theme.palette.textSecondary }
+                            Caption { text: root.selectedLabel + "  /  " + root.chatState(modelData.state); color: modelData.state === "failed" ? Theme.palette.error : Theme.palette.textSecondary }
                             Copy { text: modelData.reply || (modelData.state === "queued" ? "Your message is queued." : modelData.state === "thinking" ? "Thinking..." : modelData.state === "working" ? "Checking the requested tools..." : "No response text was received."); Layout.fillWidth: true }
                             Caption { visible: !!modelData.error; text: root.taskError(modelData.error); color: Theme.palette.error; Layout.fillWidth: true }
                             Caption { visible: modelData.task_ids && modelData.task_ids.length > 0; text: (modelData.task_ids || []).length + " linked actions. Their verified results are in Activity."; Layout.fillWidth: true }
@@ -738,6 +756,12 @@ Item {
                 }
             }
         }
+        RowLayout {
+            visible: tabs.currentIndex === 0 && root.conversation.length > 1
+            Layout.fillWidth: true
+            Caption { text: "Previous replies and failed attempts remain in this conversation."; Layout.fillWidth: true }
+            LogosButton { text: "Latest reply"; Accessible.name: "Scroll to latest agent reply"; onClicked: root.showLatestMessage() }
+        }
         Card {
             visible: tabs.currentIndex === 0
             Layout.fillWidth: true
@@ -772,7 +796,7 @@ Item {
                     id: consentBox
                     Layout.fillWidth: true
                     checked: root.modelConsent
-                    onToggled: root.modelConsent = checked
+                    onCheckedChanged: if (root.modelConsent !== checked) root.modelConsent = checked
                     palette.text: Theme.palette.text
                     text: "Send this conversation and requested tool results to OpenAI. Private keys stay on this device."
                     enabled: root.backend && !root.backend.chatBusy
@@ -884,7 +908,7 @@ Item {
             ColumnLayout {
                 width: reviewScroll.availableWidth
                 spacing: Theme.spacing.medium
-                Heading { text: root.selectedLabel + " agent" }
+                Heading { text: root.selectedLabel }
                 Copy { text: root.skillTitle(root.reviewed.skill); Layout.fillWidth: true }
                 Caption { text: root.reviewKind === "approve" ? "Your signature applies only to these exact arguments and this policy version." : root.reviewKind === "cancel" ? "A transaction already accepted by the network cannot be undone by cancellation." : "This signs the exact request locally. The agent still checks policy before taking action."; Layout.fillWidth: true }
                 Repeater {

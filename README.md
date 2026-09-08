@@ -12,13 +12,28 @@ live deployment state. Existing wallets and receipts are preserved; the wallet
 rejects a network head older than its recorded checkpoint instead of showing old
 funds as available. This is a rollback-height check, not universal reorg detection.
 
-The owner UI now separates **Chat**, **Activity**, and **Skills & tools**. It reads
+The owner UI separates **Chat**, **Activity**, and **Skills & tools**. It reads
 the selected agent's live registry; the three demo agent names are independent
-identities, not hardcoded task categories. A verified manual UI request for
-`storage.list` completed with an empty file list and zero spending. The new chat
-path requires explicit local model configuration and user data-sharing consent;
-it must not be described as live-accepted until a real model conversation succeeds.
+identities, not hardcoded task categories. In actual Basecamp UI testing, an owner
+request listed stored files; a separate manual request ran an installed text
+extension; and real GPT-5.6 Luna conversations invoked both the file-list tool and
+that custom extension through the signed permission engine. The extension counted
+3 words and 17 characters in the synthetic input `Hello Logos world`. All these
+tasks had zero testnet-token spending. See `evidence/owner-chat-ui-acceptance.json`
+and `evidence/custom-skill-ui-acceptance.json`. These do not replace fresh-network
+payment, recovery and three-use-case acceptance.
+
+A provider schema rejection found during the full-tool test remains recorded.
+Provider strict generation is enabled only for supported schema subsets; the
+complete original Relay schema and permission checks remain authoritative.
+Chat requires explicit local model configuration and user data-sharing consent.
 No model starts merely because Basecamp opens.
+
+The current agent also retrieved a 49-byte synthetic file through owner chat.
+The downloaded plaintext matched the original byte for byte and by SHA-256;
+the signed task reported authenticated decryption. See
+`evidence/current-file-vault-ui.json`. This is file-vault acceptance, not proof
+that paid peer workflows or every submission criterion is complete.
 
 The corrected standalone private-proof workflow has passed on commit `43ea9c1`.
 See `evidence/local-real-proof-macos.json` for the separate local 5-unit proof.

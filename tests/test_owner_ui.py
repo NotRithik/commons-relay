@@ -253,5 +253,19 @@ class OwnerUiTests(unittest.TestCase):
                 owner_views.snapshot(self.engine, value)
 
 
+    def test_display_name_does_not_change_signed_agent_identity(self):
+        info=json.loads(self.info.read_text());info['display_name']='My agent';self.info.write_bytes(canonical(info))
+        value=self.ui.catalog()['profiles'][0]
+        self.assertEqual(value['label'],'My agent')
+        self.assertEqual(value['name'],'storage')
+        self.assertEqual(value['agent_id'],self.engine.agent)
+        command=self.inner(self.compose({'kind':'snapshot','offset':0}))
+        self.assertEqual(command['method'],'owner.snapshot')
+
+    def test_invalid_display_names_fall_back_to_safe_profile_name(self):
+        for name in ['x'*81,'bad\nlabel',False,{},'   ']:
+            info=json.loads(self.info.read_text());info['display_name']=name;self.info.write_bytes(canonical(info))
+            self.assertEqual(self.ui.catalog()['profiles'][0]['label'],'Storage')
+
 if __name__ == '__main__':
     unittest.main()

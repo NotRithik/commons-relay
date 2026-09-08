@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-09-08T20:21:25.173513+00:00",
+  "passed": true,
+  "mock": false,
+  "ui_verified": true,
+  "model": "gpt-5.6-luna",
+  "provider": "official OpenAI Responses API",
+  "cases": [
+    {
+      "goal_id": "chat-c0cd354c1839670a52b0e387",
+      "mode": "read",
+      "prompt": "List the files saved by this test agent. Use the tool and tell me what it actually found. Do not upload files, send messages, or spend testnet tokens.",
+      "reply": "The test agent has no saved files. The tool returned an empty file list (`files: []`). No files were uploaded, messages sent, or tokens spent.",
+      "task_id": "33d7451f806d4a7390fcd9e7bd888f06",
+      "skill": "storage.list",
+      "arguments": {},
+      "result": {
+        "files": []
+      },
+      "maximum_spend": "0",
+      "ui_verified": true
+    },
+    {
+      "goal_id": "chat-9ae99c367bc962b43622f6b2",
+      "mode": "actions",
+      "prompt": "Run the installed text-statistics tool on the text Hello Logos world and report its actual word and character counts. Do not use any other tool, modify files, send messages, or spend testnet tokens.",
+      "reply": "The tool counted:\n\n- **Words:** 3\n- **Characters:** 17",
+      "task_id": "bce5985d5eef4a809d411fa98ca1f221",
+      "skill": "example.text_statistics",
+      "arguments": {
+        "text": "Hello Logos world"
+      },
+      "result": {
+        "characters": 17,
+        "lines": 1,
+        "utf8_bytes": 17,
+        "words": 3
+      },
+      "maximum_spend": "0",
+      "ui_verified": true
+    }
+  ],
+  "testnet_tokens_spent": 0,
+  "failed_attempt_preserved": {
+    "goal_id": "chat-80e43005ab990823c713a680",
+    "error": "OPENAI_HTTP_400",
+    "task_count": 0
+  },
+  "verification_note": "These are recorded UI and task receipts, not a claim that every LP-0008 use case or fresh-network payment has passed."
+}

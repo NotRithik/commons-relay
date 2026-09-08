@@ -18,3 +18,25 @@ test('raw upstream error body is not returned',()=>fixture(async b=>{const s=cre
 test('transport requires explicit configuration',()=>{assert.throws(()=>createOpenAIStream({}),/EXPLICIT/);});
 test('tools remain ordinary functions, not hosted execution',()=>{const p=responsePayload({...ctx,tools:[{name:'relay_test',description:'test',parameters:{type:'object',properties:{},required:[],additionalProperties:false}}]},'gpt-5.6-luna',1000);assert.equal(p.tools[0].type,'function');assert.equal(p.tools[0].strict,true);});
 test('non-text input is rejected for conservative cost accounting',()=>{assert.throws(()=>responsePayload({...ctx,messages:[{role:'user',content:[{type:'image',data:'x'}]}]},'gpt-5.6-luna',1000),/TEXT_ONLY/);});
+
+
+test('schemas with uniqueItems opt out of provider strict mode without losing validation data',()=>{
+  const schema={type:'object',properties:{members:{type:'array',items:{type:'string'},uniqueItems:true,minItems:1,maxItems:32}},required:['members'],additionalProperties:false};
+  const before=JSON.stringify(schema);
+  const value=responsePayload({...ctx,tools:[{name:'group',description:'fixture',parameters:schema}]},'gpt-5.6-luna',1000);
+  assert.equal(value.tools[0].strict,false);
+  assert.equal(value.tools[0].parameters.properties.members.uniqueItems,true);
+  assert.equal(JSON.stringify(schema),before);
+});
+test('unknown schema keywords never claim strict provider compatibility',()=>{
+  for(const constraint of [{allOf:[]},{not:{type:'null'}},{dependentRequired:{x:['y']}},{unevaluatedProperties:false}]) {
+    const schema={type:'object',properties:{},required:[],additionalProperties:false,...constraint};
+    const value=responsePayload({...ctx,tools:[{name:'extension',description:'fixture',parameters:schema}]},'gpt-5.6-luna',1000);
+    assert.equal(value.tools[0].strict,false);
+  }
+});
+test('supported bounded array schemas remain strict',()=>{
+  const schema={type:'object',properties:{items:{type:'array',items:{type:'string',maxLength:100},minItems:1,maxItems:4}},required:['items'],additionalProperties:false};
+  const value=responsePayload({...ctx,tools:[{name:'items',description:'fixture',parameters:schema}]},'gpt-5.6-luna',1000);
+  assert.equal(value.tools[0].strict,true);
+});

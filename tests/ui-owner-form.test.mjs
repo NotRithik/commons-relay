@@ -207,3 +207,18 @@ test('assistive text changes update the form, not only keyboard textEdited event
   assert.ok(field[0].includes('onTextChanged:'));
   assert.ok(!field[0].includes('onTextEdited:'));
 });
+
+// Accessibility setters emit checkedChanged, not the pointer-only toggled signal.
+test('model consent follows the visible checkbox for keyboard and accessibility actions', () => {
+  assert.ok(qml.includes('onCheckedChanged: if (root.modelConsent !== checked) root.modelConsent = checked'));
+  assert.ok(!qml.includes('onToggled: root.modelConsent = checked'));
+  assert.ok(qml.includes('root.modelConsent = false'));
+});
+
+test('finishing a conversation resets the next message to read-only and zero spend',()=>{
+  assert.ok(qml.includes('function onChatBusyChanged()'));
+  const handler=qml.slice(qml.indexOf('function onChatBusyChanged()'),qml.indexOf('function onConversationJsonChanged()'));
+  assert.ok(handler.includes('!root.backend.chatBusy'));
+  assert.ok(handler.includes('allowChatActions.checked = false'));
+  assert.ok(handler.includes('chatSpend.text = "0"'));
+});

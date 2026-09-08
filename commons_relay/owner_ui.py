@@ -85,9 +85,12 @@ class OwnerUi:
             except Rejected:
                 unavailable += 1
                 continue
-            profiles.append({'name': directory.name,
-                             'label': directory.name.replace('-', ' ').replace('_', ' ').title(),
-                             'agent_id': agent})
+            info = read_private_json(directory / 'agent.json')
+            label = info.get('display_name')
+            if (not isinstance(label, str) or not 1 <= len(label.strip()) <= 80
+                or any(ord(char) < 32 or ord(char) == 127 for char in label)):
+                label = directory.name.replace('-', ' ').replace('_', ' ').title()
+            profiles.append({'name': directory.name, 'label': label.strip(), 'agent_id': agent})
         return {'profiles': profiles, 'unavailable_profiles': unavailable,
                 'signing': 'local-owner-only', 'network_requests': 0}
 

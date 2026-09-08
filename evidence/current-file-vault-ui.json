@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-09-08T20:50:17.979092+00:00",
+  "passed": true,
+  "mock": false,
+  "ui_verified": true,
+  "current_network": true,
+  "synthetic_file_bytes": 49,
+  "source_and_download_sha256": "93c08c74fb27f4d4b81159d5d8828eee0f8dcee8bfbcd01e9099fd681ce92834",
+  "byte_identical": true,
+  "testnet_tokens_spent": 0,
+  "goal_id": "chat-fd93e3187681fd7e3df37518",
+  "prompt": "Retrieve the synthetic demo-note.txt file you just stored and save it as demo-restored.txt. Report its size only after the download succeeds. Do not send messages or make payments. Use plain text.",
+  "reply": "Size: 49 bytes",
+  "tasks": [
+    {
+      "id": "5f163da7e7a848fc921514919079db21",
+      "skill": "storage.download",
+      "state": "completed",
+      "arguments": {
+        "address": "zDvZRwzm3Qf1gG7sgLfCJbrWV8FfwW2d2Ywe6ozhMKGhx6gmBojM",
+        "path": "demo-restored.txt"
+      },
+      "maximum_spend": "0",
+      "result": {
+        "address": "zDvZRwzm3Qf1gG7sgLfCJbrWV8FfwW2d2Ywe6ozhMKGhx6gmBojM",
+        "authenticated": true,
+        "bytes": 49,
+        "path": "demo-restored.txt"
+      }
+    }
+  ],
+  "scope": "Synthetic encrypted file retrieval through the real Basecamp owner chat; bytes independently compared with the original."
+}

@@ -44,15 +44,35 @@ export class TokenBudget {
   summary(){const s=this.read();return {limit_usd:s.maximum_micro_usd/1e6,estimated_spend_usd:s.settled_micro_usd/1e6,reserved_for_unconfirmed_requests_usd:Object.values(s.reservations).reduce((a,b)=>a+b,0)/1e6,completed_requests:s.requests.length};}
 }
 function textParts(content){if(typeof content==='string')return content;if(!Array.isArray(content))throw new Error('INVALID_MESSAGE_CONTENT');return content.map(x=>{if(x.type!=='text'||typeof x.text!=='string')throw new Error('TEXT_ONLY_TEST_TRANSPORT');return x.text;}).join('\n');}
-export function supportsStrictSchema(schema) {
-  if (!schema || typeof schema !== 'object') return false;
+/** Provider strict generation supports a subset of JSON Schema. Unknown
+ * keywords keep their original schema but opt out of provider strict mode.
+ * The Relay permission engine still enforces the complete original schema.
+ */
+export function supportsStrictSchema(schema, depth=0) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || depth > 16) return false;
+  const common=['type','description','title','enum'];
+  const keywords={
+    object:['properties','required','additionalProperties'],
+    array:['items','minItems','maxItems'],
+    string:['minLength','maxLength','pattern','format'],
+    integer:['minimum','maximum','exclusiveMinimum','exclusiveMaximum','multipleOf'],
+    number:['minimum','maximum','exclusiveMinimum','exclusiveMaximum','multipleOf'],
+    boolean:[], null:[]
+  };
+  if (!Object.hasOwn(keywords, schema.type)) return false;
+  const allowed=new Set([...common,...keywords[schema.type]]);
+  if (Object.keys(schema).some(key=>!allowed.has(key))) return false;
   if (schema.type === 'object') {
-    const keys=Object.keys(schema.properties || {});
-    if (schema.additionalProperties !== false || !Array.isArray(schema.required) || keys.some(k=>!schema.required.includes(k))) return false;
-    return keys.every(k=>supportsStrictSchema(schema.properties[k]));
+    const props=schema.properties;
+    if (!props || typeof props!=='object' || Array.isArray(props)) return false;
+    const keys=Object.keys(props);
+    if (schema.additionalProperties !== false || !Array.isArray(schema.required)
+        || new Set(schema.required).size !== keys.length || schema.required.length !== keys.length
+        || keys.some(key=>!schema.required.includes(key))) return false;
+    return keys.every(key=>supportsStrictSchema(props[key],depth+1));
   }
-  if (schema.type === 'array') return supportsStrictSchema(schema.items);
-  return ['string','integer','number','boolean','null'].includes(schema.type);
+  if (schema.type === 'array') return supportsStrictSchema(schema.items,depth+1);
+  return true;
 }
 export function responsePayload(context,model,maxOutput,reasoning='none') {
   if(!context || !Array.isArray(context.messages)||context.messages.length>100)throw new Error('INVALID_PLANNER_CONTEXT');

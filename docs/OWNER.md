@@ -93,3 +93,18 @@ Deployment creates an owner Messaging identity and pins it in the agent profile.
 Inference is optional and disabled by default. Connecting a planner does not grant it extra authority: model-selected tool calls still pass through the same task schemas, signed grants, spending policy, and effect reconciliation as CLI or Basecamp requests.
 
 The optional Pi adapter lives under `adapters/pi/`. API credentials belong in the planner process environment and are not forwarded to third-party skill subprocesses or returned through agent status APIs.
+
+
+## Verified conversation paths
+
+The recorded Basecamp tests cover a read-only model request for stored files and
+an action-enabled, zero-token-budget request for the dynamically installed
+`example.text_statistics` extension. Both link to completed signed task records.
+The model's words are not treated as the authority for completion. A failed
+provider request remains in history and is not automatically repeated.
+
+Switching agents clears the draft, action permission and provider consent. After
+a conversation finishes, the next message defaults to read-only again. Use
+**Latest reply** to reach the newest response without losing earlier records.
+The owner may set a private `display_name` in a profile's `agent.json`; that is a
+label only and never changes the signed agent identity or its key binding.
