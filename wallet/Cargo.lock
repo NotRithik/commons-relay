@@ -1193,6 +1193,7 @@ dependencies = [
  "system_accounts",
  "tokio",
  "url",
+ "vault_core",
  "wallet",
 ]
 

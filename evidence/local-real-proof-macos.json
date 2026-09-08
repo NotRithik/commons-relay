@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "network": "local-standalone-only",
+  "lez_revision": "47eba256479f6f785acbd138834340703cd03401",
+  "risc0_dev_mode": "0",
+  "prover": "local-ipc",
+  "amount": "5",
+  "genesis_claim": {
+    "tx_hash": "e3137611d69933d4ae728e0e355d1e961ee2be758e2089ca52a608d50e57ec0f",
+    "block_id": 2,
+    "verified_payer_balance": "100"
+  },
+  "wallet_account": "7aed2604a18c50bbf08bdc0daccbc6a86daafa856c2368de661393a7b8119d89",
+  "tx_hash": "f31ef4e44bc89912b39ecf03f90f65697027e54d8d827bbbfac2a23f6a173bc1",
+  "block_id": 1858,
+  "proof_millis": 2046077,
+  "wall_millis": 2064244,
+  "verified_private_balance": "5",
+  "verification_scope": "Real standalone local sequencer on macOS arm64; disposable local wallet. Not a public-testnet deployment or a narrated demo.",
+  "receipt_source": "scripts/demo-local.py; independently queried the resulting private balance"
+}

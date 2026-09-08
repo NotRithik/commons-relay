@@ -131,6 +131,24 @@ pub async fn prepare(w:&mut WalletCore,root:&Path,id:&str,intent:Value)->Result<
    ensure!(w.get_account_public(to).await?.program_owner==programs::authenticated_transfer().id(),"RECIPIENT_MUST_BE_INITIALIZED");
    (vec![Identity::Public(payer),Identity::PublicNoSign(to)],Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer{amount})?,programs::authenticated_transfer(),false,amount)
   },
+  // Genesis SupplyAccount credits a vault PDA, not the payer balance. Claim
+  // that deposit through the normal on-chain vault program before shielding.
+  "claim-public-vault" => {
+   exact(arguments, &["amount"])?;
+   let amount = bounded_amount(&arguments["amount"])?;
+   // The pinned getProgramIds RPC omits vault. Its image is still pinned by
+   // programs::vault() and the transaction; reject a conflicting advertised ID.
+   if let Some(advertised) = program_ids.get("vault") {
+    ensure!(*advertised == programs::vault().id(), "VAULT_IMAGE_MISMATCH");
+   }
+   let vault = vault_core::compute_vault_account_id(programs::vault().id(), payer);
+   let deposit = w.get_account_public(vault).await?;
+   ensure!(deposit.program_owner == programs::authenticated_transfer().id(), "VAULT_OWNER_MISMATCH");
+   ensure!(amount > 0 && deposit.balance >= amount, "INSUFFICIENT_VAULT_BALANCE");
+   (vec![Identity::Public(payer), Identity::PublicNoSign(vault)],
+    Program::serialize_instruction(vault_core::Instruction::Claim { amount })?,
+    programs::vault(), false, 0)
+  },
   "shield"=>{
    exact(arguments,&["amount"])?;let amount=bounded_amount(&arguments["amount"])?;ensure!(amount>0&&w.get_account_public(payer).await?.balance>=amount,"INSUFFICIENT_PUBLIC_BALANCE");
    (vec![Identity::Public(payer),Identity::PrivateOwned(root_account)],Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer{amount})?,programs::authenticated_transfer(),true,amount)

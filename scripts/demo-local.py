@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import socket
@@ -51,6 +52,57 @@ def result(output:str)->dict:
     raise RuntimeError('wallet produced no typed result')
 
 
+SAFE_WALLET_ERRORS = frozenset({
+    'INSUFFICIENT_PUBLIC_BALANCE', 'INSUFFICIENT_VAULT_BALANCE',
+    'REAL_PROOFS_REQUIRED', 'LOCAL_PROVER_REQUIRED', 'WALLET_OPERATION_FAILED',
+    'OPERATION_AUTHORIZATION_EXPIRED', 'TRANSFER_IMAGE_MISMATCH',
+    'VAULT_IMAGE_MISMATCH', 'VAULT_OWNER_MISMATCH', 'WALLET_BUSY', 'PROTOCOL_FINGERPRINT_CHANGED',
+})
+
+
+def wallet_failure_code(stderr: str) -> str:
+    """Return a known diagnostic only; private proof logs never enter reports."""
+    for line in reversed(stderr.splitlines()):
+        match = re.fullmatch(r'Relay wallet: ([A-Z0-9_]{1,100})', line)
+        if match and match.group(1) in SAFE_WALLET_ERRORS:
+            return match.group(1)
+    return 'WALLET_STAGE_FAILED'
+
+
+def confirm_operation(call, wallet_dir: Path, operation_id: str) -> dict:
+    """Broadcast once, then reconcile that same persisted transaction."""
+    value = call('broadcast', wallet_dir, operation_id, timeout=120)
+    for _ in range(120):
+        if value.get('state') == 'confirmed':
+            return value
+        time.sleep(1)
+        value = call('reconcile', wallet_dir, operation_id, timeout=30)
+    raise RuntimeError('local transaction was not confirmed')
+
+
+def claim_genesis_funds(call, wallet_dir: Path, payer: str, expiry: int) -> dict:
+    """Claim the fresh payer's genesis vault and verify spendable balance.
+
+    This is a public bootstrap transaction on the disposable local sequencer.
+    It is not proof of a successful private transaction; that is tested next.
+    """
+    intent = wallet_dir / 'genesis-claim-intent.json'
+    intent.write_text(json.dumps({
+        'kind': 'claim-public-vault', 'arguments': {'amount': '100'},
+        'expires_at': expiry,
+    }) + '\n')
+    intent.chmod(0o600)
+    prepared = call('prepare', wallet_dir, 'local-genesis-claim', intent, timeout=120)
+    if prepared.get('state') != 'prepared' or prepared.get('private') is not False:
+        raise RuntimeError('genesis vault claim was not prepared as a public transaction')
+    confirmed = confirm_operation(call, wallet_dir, 'local-genesis-claim')
+    account = call('query', wallet_dir, payer, timeout=30)
+    if account.get('balance') != '100':
+        raise RuntimeError('genesis vault claim did not fund the payer')
+    return {'tx_hash': confirmed['tx_hash'], 'block_id': confirmed['block_id'],
+            'verified_payer_balance': account['balance']}
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',type=Path,default=ROOT/'out/local')
@@ -81,7 +133,10 @@ def main():
         remaining=max(1,int(deadline-time.monotonic()));limit=min(timeout or remaining,remaining)
         completed=subprocess.run([str(wallet),*map(str,parts)],cwd=ROOT,env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=limit)
         with private_log.open('a') as log:log.write(completed.stderr)
-        if completed.returncode:raise RuntimeError('wallet stage failed: '+str(parts[0]))
+        if completed.returncode:
+            code = wallet_failure_code(completed.stderr)
+            report['failure'] = {'stage': str(parts[0]), 'code': code}
+            raise RuntimeError('wallet stage failed: ' + str(parts[0]) + ': ' + code)
         return result(completed.stdout)
     try:
         created=call('init-local-offline',run/'wallet',timeout=30)
@@ -101,14 +156,14 @@ def main():
                 break
             except (OSError,ValueError):time.sleep(1)
         else:raise TimeoutError('local sequencer readiness timeout')
-        intent=run/'wallet/shield-intent.json';intent.write_text(json.dumps({'kind':'shield','arguments':{'amount':str(args.amount)},'expires_at':int(time.time())+min(7200,args.timeout_seconds)})+'\n');intent.chmod(0o600)
+        print('Claiming the local genesis vault before private proving.', flush=True)
+        report['genesis_claim'] = claim_genesis_funds(call, run/'wallet', created['payer'],
+            int(time.time()) + min(86400, args.timeout_seconds))
+        print('Genesis claim confirmed. Starting real local private proof; RISC0_DEV_MODE=0, RISC0_PROVER=ipc.', flush=True)
+        intent=run/'wallet/shield-intent.json';intent.write_text(json.dumps({'kind':'shield','arguments':{'amount':str(args.amount)},'expires_at':int(time.time())+min(86400,args.timeout_seconds)})+'\n');intent.chmod(0o600)
         started=time.monotonic();prepared=call('prepare',run/'wallet','local-real-shield',intent)
         if prepared.get('state')!='prepared' or prepared.get('private') is not True:raise RuntimeError('real private transaction was not prepared')
-        submitted=call('broadcast',run/'wallet','local-real-shield',timeout=120)
-        for _ in range(120):
-            if submitted.get('state')=='confirmed':break
-            time.sleep(1);submitted=call('reconcile',run/'wallet','local-real-shield',timeout=30)
-        if submitted.get('state')!='confirmed':raise RuntimeError('local private transaction was not confirmed')
+        submitted = confirm_operation(call, run/'wallet', 'local-real-shield')
         balance=call('balance',run/'wallet',timeout=60)
         if balance.get('balance')!=str(args.amount):raise RuntimeError('independent private balance verification failed')
         report.update({'status':'passed','wallet_account':created['private_account'],'tx_hash':submitted['tx_hash'],'block_id':submitted['block_id'],'proof_millis':prepared.get('proof_millis'),'wall_millis':round((time.monotonic()-started)*1000),'verified_private_balance':balance['balance']})

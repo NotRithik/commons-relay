@@ -124,3 +124,15 @@ RISC0_PROVER=ipc
 
 The Core wallet companion independently forces the same values, so changing the
 caller environment cannot silently downgrade a prize demo to dev-mode proving.
+
+## Clean local proof verification, 8 September 2026
+
+The corrected local demo first claimed the fresh payer's genesis deposit through
+the pinned vault program, then prepared and confirmed a private 5-unit shield
+with `RISC0_DEV_MODE=0` and the local IPC prover. Independent wallet inspection
+returned a private balance of 5. Proof generation took 2,046,077 ms and the
+measured prepare/confirm/check flow took 2,064,244 ms on macOS arm64. These are
+wall-clock measurements, not on-chain compute units or fees.
+
+See `evidence/local-real-proof-macos.json`. This proves a clean local flow; it
+does not replace the public-testnet evidence or the submission video.
