@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "test": "actual headless Logos Core and Storage module round-trip",
+  "input_kind": "synthetic fixture only",
+  "bytes": 82,
+  "sha256": "b435fe4bd0acc23039cfc6903b493a61687676ff539cac458c250dc847be7b24",
+  "transport": "Logos local IPC",
+  "storage_network": "real local Storage node; no external replication claimed",
+  "events": [
+    {
+      "task_id": "7f24fabdfa2148e1aeaa7d81127df6c1",
+      "skill": "storage.upload",
+      "state": "completed",
+      "result": {
+        "address": "zDvZRwzm22QmMfbP3hvq2cXyYwC7eY4UetsdimwCzmrjhYuecAGg",
+        "bytes": 82,
+        "label": "CLI synthetic round-trip"
+      }
+    },
+    {
+      "task_id": "e0eb8acae72243c9b977db6d4fe5271e",
+      "skill": "storage.download",
+      "state": "completed",
+      "result": {
+        "address": "zDvZRwzm22QmMfbP3hvq2cXyYwC7eY4UetsdimwCzmrjhYuecAGg",
+        "authenticated": true,
+        "bytes": 82,
+        "path": "smoke-3f505bea56938306.txt"
+      }
+    },
+    {
+      "task_id": "8b8b70f089864b8dbd8faf32c5fe251e",
+      "skill": "storage.list",
+      "state": "completed",
+      "result": {
+        "files": [
+          {
+            "address": "zDvZRwzm22QmMfbP3hvq2cXyYwC7eY4UetsdimwCzmrjhYuecAGg",
+            "bytes": 82,
+            "label": "CLI synthetic round-trip",
+            "sender": "ed25519:442575af6c23b70ddf7f279226d95fb42969c117f61b6f1dfcc2611e49563b01"
+          }
+        ]
+      }
+    }
+  ],
+  "inference_calls": 0,
+  "timestamp": 1788803503
+}

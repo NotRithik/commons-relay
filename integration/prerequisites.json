@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "host_rust": "1.94.0",
+  "guest_rust": "r0.1.94.1",
+  "risc0": "3.0.5",
+  "lez_revision": "47eba256479f6f785acbd138834340703cd03401",
+  "platforms": {
+    "linux-x86_64": {
+      "prover": {
+        "name": "cargo-risczero-x86_64-unknown-linux-gnu.tgz",
+        "url": "https://github.com/risc0/risc0/releases/download/v3.0.5/cargo-risczero-x86_64-unknown-linux-gnu.tgz",
+        "bytes": 73001634,
+        "sha256": "936ef988b78f20e3bd9f80e375f3adc934b13addc6ae2680f2e5fc0bcc966158"
+      },
+      "guest_rust": {
+        "name": "rust-toolchain-x86_64-unknown-linux-gnu.tar.gz",
+        "url": "https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz",
+        "bytes": 512619537,
+        "sha256": "e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02"
+      },
+      "circuits": {
+        "name": "logos-blockchain-circuits-v0.5.3-linux-x86_64.tar.gz",
+        "url": "https://github.com/logos-blockchain/logos-blockchain-circuits/releases/download/v0.5.3/logos-blockchain-circuits-v0.5.3-linux-x86_64.tar.gz",
+        "bytes": 29330457,
+        "sha256": "db9d76f50f3536ac112067f2083d8aef3fab8024d1ef2f7a259b37490bc35eac"
+      },
+      "rapidsnark": {
+        "name": "rapidsnark-linux-x86_64-pic-v0.0.8.zip",
+        "url": "https://github.com/logos-blockchain/logos-blockchain-rust-rapidsnark/releases/download/rapidsnark-pic-v0.0.8/rapidsnark-linux-x86_64-pic-v0.0.8.zip",
+        "bytes": 585355,
+        "sha256": "59bdd709eed96235de061f352893f4650c923b54b591052118593012bb1cd831"
+      }
+    },
+    "macos-arm64": {
+      "prover": {
+        "name": "cargo-risczero-aarch64-apple-darwin.tgz",
+        "url": "https://github.com/risc0/risc0/releases/download/v3.0.5/cargo-risczero-aarch64-apple-darwin.tgz",
+        "bytes": 71263992,
+        "sha256": "0f676055ad88d7ede06beaec3b7f850413e091db08bb7cf9969a78d9ad168562"
+      },
+      "guest_rust": {
+        "name": "rust-toolchain-aarch64-apple-darwin.tar.gz",
+        "url": "https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-aarch64-apple-darwin.tar.gz",
+        "bytes": 424869259,
+        "sha256": "98e3a91ff4a709814e04aaeb92757731a01bd0e8f0f864a5ec19b528a22f7955"
+      },
+      "circuits": {
+        "name": "logos-blockchain-circuits-v0.5.3-macos-aarch64.tar.gz",
+        "url": "https://github.com/logos-blockchain/logos-blockchain-circuits/releases/download/v0.5.3/logos-blockchain-circuits-v0.5.3-macos-aarch64.tar.gz",
+        "bytes": 27775442,
+        "sha256": "d64d146c4faa4bf578a535f16909cc86705f3935a039127c5876f31169488271"
+      },
+      "rapidsnark": {
+        "name": "rapidsnark-macOS-arm64-v0.0.8.zip",
+        "url": "https://github.com/iden3/rapidsnark/releases/download/v0.0.8/rapidsnark-macOS-arm64-v0.0.8.zip",
+        "bytes": 1739594,
+        "sha256": "dbd2c1498663223232f9c3ad02259d2839e62e784e9b1f6a0e9bd5070443990d"
+      }
+    }
+  }
+}

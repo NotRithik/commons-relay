@@ -9,10 +9,12 @@ public:
     QString configure(QString profile) override;
     QString refresh() override;
     QString sendSignedCommand(QString json) override;
+    QString pollOwnerChannel() override;
 protected:
     void onContextReady() override;
 private:
     void receive(const QString& name,const QVariantList& args);
     LogosAPIClient* client_=nullptr;
+    quint64 ownerCursor_=0;
     QString dispatch(const QString& json);
 };

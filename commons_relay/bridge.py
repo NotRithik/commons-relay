@@ -11,7 +11,8 @@ from typing import BinaryIO
 from .codec import Rejected,canonical,parse
 
 ACTIONS=frozenset(['modules.probe','storage.version','storage.init','storage.start',
-                    'storage.upload','storage.download','storage.manifests'])
+                    'storage.upload','storage.download','storage.manifests','storage.publish-card','storage.connect-local',
+ 'delivery.init','delivery.start','delivery.info','delivery.subscribe','delivery.unsubscribe','delivery.send','delivery.events','delivery.publish-card','wallet.init','wallet.invoke'])
 
 class Wire:
     def __init__(self,source:BinaryIO,sink:BinaryIO):
@@ -58,7 +59,7 @@ class Wire:
                 if self.closed.is_set():return None
     def call(self,action:str,params:dict,timeout=100):
         if action not in ACTIONS or not isinstance(params,dict):raise Rejected('BRIDGE_ACTION_NOT_ALLOWED')
-        if not 0<timeout<=120:raise Rejected('INVALID_BRIDGE_TIMEOUT')
+        if not 0<timeout<=(7200 if action=='wallet.invoke' else 120):raise Rejected('INVALID_BRIDGE_TIMEOUT')
         request_id='bridge-'+secrets.token_hex(16);target=queue.Queue(maxsize=1)
         with self.guard:
             if len(self.pending)>=8:raise Rejected('TOO_MANY_BRIDGE_CALLS')
@@ -78,12 +79,18 @@ class Wire:
             with self.guard:self.pending.pop(request_id,None)
 
 class LogosStorage:
-    def __init__(self,wire:Wire):self.wire=wire;self.started=False
+    def __init__(self,wire:Wire):
+        self.wire=wire;self.started=False;self.initialize_guard=threading.RLock()
     def initialize(self):
-        if self.started:return
-        self.wire.call('storage.init',{})
-        self.wire.call('storage.start',{})
-        self.started=True
+        # Discovery publication and the controller worker can ask for Storage
+        # concurrently during startup. Serialise the two-step node bootstrap;
+        # calling storage.init twice on the same Logos module can race its
+        # LevelDB repository lock and crash the upstream module.
+        with self.initialize_guard:
+            if self.started:return
+            self.wire.call('storage.init',{})
+            self.wire.call('storage.start',{})
+            self.started=True
     def upload(self,path,operation_id):
         self.initialize()
         result=self.wire.call('storage.upload',{'path':str(path)})

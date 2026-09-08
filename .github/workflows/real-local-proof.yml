@@ -1,0 +1,54 @@
+name: Real standalone LEZ and private proof
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: relay-real-proof-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  standalone-real-proof:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      CARGO_BUILD_JOBS: '3'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      RISC0_DEV_MODE: '0'
+      RISC0_PROVER: ipc
+      RISC0_EXECUTOR: ipc
+      COMMONS_RELAY_PROOF_THREADS: '3'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install ordinary build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential clang libclang-dev pkg-config libssl-dev libpcsclite-dev libgmp-dev libomp-dev unzip
+          rustup toolchain install 1.94.0 --profile minimal
+      - name: Verify orchestration before downloading proof tools
+        run: |
+          /bin/sh -n scripts/prepare-local.sh
+          python3 -m unittest tests.test_local_demo_tooling -v
+      - name: Fetch pinned official proof assets and locked source dependencies
+        run: /bin/sh scripts/prepare-local.sh fetch
+      - name: Build the pinned standalone sequencer and Relay wallet offline
+        run: /bin/sh scripts/prepare-local.sh build
+      - name: Generate and confirm a real local private proof
+        run: python3 scripts/demo-local.py --timeout-seconds 18000 --amount 5
+      - name: Publish only the sanitized receipt
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          report=pathlib.Path('out/local/latest-local-report.json')
+          if report.is_file():
+              text=json.dumps(json.loads(report.read_text()),indent=2)
+              print(text)
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+                  f.write('## Standalone LEZ real-proof result\n\n```json\n'+text+'\n```\n')
+          else:
+              print('No completed local report; no proof success is inferred.')
+          PY

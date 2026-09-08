@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "cid": "zDvZRwzm4vFSygnBKaQffvpwJAXgyvwVhfVXW5bSeHXCgXx6y8Kn",
+  "source_sha256": "737df7be5d1e64ecf2ef58b1317611a21d0dc9eb27b914ed390f028587525b7f",
+  "download_sha256": "737df7be5d1e64ecf2ef58b1317611a21d0dc9eb27b914ed390f028587525b7f",
+  "download_state": "completed",
+  "storage_network": "official logos.test bootstraps + explicit local peer for deterministic acceptance",
+  "key_share": "encrypted Logos Delivery"
+}

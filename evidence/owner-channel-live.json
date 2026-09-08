@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "transport": "Logos Delivery / encrypted owner channel",
+  "owner_address": "commons-relay-main",
+  "agent_address": "lez-03a5aaa87d5c29ddc5c2753ce570922f7933c773ecd39b11e8967dc85f4ae879",
+  "responses": [
+    {
+      "cursor": 16,
+      "sender": "lez-03a5aaa87d5c29ddc5c2753ce570922f7933c773ecd39b11e8967dc85f4ae879",
+      "kind": "owner-result",
+      "command_id": "owner-c5189163bf681d410ce8d80a",
+      "success": true,
+      "error": null,
+      "result_state": "working",
+      "result_phase": "preparing",
+      "result_skill": "agent.task"
+    }
+  ]
+}

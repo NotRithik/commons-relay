@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "python_unittest": {
+    "passed": 357,
+    "failed": 0
+  },
+  "pi_node": {
+    "passed": 41,
+    "failed": 0
+  },
+  "wallet_rust": {
+    "passed": 12,
+    "failed": 0
+  },
+  "native_build": {
+    "passed": true
+  },
+  "native_clean_install": {
+    "passed": true
+  },
+  "git_diff_check": {
+    "passed": true
+  },
+  "run_environment": "local isolated/offline test pass on macOS; live network evidence stored separately",
+  "recorded_at": 1788848479
+}

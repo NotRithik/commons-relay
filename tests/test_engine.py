@@ -48,6 +48,19 @@ class EngineTests(unittest.TestCase):
         self.engine.close();self.engine=Engine(self.root/'agent','fixture-agent',self.owner,self.crypto,clock=self.clock)
     def test_below_limit_reserved(self):t=self.task('50');self.assertEqual(t['state'],'submitted');self.assertEqual(self.engine.usage(),50)
     def test_above_per_tx_waits_owner(self):t=self.task('101');self.assertEqual(t['state'],'input-required');self.assertEqual(self.engine.usage(),0)
+
+    def test_agent_task_below_threshold_is_autonomous(self):
+        args={'agent_address':'peer-agent','skill':'meta.skills','params':{}}
+        from commons_relay.skills import Quote
+        self.engine.quote_provider=lambda name,args,base: Quote('LEZ-testnet',50,True) if name=='agent.task' else base
+        t=self.task(skill='agent.task',args=args)
+        self.assertEqual(t['state'],'submitted');self.assertEqual(self.engine.usage(),50)
+    def test_agent_task_above_threshold_requires_owner(self):
+        args={'agent_address':'peer-agent','skill':'meta.skills','params':{}}
+        from commons_relay.skills import Quote
+        self.engine.quote_provider=lambda name,args,base: Quote('LEZ-testnet',101,True) if name=='agent.task' else base
+        t=self.task(skill='agent.task',args=args)
+        self.assertEqual(t['state'],'input-required');self.assertEqual(self.engine.usage(),0)
     def test_period_reservation_counts(self):
         for _ in range(3):self.task('100')
         t=self.task('1');self.assertEqual(t['state'],'input-required');self.assertEqual(self.engine.usage(),300)
@@ -85,6 +98,16 @@ class EngineTests(unittest.TestCase):
     def test_peer_can_only_read_public_skill(self):
         req=self.request(skill='meta.skills',args={},key=self.other_key)
         self.assertEqual(self.engine.submit(req,self.peer)['state'],'submitted')
+    def test_agent_task_prize_signature(self):
+        skill=next(s for s in self.engine.registry.describe() if s['id']=='agent.task')
+        self.assertEqual(skill['argument_names'],['agent_address','skill','params'])
+    def test_agent_subscribe_prize_signature(self):
+        skill=next(s for s in self.engine.registry.describe() if s['id']=='agent.subscribe')
+        self.assertEqual(skill['argument_names'],['agent_address','task_id'])
+    def test_program_default_skill_signatures(self):
+        skills={s['id']:s for s in self.engine.registry.describe()}
+        self.assertEqual(skills['program.call']['argument_names'],['program_id','instruction','params'])
+        self.assertEqual(skills['program.deploy']['argument_names'],['binary_path'])
     def test_unknown_skill_has_no_dispatch(self):
         with self.assertRaises(Rejected):self.task(skill='shell.exec',args={'command':'anything'})
     def test_unknown_extra_argument_rejected(self):
@@ -92,7 +115,7 @@ class EngineTests(unittest.TestCase):
     def test_hard_limit_never_becomes_pending_approval(self):
         with self.assertRaises(Rejected):self.task('10001')
     def test_program_calls_always_require_specific_approval(self):
-        t=self.task(skill='program.call',args={'program_id':'p','instruction':'call','params':{},'maximum_spend':'0'});self.assertEqual(t['state'],'input-required')
+        t=self.task(skill='program.call',args={'program_id':'00'*32,'instruction':'00000000','params':{'accounts':[{'account_id':'00'*32,'signer':True}]}});self.assertEqual(t['state'],'input-required')
     def test_restart_keeps_reservation(self):
         task=self.task('70');self.restart();self.assertEqual(self.engine.usage(),70);self.assertEqual(self.engine.get(task['id'])['state'],'submitted')
     def test_restart_cannot_replace_policy(self):

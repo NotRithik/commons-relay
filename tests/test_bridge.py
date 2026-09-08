@@ -57,3 +57,20 @@ class BridgeTests(unittest.TestCase):
         self.send({'kind':'bridge_response','id':b['id'],'success':True,'result':2});self.send({'kind':'bridge_response','id':a['id'],'success':True,'result':1})
         self.assertEqual(qa.get(timeout=3),('ok',1));self.assertEqual(qb.get(timeout=3),('ok',2))
 if __name__=='__main__':unittest.main()
+
+class LogosStorageConcurrencyTests(unittest.TestCase):
+    def test_initialize_is_single_flight_across_threads(self):
+        from commons_relay.bridge import LogosStorage
+        class FixtureWire:
+            def __init__(self):self.calls=[];self.guard=threading.Lock();self.first=threading.Event();self.release=threading.Event()
+            def call(self,action,params):
+                with self.guard:self.calls.append(action)
+                if action=='storage.init':
+                    self.first.set();self.release.wait(2)
+                return {'started':True}
+        wire=FixtureWire();store=LogosStorage(wire);errors=[]
+        def run():
+            try:store.initialize()
+            except Exception as error:errors.append(error)
+        a=threading.Thread(target=run);b=threading.Thread(target=run);a.start();wire.first.wait(1);b.start();time.sleep(.05);wire.release.set();a.join(2);b.join(2)
+        self.assertEqual(errors,[]);self.assertEqual(wire.calls,['storage.init','storage.start']);self.assertTrue(store.started)

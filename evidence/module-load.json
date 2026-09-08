@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "same_core_process_stack": true,
+  "roles": {
+    "storage": {
+      "modules": {
+        "storage_module": "loaded",
+        "delivery_module": "loaded",
+        "commons_relay_wallet": "loaded",
+        "commons_relay_module": "loaded"
+      },
+      "relay_runtime_running": true,
+      "inference_enabled": false
+    },
+    "messaging": {
+      "modules": {
+        "storage_module": "loaded",
+        "delivery_module": "loaded",
+        "commons_relay_wallet": "loaded",
+        "commons_relay_module": "loaded"
+      },
+      "relay_runtime_running": true,
+      "inference_enabled": false
+    },
+    "blockchain": {
+      "modules": {
+        "storage_module": "loaded",
+        "delivery_module": "loaded",
+        "commons_relay_wallet": "loaded",
+        "commons_relay_module": "loaded"
+      },
+      "relay_runtime_running": true,
+      "inference_enabled": false
+    }
+  },
+  "module_modifications_required": false
+}

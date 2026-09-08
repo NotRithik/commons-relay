@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "use_cases": [
+    {
+      "name": "Encrypted personal file vault",
+      "evidence": [
+        "luna-live-storage-check.json",
+        "live-storage-share.json"
+      ],
+      "logos_components": [
+        "Storage",
+        "Messaging"
+      ],
+      "result": "encrypted upload/download verified by plaintext hash; encrypted file-key share delivered"
+    },
+    {
+      "name": "Paid skill marketplace",
+      "evidence": [
+        "paid-a2a-private-lez.json"
+      ],
+      "logos_components": [
+        "Messaging",
+        "LEZ wallet"
+      ],
+      "result": "autonomous 3-unit private A2A payment confirmed; provider executed program.query"
+    },
+    {
+      "name": "Multi-agent workflow",
+      "evidence": [
+        "multi-agent-workflow.json"
+      ],
+      "logos_components": [
+        "Messaging",
+        "A2A"
+      ],
+      "result": "Messaging agent delegated storage.list and meta.skills to two independent peers; both settled"
+    }
+  ],
+  "recorded_at": 1788848479
+}

@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "basecamp_version": "0.2.3",
+  "same_basecamp_instance": true,
+  "installed_apps": [
+    "Commons for Logos",
+    "Commons Relay"
+  ],
+  "relay_ui_module": "commons_relay_owner_ui",
+  "owner_profile": "commons-relay-main",
+  "owner_profile_is_separate_from_role_agents": true,
+  "role_agents": [
+    "storage",
+    "messaging",
+    "blockchain"
+  ],
+  "native_theme_imports": [
+    "Logos.Theme",
+    "Logos.Controls"
+  ],
+  "core_modules_loaded": [
+    "commons_relay_module",
+    "commons_relay_wallet",
+    "storage_module",
+    "delivery_module"
+  ],
+  "inference_enabled": false,
+  "visual_checks": [
+    "Tasks tab rendered",
+    "Skills tab rendered",
+    "Architecture tab rendered",
+    "Basecamp theme controls rendered"
+  ],
+  "ui_test_method": "Codex unified computer use against the visible macOS Basecamp window",
+  "recorded_at": 1788848296
+}

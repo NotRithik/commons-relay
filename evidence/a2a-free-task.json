@@ -1,0 +1,532 @@
+{
+  "success": true,
+  "result": {
+    "asset": "LEZ-testnet",
+    "created": 1788838780,
+    "deadline": 1788839679,
+    "effect_reference": "a2a-free:9666d364fbd04ecfbca14787688dec51",
+    "error": null,
+    "id": "9666d364fbd04ecfbca14787688dec51",
+    "intent_hash": "ce100bf8b79a5c2e00843ec4ee8db83691c2c5251bcf7a21974bb7e5a1caacad",
+    "maximum_spend": "0",
+    "phase": "settled",
+    "result": {
+      "artifacts": [
+        {
+          "artifactId": "result",
+          "name": "meta.skills result",
+          "parts": [
+            {
+              "data": {
+                "skills": [
+                  {
+                    "argument_names": [
+                      "path",
+                      "label"
+                    ],
+                    "description": "Encrypt and store a file",
+                    "id": "storage.upload",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "path": {
+                          "description": "Relative to the explicitly configured file root.",
+                          "maxLength": 1000,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "address",
+                      "path"
+                    ],
+                    "description": "Retrieve and decrypt a stored file",
+                    "id": "storage.download",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "address": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "path": {
+                          "description": "Relative to the explicitly configured file root.",
+                          "maxLength": 1000,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "address",
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "List owned file references",
+                    "id": "storage.list",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "address",
+                      "recipient"
+                    ],
+                    "description": "Share a file key with a configured identity",
+                    "id": "storage.share",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "address": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "recipient": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "address",
+                        "recipient"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "recipient",
+                      "message"
+                    ],
+                    "description": "Send an encrypted Logos message",
+                    "id": "messaging.send",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "message": {
+                          "maxLength": 16000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "recipient": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "recipient",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "group_id"
+                    ],
+                    "description": "Join a configured Logos group",
+                    "id": "messaging.join",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "group_id": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "group_id"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "members"
+                    ],
+                    "description": "Create a Logos group",
+                    "id": "messaging.create_group",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "members": {
+                          "items": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 32,
+                          "minItems": 1,
+                          "type": "array",
+                          "uniqueItems": true
+                        }
+                      },
+                      "required": [
+                        "members"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "Read the agent wallet balance",
+                    "id": "wallet.balance",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "recipient",
+                      "amount"
+                    ],
+                    "description": "Transfer testnet tokens within owner policy",
+                    "id": "wallet.send",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "amount": {
+                          "description": "Integer token base units as a decimal string.",
+                          "maxLength": 39,
+                          "pattern": "^(0|[1-9][0-9]{0,38})$",
+                          "type": "string"
+                        },
+                        "recipient": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "recipient",
+                        "amount"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "Read the agent transaction history",
+                    "id": "wallet.history",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "program_id",
+                      "params"
+                    ],
+                    "description": "Read a program state",
+                    "id": "program.query",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "params": {
+                          "type": "object"
+                        },
+                        "program_id": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "program_id",
+                        "params"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "program_id",
+                      "instruction",
+                      "params"
+                    ],
+                    "description": "Execute an owner-approved public LEZ program instruction",
+                    "id": "program.call",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "instruction": {
+                          "description": "Hex-encoded little-endian u32 instruction words from the target program ABI.",
+                          "maxLength": 131072,
+                          "pattern": "^[0-9a-f]*$",
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "object"
+                        },
+                        "program_id": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "program_id",
+                        "instruction",
+                        "params"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "binary_path"
+                    ],
+                    "description": "Deploy a compiled LEZ testnet binary",
+                    "id": "program.deploy",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "binary_path": {
+                          "description": "Relative to the explicitly configured file root.",
+                          "maxLength": 1000,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "binary_path"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "Read the signed Agent Card",
+                    "id": "agent.card",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": true
+                  },
+                  {
+                    "argument_names": [
+                      "topic"
+                    ],
+                    "description": "Read registered Agent Cards",
+                    "id": "agent.discover",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "topic": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "topic"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "agent_address",
+                      "skill",
+                      "params"
+                    ],
+                    "description": "Request a task from a known peer at its signed advertised price",
+                    "id": "agent.task",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "agent_address": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "object"
+                        },
+                        "skill": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_address",
+                        "skill",
+                        "params"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "agent_address",
+                      "task_id"
+                    ],
+                    "description": "Resume task status events",
+                    "id": "agent.subscribe",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "agent_address": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "task_id": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_address",
+                        "task_id"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "agent_address",
+                      "task_id"
+                    ],
+                    "description": "Request cancellation of a remote task",
+                    "id": "agent.cancel",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "agent_address": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "task_id": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_address",
+                        "task_id"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "Read registered skills",
+                    "id": "meta.skills",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": true
+                  },
+                  {
+                    "argument_names": [],
+                    "description": "Read this agent status",
+                    "id": "meta.status",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {},
+                      "required": [],
+                      "type": "object"
+                    },
+                    "public": false
+                  },
+                  {
+                    "argument_names": [
+                      "key",
+                      "value"
+                    ],
+                    "description": "Apply an owner-signed runtime configuration",
+                    "id": "meta.configure",
+                    "input_schema": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "key": {
+                          "maxLength": 180,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "value": {}
+                      },
+                      "required": [
+                        "key",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "public": false
+                  }
+                ]
+              },
+              "mediaType": "application/json"
+            }
+          ]
+        }
+      ],
+      "paid_amount": "0",
+      "payment_transaction": null,
+      "provider": "lez-ab50107ba56b8dbe405c5ce7151aa2ffe7a2fda5d9888bf422fde01a822d0213",
+      "remote_task_id": "1bc369b315fd1ff9f328b61b6c5c9e1d"
+    },
+    "skill": "agent.task",
+    "state": "completed",
+    "updated": 1788838807
+  }
+}

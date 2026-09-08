@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "role": "storage",
+  "network": "LEZ testnet",
+  "storage_network": "logos.test",
+  "faucet_requests": 0,
+  "model_calls": 0,
+  "risc0_dev_mode": "0",
+  "agent_address": "lez-f83e6f4c63134aba31ba97d01d2a047b06560a3d800c79fb419f8cb00005010a",
+  "root_npk": "f83e6f4c63134aba31ba97d01d2a047b06560a3d800c79fb419f8cb00005010a",
+  "policy": {
+    "per_transaction": 5,
+    "per_period": 30,
+    "hard_maximum": 50,
+    "period_seconds": 86400,
+    "approval_ttl": 7200,
+    "version": 1
+  },
+  "wallet_funded": false,
+  "next_step": "Fund only with disposable testnet units before exercising paid skills.",
+  "passed": true
+}

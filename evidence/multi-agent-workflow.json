@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "use_case": "multi-agent workflow",
+  "network": "Logos Messaging A2A test deployment",
+  "orchestrator": "lez-80c0dcf9691851d43d388e02c119fcc8ff804fe9cdcdddd6039663982de35070",
+  "delegations": [
+    {
+      "client_task_id": "5e9693f16c7e4a5a88de28633445d2c9",
+      "provider": "lez-03a5aaa87d5c29ddc5c2753ce570922f7933c773ecd39b11e8967dc85f4ae879",
+      "skill": "storage.list",
+      "state": "completed",
+      "phase": "settled",
+      "remote_task_id": "23ed67a88e03728528f29eb3fd962fac",
+      "paid_amount": "0",
+      "artifact_count": 1
+    },
+    {
+      "client_task_id": "f17be53851644bc884dec9f21ced2af9",
+      "provider": "lez-ab50107ba56b8dbe405c5ce7151aa2ffe7a2fda5d9888bf422fde01a822d0213",
+      "skill": "meta.skills",
+      "state": "completed",
+      "phase": "settled",
+      "remote_task_id": "de7b9941a8ce31de0ad751466670e524",
+      "paid_amount": "0",
+      "artifact_count": 1
+    }
+  ],
+  "owner_intervention": false,
+  "model_calls": 0
+}

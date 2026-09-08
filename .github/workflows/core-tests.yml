@@ -1,11 +1,14 @@
-name: CommonsRelay core and local process tests
+name: CommonsRelay core, wallet and local process tests
 on: [push, pull_request]
 permissions:
   contents: read
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  core:
+  python-core:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -14,5 +17,59 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libsodium23 openssl
-      - name: Run core, crypto and process tests without network services
+      - name: Run core, crypto, protocol and tooling tests without network services
         run: python3 -m unittest discover -s tests -v
+      - name: Validate shell entrypoints
+        run: /bin/sh -n scripts/prepare-local.sh
+
+  planner-adapter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adapters/pi/package-lock.json
+      - name: Install locked planner dependencies without package lifecycle scripts
+        run: npm ci --ignore-scripts --prefix adapters/pi
+      - name: Run deterministic Pi adapter and budget tests
+        run: npm --prefix adapters/pi test
+
+  wallet-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: '3'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      RISC0_DEV_MODE: '0'
+      RISC0_PROVER: ipc
+      RISC0_EXECUTOR: ipc
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install ordinary compilation prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential clang libclang-dev pkg-config libssl-dev libpcsclite-dev libgmp-dev libomp-dev unzip
+          rustup toolchain install 1.94.0 --profile minimal
+      - name: Fetch SHA256-pinned proving libraries and locked Rust dependencies
+        run: |
+          python3 scripts/fetch-proof-deps.py out/ci-proof-deps
+          cargo +1.94.0 fetch --locked --manifest-path wallet/Cargo.toml
+          python3 - <<'PY'
+          import json, os
+          p=json.load(open('out/ci-proof-deps/paths.json'))
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('LBC_ROOT_DIR='+p['lbc_root']+'\n')
+              f.write('RAPIDSNARK_LIB_DIR='+p['rapidsnark_lib']+'\n')
+              f.write('RISC0_SERVER_PATH='+p['r0vm']+'\n')
+              f.write('LD_LIBRARY_PATH='+p['rapidsnark_lib']+'\n')
+          PY
+      - name: Run wallet transaction and recovery tests offline
+        run: cargo +1.94.0 test --locked --offline --manifest-path wallet/Cargo.toml

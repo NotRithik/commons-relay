@@ -10,6 +10,8 @@ class StorageAdapter:
     def prepare(self,task:dict)->Prepared:
         skill=task['skill'];arguments=task['arguments'];task_id=task['id']
         if int(task['maximum_spend'])!=0:raise Rejected('UNEXPECTED_STORAGE_PAYMENT')
+        if skill in ['storage.upload','storage.download'] and hasattr(self.store,'initialize'):
+            self.store.initialize()
         if skill=='storage.upload':self.vault.prepare_upload(task_id,arguments['path'],arguments['label'])
         elif skill=='storage.download':
             self.vault.output.parts(arguments['path']);self.vault._file(arguments['address'])

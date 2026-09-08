@@ -72,10 +72,11 @@ class Adapter(Protocol):
 
 class Engine:
     def __init__(self,state_dir:Path,agent_id:str,owner_public_key:bytes,crypto:Ed25519,
-                 policy:Policy|None=None,registry:Registry|None=None,clock:Callable[[],float]=time.time):
+                 policy:Policy|None=None,registry:Registry|None=None,clock:Callable[[],float]=time.time,
+                 quote_provider:Callable[[str,dict,object],object]|None=None):
         self.root=protected_directory(state_dir);self.agent=identifier(agent_id)
         self.owner=key_id(owner_public_key);self.owner_key=owner_public_key
-        self.crypto=crypto;self.policy=policy or Policy();self.registry=registry or default_registry();self.clock=clock
+        self.crypto=crypto;self.policy=policy or Policy();self.registry=registry or default_registry();self.clock=clock;self.quote_provider=quote_provider
         self.guard=threading.RLock();path=self.root/'state.sqlite'
         if path.is_symlink():raise Rejected('SYMLINK_DATABASE')
         if not path.exists():
@@ -116,7 +117,10 @@ class Engine:
         with self.tx() as db:
             for k,v in expected.items():
                 row=db.execute('SELECT value FROM metadata WHERE key=?',(k,)).fetchone()
-                if row and row['value']!=v:raise Rejected('STORED_CONFIGURATION_MISMATCH')
+                if row and row['value']!=v:
+                    if k=='policy' and json.loads(row['value']).get('version',0)>self.policy.version:
+                        self.policy=Policy(**json.loads(row['value']))
+                    else:raise Rejected('STORED_CONFIGURATION_MISMATCH')
                 db.execute('INSERT OR IGNORE INTO metadata VALUES (?,?)',(k,v))
     def close(self):
         with self.guard:self.db.close()
@@ -231,8 +235,14 @@ class Engine:
             raise Rejected('INVALID_REQUEST_BINDING')
         request_id=identifier(body['request_id']);skill=self.registry.get(body['skill'])
         if requester!=self.owner and not skill.public and not delegated:raise Rejected('SKILL_NOT_AUTHORIZED')
+        if skill.name=='meta.configure' and requester!=self.owner:raise Rejected('CONFIGURATION_REQUIRES_OWNER_SIGNATURE')
         if not isinstance(body['arguments'],dict):raise Rejected('INVALID_SKILL_ARGUMENTS')
         quote=skill.validate(body['arguments'])
+        if self.quote_provider is not None:quote=self.quote_provider(skill.name,body['arguments'],quote)
+        # The trusted quote provider may replace the static zero-cost descriptor
+        # for signed peer services, but it must return the same validated type.
+        from .skills import Quote
+        if not isinstance(quote,Quote):raise Rejected('INVALID_DYNAMIC_QUOTE')
         if quote.maximum>self.policy.hard_maximum:raise Rejected('HARD_LIMIT_EXCEEDED')
         if type(body['expires_at']) is not int:raise Rejected('INVALID_EXPIRY')
         with self.tx() as db:
@@ -275,6 +285,31 @@ class Engine:
         task=self.get(task_id)
         return {'domain':APPROVAL_DOMAIN,'agent_id':self.agent,'task_id':task_id,'intent_hash':task['intent_hash'],
                 'approval_id':identifier(nonce),'decision':'approve','expires_at':expires_at,'policy_version':self.policy.version}
+    def accept_service_task(self,requester:str,request_id:str,skill_name:str,arguments:dict,exported:set[str],expires:int)->dict:
+        """Internal authenticated A2A boundary. Only owner-exported zero-spend
+        services are accepted here; this is not exposed as an unsigned CLI method.
+        """
+        requester=identifier(requester);request_id=identifier(request_id)
+        skill=self.registry.get(skill_name)
+        if skill_name not in exported or skill_name in ['wallet.send','program.call','program.deploy','meta.configure']:raise Rejected('REMOTE_SKILL_NOT_EXPORTED')
+        quote=skill.validate(arguments)
+        if quote.maximum!=0:raise Rejected('REMOTE_SERVICE_CANNOT_SPEND_OWNER_FUNDS')
+        with self.tx() as db:
+            now=self.now(db)
+            if type(expires)is not int or not now<expires<=now+86400:raise Rejected('REMOTE_TASK_EXPIRED')
+            intent={'agent_id':self.agent,'requester':requester,'skill':skill_name,'arguments':arguments,'maximum_spend':'0','asset':quote.asset,'policy_version':self.policy.version,'authority':'owner-configured-service'}
+            fingerprint=digest(intent)
+            old=db.execute('SELECT * FROM tasks WHERE requester=? AND request_id=?',(requester,request_id)).fetchone()
+            if old:
+                if old['hash']!=fingerprint:raise Rejected('REMOTE_REQUEST_ID_REUSED')
+                return self._view(old)
+            active=db.execute("SELECT COUNT(*) FROM tasks WHERE state NOT IN ('completed','failed','rejected','canceled')").fetchone()[0]
+            if active>=256:raise Rejected('TOO_MANY_ACTIVE_TASKS')
+            task=uuid.uuid4().hex
+            db.execute('''INSERT INTO tasks(id,request_id,requester,skill,args,intent,hash,amount,asset,state,phase,created,updated,deadline,authorization) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (task,request_id,requester,skill.name,canonical(arguments).decode(),canonical(intent).decode(),fingerprint,'0',quote.asset,'submitted','queued',now,now,expires,'service-export'))
+            db.execute('INSERT INTO reservations VALUES (?,?,?,?)',(task,'0',quote.asset,now));self._event(db,task,'submitted','SERVICE_ACCEPTED',now)
+            return self._view(db.execute('SELECT * FROM tasks WHERE id=?',(task,)).fetchone())
     def approve(self,envelope:dict)->dict:
         body=verify_envelope(envelope,self.owner_key,self.crypto)
         fields={'domain','agent_id','task_id','intent_hash','approval_id','decision','expires_at','policy_version'}
@@ -409,6 +444,26 @@ class Engine:
                 db.execute("UPDATE tasks SET state='unknown',phase='needs-reconciliation',updated=?,error='STALE_WORKER' WHERE id=?",(now,row['id']))
                 self._event(db,row['id'],'unknown','STALE_WORKER',now)
             return len(rows)
+    def update_policy_from_task(self,task_id:str,policy:Policy,config:dict)->dict:
+        with self.tx() as db:
+            now=self.now(db);task=db.execute('SELECT * FROM tasks WHERE id=?',(task_id,)).fetchone()
+            if not task or task['skill']!='meta.configure' or task['requester']!=self.owner or task['phase']!='broadcasting':raise Rejected('CONFIGURATION_TASK_NOT_AUTHORIZED')
+            key='configuration-task:'+task_id
+            old=db.execute('SELECT value FROM metadata WHERE key=?',(key,)).fetchone()
+            if old:return json.loads(old['value'])
+            active=db.execute("SELECT COUNT(*) FROM tasks WHERE id!=? AND state='working'",(task_id,)).fetchone()[0]
+            if active:raise Rejected('CONFIGURATION_WAITS_FOR_ACTIVE_EFFECTS')
+            if policy.version!=self.policy.version+1:raise Rejected('CONFIGURATION_VERSION_MISMATCH')
+            for row in db.execute("SELECT id FROM tasks WHERE id!=? AND state IN ('submitted','input-required')",(task_id,)).fetchall():
+                db.execute("UPDATE tasks SET state='canceled',phase='policy-changed',updated=? WHERE id=?",(now,row['id']))
+                db.execute('DELETE FROM reservations WHERE task_id=?',(row['id'],));self._event(db,row['id'],'canceled','POLICY_CHANGED',now)
+            db.execute("UPDATE metadata SET value=? WHERE key='policy'",(canonical(asdict(policy)).decode(),))
+            for name in ['name','owner_address']:
+                if name in config:db.execute('INSERT INTO metadata VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',('runtime:'+name,json.dumps(config[name])))
+            result={'policy':asdict(policy),'applied':config,'pending_old_policy_tasks_canceled':True}
+            db.execute('INSERT INTO metadata VALUES (?,?)',(key,canonical(result).decode()))
+            self.policy=policy
+            return result
     def notices(self)->list[dict]:
         with self.tx() as db:
             now=self.now(db);self._expire(db,now)

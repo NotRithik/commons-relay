@@ -1,0 +1,46 @@
+{
+  "passed": true,
+  "network": "official LEZ public testnet",
+  "client_agent": "lez-03a5aaa87d5c29ddc5c2753ce570922f7933c773ecd39b11e8967dc85f4ae879",
+  "provider_agent": "lez-ab50107ba56b8dbe405c5ce7151aa2ffe7a2fda5d9888bf422fde01a822d0213",
+  "client_task_id": "5a6f4bc52f374cabab27be63c9398a76",
+  "provider_task_id": "372a0d5e08b46c74dba9690e1f5059d4",
+  "skill": "program.query",
+  "price_base_units": "3",
+  "payment_state": "paid",
+  "payment_transaction": "83fea7c48ef792b45b1e383fb5e3c8429eb5ccebb2ac3e57672565610810e1f6",
+  "payment_block": 42557,
+  "private_payment": true,
+  "risc0_dev_mode": "0",
+  "payment_proof_millis": 964433,
+  "client_balance_before": "50",
+  "client_balance_after": "47",
+  "provider_balance_before": "50",
+  "provider_balance_after": "53",
+  "result": {
+    "account_id": "e66346a12484fc755d7b382764f585095f151341c1deaa8b50408f280fca34db",
+    "balance": "0",
+    "block": 42557,
+    "program_owner": [
+      3655297236,
+      3591903208,
+      1485513132,
+      3751786556,
+      353526499,
+      3451493675,
+      644894042,
+      953858075
+    ]
+  },
+  "a2a_state": {
+    "client": "completed",
+    "provider": "completed",
+    "client_phase": "settled",
+    "provider_sequence": 5
+  },
+  "safety": {
+    "exact_signed_price_reserved": "3",
+    "payment_hash_matches_provider": true,
+    "no_owner_intervention": true
+  }
+}

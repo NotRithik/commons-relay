@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "task_id": "412982ad34f54185951762ffc66e91fc",
+  "network": "LEZ-testnet policy engine + Logos owner channel",
+  "per_transaction_limit": "5",
+  "requested_amount": "6",
+  "task_state": "input-required",
+  "task_phase": "awaiting-owner",
+  "owner_notification": {
+    "delivered": true,
+    "attempts": 3
+  },
+  "reservation_rows": 0,
+  "spending_rows": 0,
+  "wallet_effect_rows": 0,
+  "transaction_prepared": false,
+  "transaction_broadcast": false
+}

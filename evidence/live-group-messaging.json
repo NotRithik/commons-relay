@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "group_id": "group-fe59d63f1b4d4fc890d5516dcefc6853",
+  "sender_task": "a26a09f4e51a4f1f8d724989e88731af",
+  "recipients": {
+    "storage": [
+      {
+        "id": "a26a09f4e51a4f1f8d724989e88731af-faaadc4dd516",
+        "sender": "lez-80c0dcf9691851d43d388e02c119fcc8ff804fe9cdcdddd6039663982de35070"
+      }
+    ],
+    "blockchain": [
+      {
+        "id": "a26a09f4e51a4f1f8d724989e88731af-7c3298a37049",
+        "sender": "lez-80c0dcf9691851d43d388e02c119fcc8ff804fe9cdcdddd6039663982de35070"
+      }
+    ]
+  }
+}

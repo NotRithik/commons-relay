@@ -23,7 +23,7 @@ def main():
     approval=sub.add_parser('approve');approval.add_argument('--task-id',required=True);approval.add_argument('--intent-hash',required=True);approval.add_argument('--policy-version',type=int,default=1)
     grant=sub.add_parser('grant');grant.add_argument('--delegate-key-id',required=True);grant.add_argument('--goal',required=True);grant.add_argument('--skills',required=True);grant.add_argument('--budget',required=True);grant.add_argument('--steps',type=int,default=10)
     args=p.parse_args()
-    if not 1<=args.expires_in<=600:p.error('expiry must be 1 to 600 seconds')
+    if not 1<=args.expires_in<=86400:p.error('expiry must be 1 to 86400 seconds; the agent enforces its configured policy')
     owner=args.owner_dir.resolve(strict=True);signer=Ed25519(owner);private=owner/'owner-signing.pem';public=signer.public(private)
     config=parse((owner/'agent.json').read_bytes());agent=identifier(config['agent_id'])
     if config['owner_public_key']!=b64(public):p.error('Owner key does not match profile')

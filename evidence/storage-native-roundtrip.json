@@ -1,0 +1,37 @@
+{
+  "checked_at": "2026-09-07T17:40:18.323676+00:00",
+  "test": "native Basecamp upload/download through actual Logos Storage module",
+  "input": "synthetic acceptance fixture, no personal file",
+  "bytes": 104,
+  "sha256": "f52f15fc90d67434ebf54837ead6cea8812687809873a7b5072ffd6398c2a44c",
+  "plaintext_roundtrip_identical": true,
+  "transport": "Logos IPC",
+  "storage_node": "local loopback node using official library",
+  "external_storage_replication_claimed": false,
+  "tasks": [
+    {
+      "id": "3e176dd3b6ae4a3d9bdafee4f7b05c2f",
+      "skill": "storage.upload",
+      "state": "completed",
+      "phase": "settled",
+      "result": {
+        "address": "zDvZRwzkxuZJ8Y8N8GVws6cEfZFVBKmHp5iqrd6iWuBM2xhZcd2G",
+        "bytes": 104,
+        "label": "Acceptance fixture"
+      }
+    },
+    {
+      "id": "a0525a42631e46bd9daa4bab0ea0c150",
+      "skill": "storage.download",
+      "state": "completed",
+      "phase": "settled",
+      "result": {
+        "address": "zDvZRwzkxuZJ8Y8N8GVws6cEfZFVBKmHp5iqrd6iWuBM2xhZcd2G",
+        "authenticated": true,
+        "bytes": 104,
+        "path": "accepted-download-retry.txt"
+      }
+    }
+  ],
+  "paid_inference_calls": 0
+}

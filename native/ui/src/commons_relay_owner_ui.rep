@@ -3,6 +3,7 @@ class CommonsRelayOwnerUi
     SLOT(QString configure(QString profile))
     SLOT(QString refresh())
     SLOT(QString sendSignedCommand(QString json))
+    SLOT(QString pollOwnerChannel())
     PROP(bool ready=false READONLY)
     PROP(bool connected=false READONLY)
     PROP(QString statusText="Connect an agent profile." READONLY)
@@ -10,6 +11,7 @@ class CommonsRelayOwnerUi
     PROP(QString summaryJson="{}" READONLY)
     PROP(QString tasksJson="[]" READONLY)
     PROP(QString skillsJson="[]" READONLY)
+    PROP(QString ownerMessagesJson="[]" READONLY)
     PROP(QString lastResultJson="{}" READONLY)
     PROP(QString lastError="" READONLY)
 }

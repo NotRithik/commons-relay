@@ -1,0 +1,1 @@
+{"name":"commons_relay_wallet","display_name":"Relay testnet wallet","version":"0.1.0","description":"Prepared, hash-bound LEZ transactions for Relay","author":"NotRithik","type":"core","category":"wallet","main":"commons_relay_wallet_plugin","dependencies":[],"capabilities":[]}

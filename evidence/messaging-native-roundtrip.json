@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "transport": "actual Logos Delivery modules in two Core processes",
+  "entrypoint": "Basecamp GUI",
+  "network": "local loopback peer mesh, not public messaging replication",
+  "task_id": "1edd48b72da64528a8d6238d1c34c11e",
+  "task_state": "completed",
+  "receipt": "recipient durable inbox acknowledgement",
+  "application_plaintext_absent_from_wire": true,
+  "message_sha256": "565ea170376831c94a0f1b55bda8d2e73be52378e0a4e27bcebac551ef9bd4a1",
+  "sender": "commons-relay-main",
+  "recipient": "commons-relay-headless",
+  "private_testnet_identity_binding": "not yet applied to these two test profiles",
+  "timestamp": 1788805785
+}

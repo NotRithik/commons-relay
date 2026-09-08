@@ -9,7 +9,8 @@
   "main": "commons_relay_module_plugin",
   "dependencies": [
     "storage_module",
-    "chat_module"
+    "delivery_module",
+    "commons_relay_wallet"
   ],
   "capabilities": []
 }

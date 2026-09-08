@@ -6,3 +6,6 @@ __pycache__/
 *.pem
 *.key
 .env
+
+node_modules/
+/tests/.tmp/

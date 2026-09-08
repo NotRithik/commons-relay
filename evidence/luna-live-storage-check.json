@@ -1,0 +1,80 @@
+{
+  "passed": true,
+  "model": "gpt-5.6-luna",
+  "provider": "OpenAI official API",
+  "harness": "actual Pi Agent loop",
+  "synthetic_input_only": true,
+  "hosted_tools_enabled": false,
+  "store": false,
+  "budget": {
+    "limit_usd": 1,
+    "estimated_spend_usd": 0.000912,
+    "reserved_for_unconfirmed_requests_usd": 0,
+    "completed_requests": 4
+  },
+  "completed_tasks": [
+    {
+      "task_id": "aa897d70f61a40cb8b3fda7deb9b5fbc",
+      "skill": "storage.upload",
+      "state": "completed",
+      "maximum_spend": "0",
+      "asset": "LEZ-testnet",
+      "result": {
+        "address": "zDvZRwzm8kbv6vKDDUtt7urhmxKkfeEwBR7tqhG44JbL82Gr5kbD",
+        "bytes": 102,
+        "label": "Luna acceptance fixture"
+      }
+    },
+    {
+      "task_id": "adfb7d966f644316a2b18eb2cd5ce434",
+      "skill": "storage.download",
+      "state": "completed",
+      "maximum_spend": "0",
+      "asset": "LEZ-testnet",
+      "result": {
+        "address": "zDvZRwzm8kbv6vKDDUtt7urhmxKkfeEwBR7tqhG44JbL82Gr5kbD",
+        "authenticated": true,
+        "bytes": 102,
+        "path": "retrieved-model-fixture-db6f6684c48c467d.txt"
+      }
+    },
+    {
+      "task_id": "fa720ad43bcb4104a7bb3133bd6ff099",
+      "skill": "storage.list",
+      "state": "completed",
+      "maximum_spend": "0",
+      "asset": "LEZ-testnet",
+      "result": {
+        "files": [
+          {
+            "address": "zDvZRwzm22QmMfbP3hvq2cXyYwC7eY4UetsdimwCzmrjhYuecAGg",
+            "bytes": 82,
+            "label": "CLI synthetic round-trip",
+            "sender": "ed25519:442575af6c23b70ddf7f279226d95fb42969c117f61b6f1dfcc2611e49563b01"
+          },
+          {
+            "address": "zDvZRwzm8kbv6vKDDUtt7urhmxKkfeEwBR7tqhG44JbL82Gr5kbD",
+            "bytes": 102,
+            "label": "Luna acceptance fixture",
+            "sender": "ed25519:442575af6c23b70ddf7f279226d95fb42969c117f61b6f1dfcc2611e49563b01"
+          }
+        ]
+      }
+    }
+  ],
+  "missing_skills": [],
+  "state": {
+    "waiting": false,
+    "steps": 3,
+    "taskIds": [
+      "aa897d70f61a40cb8b3fda7deb9b5fbc",
+      "adfb7d966f644316a2b18eb2cd5ce434",
+      "fa720ad43bcb4104a7bb3133bd6ff099"
+    ]
+  },
+  "timestamp": "2026-09-07T18:06:28.295Z",
+  "independent_plaintext_hash_verified": true,
+  "independent_task_ledger_verified": true,
+  "plaintext_sha256": "454bf0d50c570484adf2fd171a450099a26632427d6f940a7ed828f94b9984f8",
+  "pricing_source": "https://developers.openai.com/api/docs/models/gpt-5.6-luna"
+}

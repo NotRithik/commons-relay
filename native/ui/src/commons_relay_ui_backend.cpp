@@ -32,6 +32,7 @@ QString CommonsRelayUiBackend::dispatch(const QString& json){
     return reply;
 }
 QString CommonsRelayUiBackend::refresh(){return dispatch("{\"method\":\"status\",\"params\":{}}");}
+QString CommonsRelayUiBackend::pollOwnerChannel(){return dispatch("{\"method\":\"messaging.pump\",\"params\":{}}");}
 QString CommonsRelayUiBackend::sendSignedCommand(QString json){
     if(json.toUtf8().size()>60000){setLastError("Request is too large.");return "REQUEST_LIMIT";}
     return dispatch(json);
@@ -52,8 +53,20 @@ void CommonsRelayUiBackend::receive(const QString&,const QVariantList& args){
         setSkillsJson(QString::fromUtf8(QJsonDocument(data.value("skills").toArray()).toJson(QJsonDocument::Compact)));
         auto summary=data;summary.remove("tasks");summary.remove("skills");
         setSummaryJson(QString::fromUtf8(QJsonDocument(summary).toJson(QJsonDocument::Compact)));
-        setStatusText("Local runtime connected. Inference is off; no model charges.");
+        setStatusText("Relay profile connected. Inference is off; no model charges.");
+    }else if(data.contains("received")){
+        setStatusText("Owner channel checked. Reading authenticated replies...");
+        QTimer::singleShot(250,this,[this](){
+            dispatch(QString("{\"method\":\"messaging.messages\",\"params\":{\"after\":%1}}").arg(ownerCursor_));
+        });
+    }else if(data.contains("messages")){
+        const auto messages=data.value("messages").toArray();
+        for(const auto& value:messages)if(value.isObject())ownerCursor_=qMax(ownerCursor_,value.toObject().value("cursor").toVariant().toULongLong());
+        setOwnerMessagesJson(QString::fromUtf8(QJsonDocument(messages).toJson(QJsonDocument::Compact)));
+        setStatusText(messages.isEmpty()?"No new owner-channel replies.":"Authenticated owner-channel replies received over Logos Messaging.");
+    }else if(data.contains("message_id") && data.contains("recipient")){
+        setStatusText("Encrypted owner command queued over Logos Messaging. Poll replies to read the remote result.");
     }else{
-        setStatusText("Signed command processed. Refresh to inspect current tasks.");
+        setStatusText("Command processed. Refresh to inspect current tasks.");
     }
 }

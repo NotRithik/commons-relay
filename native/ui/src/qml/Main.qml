@@ -15,6 +15,7 @@ Item {
     readonly property var summary: parse(backend ? backend.summaryJson : "{}", {})
     readonly property var tasks: parse(backend ? backend.tasksJson : "[]", [])
     readonly property var skills: parse(backend ? backend.skillsJson : "[]", [])
+    readonly property var ownerMessages: parse(backend ? backend.ownerMessagesJson : "[]", [])
     function parse(value, fallback) { try { return JSON.parse(value) } catch (_) { return fallback } }
     function call(reply) { if (logos && logos.watch) logos.watch(reply, function(){}, function(error){}) }
     component Card: Pane {
@@ -55,7 +56,7 @@ Item {
                 }
                 RowLayout {
                     visible: root.showSettings
-                    Field { id: profile; objectName: "commons_relay.profile"; Accessible.name: "Commons Relay agent profile"; placeholderText: "Agent profile directory (public owner key only)"; Layout.fillWidth: true }
+                    Field { id: profile; objectName: "commons_relay.profile"; Accessible.name: "Commons Relay profile"; placeholderText: "Owner relay profile or local agent profile"; Layout.fillWidth: true }
                     LogosButton { text: "Connect"; variant: LogosButton.Variant.Primary; Accessible.name: "Connect CommonsRelay profile"; enabled: root.ready; onClicked: root.call(root.backend.configure(profile.text)) }
                 }
             }
@@ -75,6 +76,26 @@ Item {
                 Card {
                     visible: tabs.currentIndex === 0; Layout.fillWidth: true
                     contentItem: ColumnLayout {
+                        LogosText { text: "Encrypted owner channel"; font.pixelSize: Theme.typography.panelTitleText }
+                        Caption { text: "Connect an owner relay profile to send an owner-signed command to a remote agent over Logos Messaging. The owner authorization key stays outside the agent profile."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            LogosText { text: root.ownerMessages.length ? root.ownerMessages.length + " new authenticated replies" : "No new replies loaded"; color: Theme.palette.textSecondary }
+                            Item { Layout.fillWidth: true }
+                            LogosButton { text: "Poll owner replies"; Accessible.name: "Poll CommonsRelay owner channel"; enabled: root.connected; onClicked: root.call(root.backend.pollOwnerChannel()) }
+                        }
+                        Repeater {
+                            model: root.ownerMessages
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true; implicitHeight: 92; radius: Theme.spacing.radiusLarge; color: Theme.palette.backgroundSecondary
+                                ColumnLayout { anchors.fill: parent; anchors.margins: Theme.spacing.medium
+                                    LogosText { text: (modelData.kind || "message") + "  /  " + (modelData.sender || "unknown sender"); color: Theme.palette.primary }
+                                    Caption { text: JSON.stringify(modelData.payload || {}); elide: Text.ElideRight; Layout.fillWidth: true }
+                                }
+                            }
+                        }
+                        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.palette.backgroundElevated }
                         LogosText { text: "Task ledger"; font.pixelSize: Theme.typography.panelTitleText }
                         Caption { text: "Spending and approvals are enforced outside the language-model loop."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                         LogosText { text: root.tasks.length ? root.tasks.length + " recent tasks" : "No tasks yet"; color: Theme.palette.textSecondary }
@@ -89,12 +110,12 @@ Item {
                                 }
                             }
                         }
-                        LogosButton { text: root.showSignedCommand ? "Hide signed command" : "Submit signed command"; enabled: root.connected; onClicked: root.showSignedCommand = !root.showSignedCommand }
+                        LogosButton { text: root.showSignedCommand ? "Hide signed command" : "Send owner-signed command"; enabled: root.connected; onClicked: root.showSignedCommand = !root.showSignedCommand }
                         ColumnLayout {
                             visible: root.showSignedCommand; Layout.fillWidth: true
-                            Caption { text: "Signed envelopes only. A prompt cannot approve spending or replace the owner."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                            TextArea { id: signedCommand; objectName: "commons_relay.command"; Accessible.name: "Signed CommonsRelay command JSON"; Layout.fillWidth: true; Layout.preferredHeight: 130; color: Theme.palette.text; font.family: Theme.typography.mono; font.pixelSize: Theme.typography.secondaryText; placeholderText: "Paste the signed command produced by your owner client"; wrapMode: TextEdit.Wrap; background: Rectangle { color: Theme.palette.backgroundSecondary; radius: Theme.spacing.radiusSmall } }
-                            LogosButton { text: "Verify and submit"; Accessible.name: "Verify signed CommonsRelay command"; onClicked: root.call(root.backend.sendSignedCommand(signedCommand.text)) }
+                            Caption { text: "Paste the owner.send wrapper produced by scripts/owner-message.py to reach a remote agent. The inner command is owner-signed; Logos Messaging signs and encrypts the transport. A prompt cannot approve spending or replace the owner."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                            TextArea { id: signedCommand; objectName: "commons_relay.command"; Accessible.name: "Signed CommonsRelay owner command JSON"; Layout.fillWidth: true; Layout.preferredHeight: 130; color: Theme.palette.text; font.family: Theme.typography.mono; font.pixelSize: Theme.typography.secondaryText; placeholderText: "Paste signed owner.send command JSON"; wrapMode: TextEdit.Wrap; background: Rectangle { color: Theme.palette.backgroundSecondary; radius: Theme.spacing.radiusSmall } }
+                            LogosButton { text: "Send over Relay"; Accessible.name: "Send signed CommonsRelay owner command"; onClicked: root.call(root.backend.sendSignedCommand(signedCommand.text)) }
                         }
                     }
                 }
@@ -102,7 +123,7 @@ Item {
                     visible: tabs.currentIndex === 1; Layout.fillWidth: true
                     contentItem: ColumnLayout {
                         LogosText { text: "Skill registry"; font.pixelSize: Theme.typography.panelTitleText }
-                        Caption { text: "Registered interfaces are separate from live adapters. Storage, messaging and wallet connections are still being integrated."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        Caption { text: "The installed registry is schema-validated before effects run. Storage, Messaging, shielded wallet, LEZ program and A2A adapters are live; owner-installed zero-spend extensions can add skills without modifying the core module."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                         Repeater {
                             model: root.skills
                             delegate: RowLayout {
@@ -121,7 +142,7 @@ Item {
                         LogosText { text: "A swappable planner, a fixed permission boundary"; font.pixelSize: Theme.typography.panelTitleText; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                         LogosText { text: "1. Owner authorizes a goal, allowed skills, step limit and spending ceiling.\n2. A planner proposes tools. Pi or another model runtime can supply that layer.\n3. The task engine validates every proposal and reserves its budget atomically.\n4. Trusted adapters perform operations through Logos modules.\n5. Results, approvals and uncertain transactions survive restarts."; wrapMode: Text.WordWrap; Layout.fillWidth: true; lineHeight: 1.5 }
                         Caption { text: "The planner never receives the owner's signing key. Above-threshold spending waits for a signed approval. An ambiguous network result is reconciled before retrying. No general shell tool is exposed."; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                        LogosText { text: "Current build: durable core and native IPC. Live protocol adapters and multi-agent acceptance tests are still in progress."; color: Theme.palette.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        LogosText { text: "Current build: durable Core module, native Basecamp UI, real Logos Storage and Messaging, shielded LEZ wallet operations, A2A coordination and three public-testnet agent profiles. See the evidence map for reproduced acceptance runs."; color: Theme.palette.success; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                     }
                 }
             }

@@ -82,6 +82,12 @@ The A2A transport maps internal uncertainty to an in-progress task with explicit
 reconciliation metadata. It must not invent a non-standard A2A terminal state or
 report `completed` while the underlying network result is unknown.
 
+A public-testnet paid task has exercised this binding end to end. The client
+reserved the provider's signed 3-unit quote, prepared and broadcast a private LEZ
+payment with `RISC0_DEV_MODE=0`, the provider verified the exact receiving
+commitment before executing `program.query`, and both A2A task records settled.
+The sanitized receipt is `evidence/paid-a2a-private-lez.json`.
+
 ## File confidentiality
 
 The vault uses libsodium's XChaCha20-Poly1305 secretstream API. Files are encrypted
@@ -117,16 +123,22 @@ The transport binding targets the A2A 1.0 data model: Agent Cards declare the
 custom interface, tasks retain stable identifiers, and status events can resume
 from a cursor. Payment authorization is an explicit extension bound to a task,
 quote, recipient, asset and amount. An unverified message saying paid is not a
-receipt. The live adapters and interoperability tests are still being completed;
-a registry entry alone is not evidence that a skill has executed on testnet.
+receipt.
 
 Protocol reference: https://a2a-protocol.org/latest/specification/
 
 ## What is verified now
 
-The native Core and owner UI load in Basecamp, and the UI reads the actual local
-worker through IPC. Tests cover signed requests, goal limits, concurrency,
-restart persistence, ambiguous sends, expiry, file encryption, corruption,
-truncation and constrained filesystem operations. These tests are separate from
-real network acceptance tests. The installed planner is off, and development
-has not invoked a paid model or hosted prover.
+Three role agents have run simultaneously inside Logos Core with their own
+shielded testnet wallets. Live acceptance covers encrypted Storage, file-key
+sharing, encrypted owner Messaging, group Messaging, free multi-agent A2A tasks,
+and a private paid A2A task on the public LEZ testnet. The paid task used a real
+RISC0 proof and moved the expected 3 testnet base units between independent agent
+wallets. Sanitized receipts are committed under `evidence/`.
+
+The deterministic suites separately cover signed requests, goal limits,
+concurrency, restart persistence, ambiguous sends, expiry, file encryption,
+corruption, truncation, constrained filesystem operations, payment binding and
+refund/reconciliation paths. The optional planner is off unless explicitly
+connected; wallet authority remains in the deterministic engine and native wallet
+companion.

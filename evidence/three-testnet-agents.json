@@ -1,0 +1,46 @@
+{
+  "passed": true,
+  "network": "official LEZ public testnet",
+  "agents": {
+    "storage": {
+      "address": "lez-03a5aaa87d5c29ddc5c2753ce570922f7933c773ecd39b11e8967dc85f4ae879",
+      "root_account": "9458e22e3d7cce0967a23d63e2d3c21987cd20d6ef75e27359c30dfc2181c32c",
+      "shielded_balance_after_funding": "50",
+      "real_private_proof": true,
+      "risc0_dev_mode": "0",
+      "shield_transaction_hash": "95ec048aed7365e3d15ce94d06881b1316129a1a417f4bdd544fc0e6dea3096e",
+      "shield_block": 42000,
+      "shield_proof_millis": 2447099
+    },
+    "messaging": {
+      "address": "lez-80c0dcf9691851d43d388e02c119fcc8ff804fe9cdcdddd6039663982de35070",
+      "root_account": "9d41bd6bfb0ce57edb4feef9c2a9ffcc274957cb090733104c75b884259d4218",
+      "shielded_balance_after_funding": "50",
+      "real_private_proof": true,
+      "risc0_dev_mode": "0",
+      "shield_transaction_hash": "cdc59e033ffc95d4d4cfc699bd3b77c19cb40c3ad9b5e27a02411ef1266a1a47",
+      "shield_block": 42000,
+      "shield_proof_millis": 2461303
+    },
+    "blockchain": {
+      "address": "lez-ab50107ba56b8dbe405c5ce7151aa2ffe7a2fda5d9888bf422fde01a822d0213",
+      "root_account": "ee53649fbdca60665d5d1045cf7349878f5919c146a310a36300daab62a6b2a1",
+      "shielded_balance_after_funding": "50",
+      "real_private_proof": true,
+      "risc0_dev_mode": "0",
+      "shield_transaction_hash": "9e8c30e19d6e201350590a7b8aefd90546912d2a04ecf5c8f14e8cdb7489b783",
+      "shield_block": 42001,
+      "shield_proof_millis": 2507593
+    }
+  },
+  "funding": {
+    "faucet_claims": 1,
+    "test_units_per_wallet": 50,
+    "real_funds_moved": false
+  },
+  "notes": [
+    "Each role uses its own wallet/root account and Messaging identity.",
+    "Shield transactions were confirmed on the public LEZ testnet with RISC0_DEV_MODE=0.",
+    "These are disposable testnet units, not production funds."
+  ]
+}
