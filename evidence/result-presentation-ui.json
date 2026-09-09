@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-09-09T03:43:54.593784+00:00",
+  "passed": true,
+  "mock": false,
+  "ui_verified": true,
+  "task_id": "2413626123624383bdf15cf5167be534",
+  "paid_amount": "3",
+  "transaction_hash": "fa9d319f2d39f2c183981416f5a3675f8f0b00a6255379fcf6769a36f676d274",
+  "tested_actions": [
+    "open existing completed paid service",
+    "read recorded paid amount and provider",
+    "show and hide technical details"
+  ],
+  "payment_resubmitted": false,
+  "model_requests": 0,
+  "qml_sha256": "73b1c0a340e2d66b35f8f4e601b79215d7bfb549231289172907a843072daa97",
+  "image_exported": false,
+  "image_export_note": "The computer-use screenshot was observed, but its filesystem export was denied. No image file is claimed."
+}

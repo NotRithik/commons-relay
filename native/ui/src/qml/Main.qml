@@ -277,14 +277,35 @@ Item {
         return messages[code] || String(code || "")
     }
     function resultSummary(value) {
-        if (!value || !value.result_complete || !value.result_preview || value.result_preview === "null") return ""
+        // A submitted request or model sentence is never a completed receipt.
+        if (!value || value.state !== "completed" || !value.result_complete
+            || !value.result_preview || value.result_preview === "null") return ""
         const result = parse(value.result_preview, null)
-        if (!result || typeof result !== "object") return ""
-        if (Array.isArray(result.files))
-            return result.files.length === 0 ? "No saved files were found in this agent's file vault." : result.files.length + " saved files were found. Their recorded references are shown below."
-        if (typeof result.balance === "string")
-            return "Recorded wallet balance: " + result.balance + " testnet units. This is a test-network balance, not money earned."
-        return "The verified result is shown below."
+        if (!result || typeof result !== "object" || Array.isArray(result)) return ""
+        const decimal = function(x) { return typeof x === "string" && /^(0|[1-9][0-9]{0,38})$/.test(x) }
+        const count = function(x) { return typeof x === "number" && isFinite(x) && x >= 0 && Math.floor(x) === x && x <= 9007199254740991 }
+        const block = count(result.block) ? " Recorded at block " + result.block + "." : ""
+        if (value.skill === "wallet.balance" && decimal(result.balance))
+            return "Recorded wallet balance: " + result.balance + " testnet units." + block + " This is a test-network balance, not money earned."
+        if (value.skill === "storage.list" && Array.isArray(result.files))
+            return result.files.length === 0 ? "No saved files were found in this agent's file vault." : result.files.length + " saved files were found. Open technical details for their recorded references."
+        if (value.skill === "storage.upload" && count(result.bytes) && typeof result.address === "string")
+            return "Encrypted file stored: " + result.bytes + " bytes.\nContent reference: " + result.address
+        if (value.skill === "storage.download" && result.authenticated === true && count(result.bytes) && typeof result.path === "string")
+            return "Retrieved and authenticated: " + result.bytes + " bytes.\nSaved as: " + result.path
+        if (value.skill === "agent.task" && decimal(result.paid_amount) && Array.isArray(result.artifacts)
+            && typeof result.provider === "string") {
+            if (result.paid_amount !== "0" && !/^[a-f0-9]{64}$/.test(result.payment_transaction || ""))
+                return "The completed task returned a result. The payment reference needs inspection in technical details."
+            return "Service completed with " + result.artifacts.length + " returned result" + (result.artifacts.length === 1 ? "." : "s.")
+                + (result.paid_amount === "0" ? " No testnet-token payment was required." : " Paid " + result.paid_amount + " testnet units.")
+                + "\nProvider: " + result.provider
+                + (result.paid_amount !== "0" ? "\nPayment reference: " + result.payment_transaction : "")
+        }
+        if (value.skill === "program.query") return "Program state was read." + block + " This is not the agent's wallet balance."
+        if (value.skill === "example.text_statistics" && count(result.words) && count(result.characters))
+            return "The tool counted " + result.words + " words and " + result.characters + " characters."
+        return "The completed task returned a result. Open technical details to inspect it."
     }
     function example(text) {
         if (!root.backend || root.backend.chatBusy) return
@@ -849,6 +870,8 @@ Item {
     }
     ThemedDialog {
         id: detailsDialog
+        property bool showDetails: false
+        onOpened: showDetails = false
         objectName: "commons_relay.taskDetails"
         title: "Task details"
         modal: true
@@ -866,9 +889,10 @@ Item {
                 spacing: Theme.spacing.medium
                 Heading { text: root.task.id ? root.skillTitle(root.task.skill) : "Reading the current task..."; Layout.fillWidth: true }
                 Copy { text: root.stateLabel(root.task.state || ""); color: root.taskColor(root.task.state); Layout.fillWidth: true }
+                Copy { visible: root.resultSummary(root.task).length > 0; text: root.resultSummary(root.task); Layout.fillWidth: true }
                 Copy { visible: !!root.task.id; text: "Maximum authorized: " + (root.task.maximum_spend || "0") + " testnet units"; Layout.fillWidth: true }
                 Repeater {
-                    model: root.task.arguments_complete ? Object.keys(root.task.arguments || {}) : []
+                    model: (root.task.state !== "completed" || detailsDialog.showDetails) && root.task.arguments_complete ? Object.keys(root.task.arguments || {}) : []
                     delegate: ColumnLayout {
                         required property string modelData
                         Layout.fillWidth: true
@@ -878,9 +902,15 @@ Item {
                 }
                 Caption { visible: root.task.arguments_complete === false; text: "The full arguments cannot be displayed safely here. Approval is disabled; inspect the complete local record first."; color: Theme.palette.warning; Layout.fillWidth: true }
                 Caption { visible: !!root.task.error; text: root.taskError(root.task.error); color: Theme.palette.error; Layout.fillWidth: true }
-                Copy { visible: root.resultSummary(root.task).length > 0; text: root.resultSummary(root.task); Layout.fillWidth: true }
-                Caption { visible: !!root.task.result_preview && root.task.result_preview !== "null"; text: root.task.result_complete ? "Recorded result" : "Result preview (not complete)" }
-                CodeText { visible: !!root.task.result_preview && root.task.result_preview !== "null"; readOnly: true; text: root.task.result_preview || ""; Layout.fillWidth: true; Layout.preferredHeight: 170 }
+                LogosButton {
+                    text: detailsDialog.showDetails ? "Hide technical details" : "Show technical details"
+                    Accessible.name: "Toggle task technical details"
+                    visible: root.task.state === "completed" || !!root.task.result_preview
+                    onClicked: detailsDialog.showDetails = !detailsDialog.showDetails
+                }
+                Caption { visible: root.task.state === "completed" && root.task.result_complete === false; text: "The result is too large for this view. Technical details contain a labelled preview, not the full result."; Layout.fillWidth: true }
+                Caption { visible: detailsDialog.showDetails && !!root.task.result_preview && root.task.result_preview !== "null"; text: root.task.result_complete ? "Recorded result" : "Result preview (not complete)" }
+                CodeText { visible: detailsDialog.showDetails && !!root.task.result_preview && root.task.result_preview !== "null"; readOnly: true; text: root.task.result_preview || ""; Layout.fillWidth: true; Layout.preferredHeight: 170 }
                 RowLayout {
                     LogosButton { text: "Refresh details"; enabled: !!root.task.id && !root.pending; onClicked: root.call(root.backend.requestTask(root.task.id)) }
                     LogosButton { text: "Request cancellation"; visible: ["submitted", "input-required", "working", "unknown"].indexOf(root.task.state) >= 0; enabled: !root.pending; onClicked: root.reviewAction("cancel") }

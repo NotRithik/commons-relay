@@ -121,3 +121,16 @@ window, and unknown payment outcomes still require reconciliation.
 Capability counts in model-visible results are derived directly from completed
 receipt arrays. The original receipts remain intact in Activity. A reply can
 still be mistaken; the recorded task result, not the prose, is authoritative.
+
+
+## Reading a finished task
+
+Open Activity and View result. Completed tasks lead with a short summary derived
+from their recorded result: file byte count and content reference, wallet balance
+and observation block, or paid amount, provider and transaction reference.
+**Show technical details** reveals the full bounded result or an explicitly marked
+preview. A public program account's balance is not labelled as your wallet balance.
+
+Pending approvals still show their full arguments before any signature. Collapsing
+completed-task JSON does not hide what an approval authorizes. A missing or truncated
+result is not treated as a verified success summary.

@@ -222,3 +222,41 @@ test('finishing a conversation resets the next message to read-only and zero spe
   assert.ok(handler.includes('allowChatActions.checked = false'));
   assert.ok(handler.includes('chatSpend.text = "0"'));
 });
+
+test('paid service summary uses the complete receipt, not authorization maximum', () => {
+  const { state } = fixture(); const hash='a'.repeat(64);
+  const receipt={state:'completed',skill:'agent.task',maximum_spend:'9',result_complete:true,result_preview:JSON.stringify({paid_amount:'3',provider:'peer',payment_transaction:hash,artifacts:[{}]})};
+  assert.match(state.resultSummary(receipt),/Paid 3 testnet units/); assert.doesNotMatch(state.resultSummary(receipt),/Paid 9/);
+  assert.ok(state.resultSummary(receipt).includes(hash));
+});
+test('incomplete and unsuccessful receipts cannot produce a success summary', () => {
+  const { state } = fixture();
+  for(const taskState of ['submitted','working','unknown','input-required','failed','rejected','canceled'])
+    assert.equal(state.resultSummary({state:taskState,skill:'wallet.balance',result_complete:true,result_preview:'{"balance":"50"}'}),'');
+  assert.equal(state.resultSummary({state:'completed',result_complete:false,result_preview:'{"files":[]}'}),'');
+});
+test('a public program account is not mislabeled as the agent wallet', () => {
+  const { state } = fixture();
+  const text=state.resultSummary({state:'completed',skill:'program.query',result_complete:true,result_preview:'{"balance":"0","block":42}'});
+  assert.match(text,/Program state/); assert.doesNotMatch(text,/Recorded wallet balance/);
+});
+test('large wallet values stay exact and recorded block is explicit', () => {
+  const { state } = fixture(); const balance='123456789012345678901234567890';
+  const text=state.resultSummary({state:'completed',skill:'wallet.balance',result_complete:true,result_preview:JSON.stringify({balance,block:604})});
+  assert.ok(text.includes(balance)); assert.match(text,/Recorded at block 604/);
+});
+test('file receipt wording requires the recorded download authentication', () => {
+  const { state } = fixture();
+  const base={state:'completed',skill:'storage.download',result_complete:true};
+  assert.match(state.resultSummary({...base,result_preview:'{"authenticated":true,"bytes":49,"path":"restored.txt"}'}),/Retrieved and authenticated: 49 bytes/);
+  assert.doesNotMatch(state.resultSummary({...base,result_preview:'{"authenticated":false,"bytes":49,"path":"restored.txt"}'}),/Retrieved and authenticated/);
+});
+test('a nonzero paid result missing its transaction hash is not summarized as paid', () => {
+  const { state } = fixture();
+  const text=state.resultSummary({state:'completed',skill:'agent.task',result_complete:true,result_preview:'{"paid_amount":"3","provider":"peer","artifacts":[]}'});
+  assert.doesNotMatch(text,/Paid 3/); assert.match(text,/needs inspection/);
+});
+test('technical details never hide approval arguments', () => {
+  assert.match(qml,/\(root\.task\.state !== "completed" \|\| detailsDialog\.showDetails\) && root\.task\.arguments_complete/);
+  assert.match(qml,/onOpened: showDetails = false/);
+});

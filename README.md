@@ -62,6 +62,26 @@ The pre-reset testnet build was exercised as a real Logos Core module, not only 
 
 The repository contains no production wallet or owner keys. Development evidence uses disposable testnet accounts only.
 
+## Current deployment acceptance, checked 9 September 2026
+
+Three fresh independent role wallets were shielded on the restarted public testnet.
+A paid service then completed autonomously: the client paid 3 test units for a
+verified `program.query`, its private balance changed from 50 to 47, and the
+provider's from 50 to 53. The transaction is confirmed at block 604 and was checked
+again against the current network. See `evidence/current-paid-a2a.json`.
+
+`evidence/current-three-use-cases.json` records the current personal file vault,
+two-peer workflow and paid services marketplace. The first two were initiated
+through the real Basecamp chat UI. The paid task was initiated by an owner-signed
+Core command, and its completed receipt was inspected in Basecamp; it is not
+represented as a GUI-initiated or model-initiated payment.
+
+The above-limit GUI test held a 6-unit request under a 5-unit policy, then canceled
+it without preparing a wallet effect (`evidence/current-approval-ui.json`).
+A live successful refund has not been established. These timestamped receipts do
+not replace the builder-narrated video, the final source/release/CI checks, or the
+owner's eligibility and submission-terms confirmation.
+
 ## Architecture
 
 Commons Relay has three authority layers:

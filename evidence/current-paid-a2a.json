@@ -1,0 +1,40 @@
+{
+  "checked_at": "2026-09-09T03:42:19.926170+00:00",
+  "passed": true,
+  "current_network": true,
+  "mock": false,
+  "network": "https://testnet.lez.logos.co/",
+  "task_id": "2413626123624383bdf15cf5167be534",
+  "client": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+  "provider": "lez-f66f3fb8aa1bee88c6084f8bafd1f5b3af23be2e6c07599400c8c41922912949",
+  "paid_amount": "3",
+  "payment_transaction": "fa9d319f2d39f2c183981416f5a3675f8f0b00a6255379fcf6769a36f676d274",
+  "block_id": 604,
+  "before": {
+    "storage": {
+      "balance": "50",
+      "block": 559
+    },
+    "blockchain": {
+      "balance": "50",
+      "block": 559
+    }
+  },
+  "after": {
+    "storage": {
+      "balance": "47",
+      "block": 604
+    },
+    "blockchain": {
+      "balance": "53",
+      "block": 604
+    }
+  },
+  "real_proofs": true,
+  "risc0_dev_mode": "0",
+  "ui_initiated": false,
+  "ui_result_verified": true,
+  "owner_intervention_after_submission": false,
+  "transactions_submitted_by_verifier": 0,
+  "model_calls_by_verifier": 0
+}

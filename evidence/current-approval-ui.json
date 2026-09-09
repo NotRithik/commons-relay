@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-09-08T21:28:53.337619+00:00",
+  "passed": true,
+  "mock": false,
+  "current_network": true,
+  "ui_verified": true,
+  "task_id": "e06a226181c5427c951df258ed0aea9e",
+  "requested_amount": "6",
+  "automatic_limit": "5",
+  "observed_states": [
+    "input-required",
+    "canceled"
+  ],
+  "transfer_approved": false,
+  "prepared_wallet_effect": false,
+  "wallet_operation_file_present": false,
+  "tokens_spent": 0,
+  "model_requests": 0,
+  "notification_attempts": [
+    2
+  ]
+}

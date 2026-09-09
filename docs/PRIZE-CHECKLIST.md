@@ -51,12 +51,12 @@ The successful public paid A2A proof is recorded in `evidence/paid-a2a-private-l
 | README and deployment/owner instructions | Present |
 | Narrated end-to-end video | Human recording still required by the prize rules before the solution PR is sent for review |
 
-## Live acceptance snapshot
+## Historical acceptance snapshot, before the reset
 
 The sanitized evidence currently records:
 
 - three role wallets shielded on public LEZ testnet with real proofs;
-- one autonomous private 3-unit A2A payment, confirmed at block 42557;
+- one historical autonomous private 3-unit A2A payment, confirmed at block 42557;
 - paid client balance 50 → 47 and provider balance 50 → 53;
 - one above-threshold 6-unit request held under a 5-unit per-transaction limit with no wallet effect;
 - encrypted owner-channel response;
@@ -64,3 +64,24 @@ The sanitized evidence currently records:
 - a fresh one-command headless deployment with inference disabled.
 
 The submission video and final CI URLs should be added here immediately before opening the Lambda Prize solution PR.
+
+
+## Current acceptance after the reset
+
+Use the current evidence, not the earlier block-42557 receipt, for the deployed demo:
+
+| Requirement | Current receipt and exact boundary |
+| --- | --- |
+| Independent shielded wallets and autonomous paid task | `evidence/current-paid-a2a.json`: 3 units at block 604, client 50 to 47 and provider 50 to 53; transaction rechecked on the current network. |
+| Three illustrated use cases | `evidence/current-three-use-cases.json`: file vault, two-peer workflow and paid services marketplace. |
+| Owner chat and custom skills | `evidence/owner-chat-ui-acceptance.json`, `evidence/custom-skill-ui-acceptance.json`, and `evidence/current-multiagent-ui.json`. |
+| Spending control | `evidence/current-approval-ui.json`: 6-unit request held under a 5-unit automatic limit, then canceled with no wallet effect. |
+| Real local proof CI and downloadable artifacts | Check the exact final release commit. Earlier successful CI does not automatically cover later source changes. |
+| Builder narration and understanding | Required before submission; not supplied by an automated acceptance receipt. |
+
+The marketplace request was owner-signed through Core, not initiated through a
+model conversation. Its payment and provider execution occurred automatically
+within policy; opening its result in Basecamp did not repeat the payment. The
+file and multi-agent requests were initiated through chat and observed in Activity.
+A live successful refund has not been demonstrated. Do not check that claim merely
+because cancellation/refund unit tests exist.
