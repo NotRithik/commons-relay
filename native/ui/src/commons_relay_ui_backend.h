@@ -8,6 +8,8 @@
 #include <QProcess>
 #include <QQueue>
 #include <QTimer>
+#include <QElapsedTimer>
+#include "connection_liveness.h"
 
 class CommonsRelayUiBackend final : public CommonsRelayOwnerUiSimpleSource,
                                     public LogosUiPluginContext {
@@ -55,6 +57,7 @@ private:
     void consumeOwnerMessage(const QJsonObject& message);
     void applyOwnerResult(const QJsonObject& result, const QString& kind);
     void updatePending();
+    void updateRemoteHealth();
     void fail(const QString& code);
     void mergeTask(const QJsonObject& task);
     void mergeGoal(const QJsonObject& goal);
@@ -64,6 +67,10 @@ private:
     QProcess helper_;
     QTimer helperTimeout_;
     QTimer pollTimer_;
+    QElapsedTimer monotonic_;
+    ConnectionLiveness liveness_;
+    bool snapshotSeen_ = false;
+    QJsonObject lastHealthSnapshot_;
     QQueue<HelperWork> helperQueue_;
     HelperWork activeHelper_;
     bool helperActive_ = false;

@@ -13,6 +13,7 @@ Item {
     readonly property var profiles: parse(backend ? backend.profilesJson : "[]", [])
     readonly property var summary: parse(backend ? backend.summaryJson : "{}", {})
     readonly property var tasks: parse(backend ? backend.tasksJson : "[]", [])
+    readonly property var remoteHealth: parse(backend ? backend.remoteHealthJson : "{}", {})
     readonly property var skills: parse(backend ? backend.skillsJson : "[]", [])
     readonly property var skillDetails: parse(backend ? backend.skillDetailsJson : "{}", {})
     readonly property var task: parse(backend ? backend.taskDetailsJson : "{}", {})
@@ -674,11 +675,24 @@ Item {
                     Rectangle { implicitWidth: 7; implicitHeight: 7; radius: 4; color: root.backend && root.backend.remoteReady ? Theme.palette.success : Theme.palette.warning }
                     Caption {
                         Layout.fillWidth: true
-                        text: root.backend && root.backend.remoteReady ? "Agent connected over encrypted Logos Messaging"
-                            : root.backend && root.backend.selectedAgent ? "Waiting for this agent's authenticated reply..."
-                            : "Choose your agent. Each instance can use its permitted tools; you do not need to switch agents for each kind of task."
+                        text: !root.backend || !root.backend.selectedAgent ? "Choose an agent to check its connection."
+                            : root.remoteHealth.last_reply_age_ms === undefined || root.remoteHealth.last_reply_age_ms < 0 ? "Checking agent connection; no fresh heartbeat yet."
+                            : root.remoteHealth.connection_state === "unresponsive" ? "Agent has not responded for " + Math.floor(root.remoteHealth.last_reply_age_ms / 1000) + "s. Task outcomes are unknown; do not resend."
+                            : (root.remoteHealth.connection_state === "delayed" ? "Agent replies delayed" : "Agent responding") + " · heartbeat " + Math.floor(root.remoteHealth.last_reply_age_ms / 1000) + "s ago · round trip " + (root.remoteHealth.round_trip_ms / 1000).toFixed(1) + "s"
                     }
-                    Caption { visible: root.backend && root.backend.remoteReady; text: root.planner.enabled ? "Chat ready" : "Model not connected"; color: root.planner.enabled ? Theme.palette.success : Theme.palette.warning }
+                    Caption { visible: root.backend && root.backend.remoteReady; text: root.planner.enabled ? (root.backend.chatBusy ? "Conversation in progress" : "Model configured") : "Model not connected"; color: root.planner.enabled ? Theme.palette.success : Theme.palette.warning }
+                }
+                Repeater {
+                    model: (root.remoteHealth.tasks || []).slice(0, 3)
+                    delegate: Caption {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        text: modelData.skill + " · " + modelData.detail + " · elapsed " + modelData.age_seconds + "s; phase unchanged " + modelData.phase_age_seconds + "s"
+                        color: Theme.palette.textSecondary
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.PlainText
+                        Accessible.name: "Live task progress"
+                    }
                 }
             }
         }

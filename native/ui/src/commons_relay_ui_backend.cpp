@@ -9,6 +9,7 @@
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QUuid>
 #include <dlfcn.h>
 
 namespace {
@@ -76,6 +77,7 @@ QJsonObject command(const QString& method, const QJsonObject& params = {}) {
 }
 
 CommonsRelayUiBackend::CommonsRelayUiBackend() {
+    monotonic_.start();
     helper_.setProcessChannelMode(QProcess::SeparateChannels);
     helperTimeout_.setSingleShot(true);
     helperTimeout_.setInterval(15000);
@@ -93,9 +95,15 @@ CommonsRelayUiBackend::CommonsRelayUiBackend() {
         if (error == QProcess::FailedToStart) helperFailure("OWNER_HELPER_UNAVAILABLE");
     });
     connect(&helperTimeout_, &QTimer::timeout, this, [this] { helperFailure("OWNER_HELPER_TIMEOUT"); });
-    pollTimer_.setInterval(2500);
+    pollTimer_.setInterval(1000);
     connect(&pollTimer_, &QTimer::timeout, this, [this] {
         const auto now = QDateTime::currentMSecsSinceEpoch();
+        updateRemoteHealth();
+        if (connected() && !selectedAgent().isEmpty() && liveness_.due(monotonic_.elapsed())) {
+            const auto nonce = QUuid::createUuid().toString(QUuid::Id128);
+            liveness_.begin(nonce.toStdString(), monotonic_.elapsed());
+            compose({{"kind", "heartbeat"}, {"nonce", nonce}});
+        }
         for (const auto& id : rpcStarted_.keys()) {
             if (now - rpcStarted_.value(id) > 120000) {
                 rpcStarted_.remove(id);
@@ -105,6 +113,9 @@ CommonsRelayUiBackend::CommonsRelayUiBackend() {
         }
         for (const auto& id : ownerPending_.keys()) {
             const auto pending = ownerPending_.value(id);
+            if (pending.value("kind") == "heartbeat" && now - pending.value("started").toInteger() > 20000) {
+                ownerPending_.remove(id); continue;
+            }
             if (now - pending.value("started").toInteger() > 600000) {
                 ownerPending_.remove(id);
                 fail("OWNER_REPLY_PENDING");
@@ -167,11 +178,24 @@ void CommonsRelayUiBackend::fail(const QString& code) {
     setStatusText(friendlyError(safe));
 }
 
+void CommonsRelayUiBackend::updateRemoteHealth() {
+    const auto now = monotonic_.elapsed();
+    auto health = lastHealthSnapshot_;
+    health["connection_state"] = selectedAgent().isEmpty() ? "unselected" : liveness_.state(now);
+    health["last_reply_age_ms"] = static_cast<qint64>(liveness_.ageMs(now));
+    health["round_trip_ms"] = static_cast<qint64>(liveness_.rttMs());
+    setRemoteHealthJson(compact(health));
+    setRemoteReady(snapshotSeen_ && liveness_.fresh(now));
+}
+
 void CommonsRelayUiBackend::updatePending() {
-    setSigning(helperActive_);
-    // Queued transport is not completion. A slow agent must not lock every other
-    // read or independent task; task submission itself always requires a new review.
-    setRequestPending(helperActive_ || !helperQueue_.isEmpty() || hasPendingKind("owner-send"));
+    const bool interactiveHelper = helperActive_ && activeHelper_.request.value("command").toObject().value("kind") != "heartbeat";
+    bool queuedInteractive = false;
+    for (const auto& work : helperQueue_)
+        if (work.request.value("command").toObject().value("kind") != "heartbeat") queuedInteractive = true;
+    setSigning(interactiveHelper);
+    // A background health probe cannot disable the composer or approval controls.
+    setRequestPending(interactiveHelper || queuedInteractive || hasPendingKind("owner-send"));
 }
 
 QString CommonsRelayUiBackend::configure(QString profile) {
@@ -265,6 +289,7 @@ QString CommonsRelayUiBackend::selectOwnerProfile(QString name) {
     setSelectedProfile(name);
     setSelectedAgent(selected.value("agent_id").toString());
     setRemoteReady(false);
+    snapshotSeen_ = false; liveness_.reset(); lastHealthSnapshot_ = {}; updateRemoteHealth();
     setPlannerInfoJson("{}"); setConversationJson("[]"); setActiveGoalId(""); setChatBusy(false);
     setSummaryJson("{}");
     setTasksJson("[]");
@@ -403,6 +428,9 @@ void CommonsRelayUiBackend::mergeGoal(const QJsonObject& goal) {
         setActiveGoalId(goal.value("id").toString()); setChatBusy(true);
     } else if (activeGoalId().isEmpty() || activeGoalId() == goal.value("id").toString()) {
         setActiveGoalId(""); setChatBusy(false);
+        if (state == "waiting") setStatusText("The agent is waiting on a task or approval. Live progress is shown above; do not resubmit.");
+        else if (state == "completed") setStatusText("Message completed. Linked task receipts show the recorded outcome.");
+        else if (state == "failed" || state == "interrupted") setStatusText("The conversation did not complete. Read its recorded error before retrying.");
     }
 }
 
@@ -575,7 +603,7 @@ void CommonsRelayUiBackend::applyHelperResult(const QJsonObject& result, const H
     ownerPending_.insert(id, {{"kind", result.value("command_kind")},
                              {"agent", selectedAgent()}, {"generation", generation_},
                              {"started", QDateTime::currentMSecsSinceEpoch()}});
-    dispatch(request, "owner-send");
+    dispatch(request, result.value("command_kind") == "heartbeat" ? "heartbeat-send" : "owner-send");
 }
 
 void CommonsRelayUiBackend::receive(const QString&, const QVariantList& args) {
@@ -624,8 +652,8 @@ void CommonsRelayUiBackend::receive(const QString&, const QVariantList& args) {
             consumeOwnerMessage(message);
         }
         setOwnerMessagesJson(compact(ownerMessages_));
-    } else if (kind == "owner-send") {
-        if (!remoteReady()) setStatusText("Encrypted command queued. Waiting for an authenticated agent reply...");
+    } else if (kind == "owner-send" || kind == "heartbeat-send") {
+        if (kind != "heartbeat-send" && !remoteReady()) setStatusText("Encrypted command queued. Waiting for an authenticated agent reply...");
         QTimer::singleShot(0, this, [this] { pollOwnerChannel(); });
     }
 }
@@ -641,6 +669,15 @@ void CommonsRelayUiBackend::consumeOwnerMessage(const QJsonObject& message) {
         if (!ownerPending_.contains(id)) return;
         const auto pending = ownerPending_.take(id);
         if (pending.value("generation").toInt() != generation_ || pending.value("agent").toString() != selectedAgent()) return;
+        if (pending.value("kind") == "heartbeat") {
+            const auto health = payload.value("result").toObject();
+            if (payload.value("success").toBool() && health.value("owner_ping").toBool()
+                && health.value("agent_id").toString() == selectedAgent()
+                && liveness_.accept(health.value("nonce").toString().toStdString(), monotonic_.elapsed())) {
+                lastHealthSnapshot_ = health; lastHealthSnapshot_.remove("nonce"); updateRemoteHealth();
+            }
+            return; // Health does not mutate task results, approvals or model state.
+        }
         setLastResultJson(QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Indented)));
         if (!payload.value("success").toBool()) {
             if (pending.value("kind").toString().startsWith("planner_")) setChatBusy(false);
@@ -746,11 +783,11 @@ void CommonsRelayUiBackend::applyOwnerResult(const QJsonObject& result, const QS
             auto review = goal; review["agent_id"] = selectedAgent();
             setPermissionReviewJson(compact(review));
         }
-        if (!chatBusy()) { refreshPlanner(); refreshAgent(); }
+        if (kind == "planner_start" || kind == "planner_permission") { refreshPlanner(); refreshAgent(); }
         return;
     }
     if (result.value("owner_snapshot").toBool()) {
-        setRemoteReady(true);
+        snapshotSeen_ = true; updateRemoteHealth();
         auto summary = result; summary.remove("tasks");
         setSummaryJson(compact(summary));
         auto tasks = result.value("offset").toInt() == 0 ? QJsonArray() : array(tasksJson());

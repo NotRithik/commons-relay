@@ -301,6 +301,14 @@ class Planner:
             if prior:
                 if prior['grant_hash'] != digest: raise Rejected('GRANT_ID_REUSED')
                 return self.view(goal_id)  # Never charge again on transport retries.
+            from .liveness import is_status_question, status_reply
+            if not self.closing and is_status_question(body['goal']):
+                if self.db.execute('SELECT COUNT(*) FROM conversations').fetchone()[0]>=1000:raise Rejected('PLANNER_HISTORY_LIMIT')
+                now=int(self.clock())
+                reply=status_reply(self.service)
+                self.db.execute('INSERT INTO conversations(id,grant_hash,prompt,state,reply,created,updated,mode) VALUES (?,?,?,?,?,?,?,?)',
+                                (goal_id,digest,body['goal'],'completed',reply,now,now,'read'))
+                return self.view(goal_id)
             if self.closing or (self.thread and self.thread.is_alive()): raise Rejected('PLANNER_BUSY')
             if self.db.execute('SELECT COUNT(*) FROM conversations').fetchone()[0] >= 1000:
                 raise Rejected('PLANNER_HISTORY_LIMIT')

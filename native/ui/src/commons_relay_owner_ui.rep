@@ -41,6 +41,7 @@ class CommonsRelayOwnerUi
     PROP(bool chatBusy=false READONLY)
     PROP(QString summaryJson="{}" READONLY)
     PROP(QString transportHealthJson="{}" READONLY)
+    PROP(QString remoteHealthJson="{}" READONLY)
     PROP(QString tasksJson="[]" READONLY)
     PROP(QString skillsJson="[]" READONLY)
     PROP(QString taskDetailsJson="{}" READONLY)

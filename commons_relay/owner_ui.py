@@ -99,6 +99,11 @@ class OwnerUi:
             raise Rejected('INVALID_OWNER_UI_REQUEST')
         kind = command['kind']
         now = int(self.clock())
+        if kind == 'heartbeat':
+            exact(command, {'kind', 'nonce'})
+            if not isinstance(command['nonce'], str) or not re.fullmatch('[0-9a-f]{32}', command['nonce']):
+                raise Rejected('INVALID_HEARTBEAT_CHALLENGE')
+            return {'method': 'owner.ping', 'params': {'nonce': command['nonce']}}
         if kind == 'planner_configure':
             from .inference_settings import seal_update
             return seal_update(command, agent, signer, private, now)

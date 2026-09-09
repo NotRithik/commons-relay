@@ -102,6 +102,11 @@ def default_registry()->Registry:
             elif key=='label':field={'type':'string','minLength':1,'maxLength':200}
             else:field={'type':'string','minLength':1,'maxLength':180}
             properties[key]=field
+        if name=='program.query':
+            properties['program_id']={'type':'string','pattern':'^[0-9a-f]{64}$','minLength':64,'maxLength':64,
+                'description':'Actual LEZ program image ID in lowercase hex, never an operation name or placeholder.'}
+            properties['params']={'type':'object','properties':{'account':{'type':'string','pattern':'^[0-9a-f]{64}$','minLength':64,'maxLength':64}},
+                'required':['account'],'additionalProperties':False}
         schema={'type':'object','properties':properties,'required':list(keys),'additionalProperties':False}
         definitions.append(Skill(name,description,keys,quote,name in ['agent.card','meta.skills'],schema))
     return Registry(definitions)

@@ -15,7 +15,7 @@ from .engine import TERMINAL
 
 OWNER_DOMAIN='commons/relay/owner-command/v1'
 OWNER_METHODS=frozenset(['status','skills','task','submit','approve','grant','revoke','cancel','configure',
-                         'owner.snapshot','owner.skills','owner.skill','owner.task',
+                         'owner.ping','owner.snapshot','owner.skills','owner.skill','owner.task',
                          'planner.status','planner.history','planner.goal','planner.start','planner.cancel','planner.configure','planner.permission','planner.permission_view'])
 
 class Controller:
@@ -23,7 +23,8 @@ class Controller:
         self.service=service;self.engine=service.engine;self.runtime=service.get_messaging();self.mailbox=self.runtime.mailbox
         self.owner_address=identifier(owner_address);self.mailbox.get_contact(owner_address)
         self.stop_event=threading.Event();self.thread=None;self.worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='relay-effects')
-        self.future=None;self.active=None;self.last_error=None;self.protocol=None;self.last_heartbeat=0
+        self.future=None;self.active=None;self.last_error=None;self.protocol=None;self.last_heartbeat=0;self.last_tick=None
+        self.read_worker=ThreadPoolExecutor(max_workers=1,thread_name_prefix='relay-observations');self.read_future=None;self.read_active=None
         with self.engine.tx() as db:
             db.executescript('''
               CREATE TABLE IF NOT EXISTS scheduled_tasks(task_id TEXT PRIMARY KEY,created INTEGER NOT NULL);
@@ -87,6 +88,19 @@ class Controller:
             with self.engine.tx() as db:db.execute('INSERT OR IGNORE INTO owner_task_events VALUES (?)',(row['seq'],))
     def _execute(self,id):
         task=self.engine.get(id);return self.engine.execute(id,self.service.adapter_for(task['skill']),worker='controller')
+    def read_work(self):
+        # Bounded built-ins only. Wallets and arbitrary extensions never enter
+        # this lane; the financial/effect worker remains single-writer.
+        if self.read_future and self.read_future.done():
+            try:self.read_future.result()
+            except Exception:self.last_error='OBSERVATION_WORKER_FAILED'
+            self.read_future=None;self.read_active=None
+        if self.read_future:
+            with self.engine.tx() as db:db.execute("UPDATE tasks SET heartbeat=? WHERE id=? AND worker='controller' AND state='working'",(int(self.engine.clock()),self.read_active))
+            return
+        with self.engine.tx() as db:row=db.execute("SELECT t.id FROM tasks t JOIN scheduled_tasks s ON s.task_id=t.id WHERE t.state='submitted' AND t.skill IN ('meta.skills','agent.card','agent.discover','storage.list') ORDER BY t.created LIMIT 1").fetchone()
+        if row:
+            self.read_active=row['id'];self.read_future=self.read_worker.submit(self._execute,row['id'])
     def work(self):
         if self.future and self.future.done():
             try:self.future.result()
@@ -97,13 +111,14 @@ class Controller:
                 with self.engine.tx() as db:db.execute("UPDATE tasks SET heartbeat=? WHERE id=? AND worker='controller' AND state='working'",(int(self.engine.clock()),self.active))
                 self.last_heartbeat=time.monotonic()
             return
-        with self.engine.tx() as db:row=db.execute("SELECT t.id,t.state,t.skill FROM tasks t JOIN scheduled_tasks s ON s.task_id=t.id WHERE t.state IN ('submitted','unknown') ORDER BY t.created LIMIT 1").fetchone()
+        with self.engine.tx() as db:row=db.execute("SELECT t.id,t.state,t.skill FROM tasks t JOIN scheduled_tasks s ON s.task_id=t.id WHERE t.state IN ('submitted','unknown') AND (t.state='unknown' OR t.skill NOT IN ('meta.skills','agent.card','agent.discover','storage.list')) ORDER BY t.created LIMIT 1").fetchone()
         if not row:return
         self.active=row['id']
         if row['state']=='submitted':self.future=self.worker.submit(self._execute,row['id'])
         else:self.future=self.worker.submit(self.engine.reconcile,row['id'],self.service.adapter_for(row['skill']))
     def tick(self):
-        self.process_inbox();self.notices();self.work()
+        self.last_tick=time.monotonic()
+        self.process_inbox();self.notices();self.read_work();self.work()
         if self.protocol:self.protocol.tick()
     def start(self):
         if self.thread:return
@@ -118,3 +133,4 @@ class Controller:
         self.stop_event.set()
         if self.thread:self.thread.join(timeout=3)
         self.worker.shutdown(wait=False,cancel_futures=True)
+        self.read_worker.shutdown(wait=False,cancel_futures=True)

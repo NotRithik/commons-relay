@@ -46,6 +46,12 @@ class Service:
         payment=next((x for x in card.get('capabilities',{}).get('extensions',[]) if x.get('uri')==PAYMENT_EXTENSION),None)
         if not isinstance(payment,dict) or not isinstance(payment.get('params'),dict) or not isinstance(payment['params'].get('prices'),dict):raise Rejected('REMOTE_PRICE_NOT_ADVERTISED')
         if args['skill'] not in payment['params']['prices']:raise Rejected('REMOTE_PRICE_NOT_ADVERTISED')
+        from .schema import check_schema, validate
+        schema=payment['params'].get('inputSchemas',{}).get(args['skill'])
+        if not isinstance(schema,dict):raise Rejected('REMOTE_INPUT_SCHEMA_REQUIRED')
+        check_schema(schema);validate(args['params'],schema)
+        # An old peer card must not allow paid placeholder queries.
+        if args['skill']=='program.query':self.engine.registry.get('program.query').validate(args['params'])
         price=amount(payment['params']['prices'][args['skill']])
         return Quote('LEZ-testnet',price,True)
     def close(self):
@@ -153,6 +159,9 @@ class Service:
         if not isinstance(request['id'],str) or len(request['id'])>80:raise Rejected('INVALID_REQUEST_ID')
         method=request['method'];params=request['params']
         if not isinstance(params,dict):raise Rejected('INVALID_PARAMETERS')
+        if method == 'owner.ping' and set(params) == {'nonce'}:
+            from .liveness import pong
+            return pong(self, params['nonce'])
         if method in ('owner.snapshot', 'owner.skills') and set(params) == {'offset'}:
             from . import owner_views
             view = owner_views.snapshot if method == 'owner.snapshot' else owner_views.skills_page
