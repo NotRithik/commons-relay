@@ -1,0 +1,24 @@
+{
+  "checked_at": 1788953373.308195,
+  "python_tests": 525,
+  "failures": 0,
+  "errors": 0,
+  "log_sha256": "b1a4ac7e5d28518eba9b0dad96b5a3e3606e50a553254c876ca89bc1738eacd8",
+  "source_sha256": {
+    "commons_relay/a2a_protocol.py": "a856e696a8b427e1f4e215071fe232d98bea8dad01e0b655a197d33621696d67",
+    "commons_relay/a2a_listing.py": "729bcab4989ce7376fdda248e1a8c6e7da80241937c2cff9517fc340aeb4c794",
+    "tests/test_a2a_protocol.py": "40eff11dc03505c84f89d7b66fac5cbf541393cb8d1d424ad3622188f0049d42",
+    "tests/test_a2a_listing_streaming.py": "222fc7e23406753dc461128b6ac122f926e27366a59b11c4b0b364f43b008262"
+  },
+  "new_operations": [
+    "ListTasks",
+    "SendStreamingMessage"
+  ],
+  "test_transport": "in-process signed encrypted mailbox exchanges; no public-network claim for these new operations",
+  "installed": false,
+  "not_verified": [
+    "Independent A2A TCK",
+    "Unmodified HTTP-client interoperability",
+    "Public CI for this commit"
+  ]
+}

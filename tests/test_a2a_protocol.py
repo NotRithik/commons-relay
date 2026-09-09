@@ -108,7 +108,14 @@ class A2AProtocolTests(unittest.TestCase):
     def test_subscribe_terminal_task_rejected(self):
         task=self.create();self.rpc('CancelTask',{'id':task['id']});r=self.rpc('SubscribeToTask',{'id':task['id']},id='r2');self.assertEqual(r['error']['code'],-32004)
     def test_status_stream_updates_are_durable_and_deduplicated(self):
-        task=self.create();self.rpc('SubscribeToTask',{'id':task['id']});self.p.send_message('client',self.payment(task));self.p.tick();count=self.provider.mailbox.db.execute("SELECT COUNT(*) FROM outbox WHERE kind='a2a-event'").fetchone()[0];self.p.tick();self.assertEqual(self.provider.mailbox.db.execute("SELECT COUNT(*) FROM outbox WHERE kind='a2a-event'").fetchone()[0],count);self.assertGreater(count,0)
+        task=self.create();self.rpc('SubscribeToTask',{'id':task['id']})
+        self.p.send_message('client',self.payment(task));self.p.tick()
+        self.assertEqual(self.provider.mailbox.db.execute("SELECT COUNT(*) FROM outbox WHERE kind='a2a-event'").fetchone()[0],0)
+        # Simulate the transport acknowledgment of the initial Task response.
+        with self.provider.mailbox.tx() as db:db.execute("UPDATE outbox SET state='acknowledged' WHERE kind='a2a-response'")
+        self.p.tick();count=self.provider.mailbox.db.execute("SELECT COUNT(*) FROM outbox WHERE kind='a2a-event'").fetchone()[0]
+        self.p.tick();self.assertEqual(self.provider.mailbox.db.execute("SELECT COUNT(*) FROM outbox WHERE kind='a2a-event'").fetchone()[0],count)
+        self.assertGreater(count,0)
     def test_rpc_replay_returns_original_response(self):
         params=self.provider.params();a=self.rpc('SendMessage',params);b=self.rpc('SendMessage',params);self.assertEqual(a,b)
     def test_rpc_id_cannot_change_method(self):

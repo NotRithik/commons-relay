@@ -159,7 +159,22 @@ class AgentProtocol:
         if message['kind']=='a2a-event':
             if not isinstance(payload,dict) or set(payload)!={'requestId','sequence','response'}:raise Rejected('INVALID_A2A_EVENT')
             with self.engine.tx() as db:request=db.execute('SELECT * FROM a2a_client_requests WHERE id=?',(payload['requestId'],)).fetchone()
-            if not request or request['peer']!=peer or json.loads(request['request'])['method']!='SubscribeToTask':raise Rejected('UNSUBSCRIBED_A2A_EVENT')
+            if not request or request['peer']!=peer:raise Rejected('UNSUBSCRIBED_A2A_EVENT')
+            submitted=json.loads(request['request'])
+            if submitted['method'] not in ('SubscribeToTask','SendStreamingMessage'):raise Rejected('UNSUBSCRIBED_A2A_EVENT')
+            if type(payload['sequence'])is not int or not 1<=payload['sequence']<=2**53-1:raise Rejected('INVALID_A2A_SEQUENCE')
+            response=payload['response']
+            if not isinstance(response,dict) or len(response)!=1 or not set(response)<= {'task','statusUpdate','artifactUpdate'}:
+                raise Rejected('INVALID_A2A_EVENT')
+            if submitted['method']=='SubscribeToTask':expected_task=submitted['params']['id']
+            else:
+                initial=json.loads(request['response']) if request['response'] else {}
+                expected_task=initial.get('result',{}).get('task',{}).get('id')
+            content=next(iter(response.values()))
+            if not isinstance(content,dict) or (content.get('id') if 'task' in response else content.get('taskId'))!=expected_task:
+                raise Rejected('A2A_STREAM_TASK_MISMATCH')
+            known=self.remote_task(peer,expected_task)
+            if known and content.get('contextId')!=known['contextId']:raise Rejected('A2A_STREAM_CONTEXT_MISMATCH')
             response=payload['response']
             if 'task' in response:self.remember_task(peer,response['task'])
             elif 'statusUpdate' in response:
@@ -234,13 +249,32 @@ class AgentProtocol:
         if config.get('returnImmediately') is True or row['state'] in TERMINAL|{'input-required','auth-required'}:return {'task':self.document(id,peer)}
         return None
     def dispatch(self,peer,method,params,rid):
+        if method in ('CreateTaskPushNotificationConfig','GetTaskPushNotificationConfig','ListTaskPushNotificationConfigs','DeleteTaskPushNotificationConfig'):
+            raise RpcError(-32003,'PushNotificationNotSupportedError')
+        if 'tenant' in params:
+            if params['tenant']!='':raise RpcError(-32602,'InvalidParamsError')
+            params={key:value for key,value in params.items() if key!='tenant'}
+        if method=='ListTasks':
+            from .a2a_listing import list_tasks
+            return list_tasks(self,peer,params)
+        if method=='SendStreamingMessage':
+            config=params.get('configuration',{})
+            if not isinstance(config,dict):raise RpcError(-32602,'InvalidParamsError')
+            if 'returnImmediately' in config and type(config['returnImmediately'])is not bool:raise RpcError(-32602,'InvalidParamsError')
+            immediate={**params,'configuration':{**config,'returnImmediately':True}}
+            result=self.send_message(peer,immediate)
+            row=self._row(result['task']['id'],peer)
+            if row['state'] not in TERMINAL:self.subscribe(row,peer,rid)
+            return result
         if method=='GetExtendedAgentCard' and not params:return self.card()
         if method=='SendMessage':return self.send_message(peer,params)
-        if method=='GetTask' and set(params)<={'id','historyLength'} and isinstance(params.get('id'),str):return self.document(params['id'],peer)
+        if method=='GetTask' and set(params)<={'id','historyLength'} and isinstance(params.get('id'),str):
+            if 'historyLength' in params and (type(params['historyLength'])is not int or not 0<=params['historyLength']<=2147483647):raise RpcError(-32602,'InvalidParamsError')
+            return self.document(params['id'],peer)
         if method=='SubscribeToTask' and set(params)=={'id'}:
             row=self._row(params['id'],peer)
             if row['state'] in TERMINAL:raise RpcError(-32004,'UnsupportedOperationError')
-            with self.engine.tx() as db:db.execute('INSERT OR IGNORE INTO a2a_subscriptions VALUES (?,?,?,0)',(row['id'],peer,rid))
+            self.subscribe(row,peer,rid)
             return {'task':self.document(row['id'],peer)}
         if method=='CancelTask' and set(params)=={'id'}:
             row=self._row(params['id'],peer)
@@ -253,6 +287,11 @@ class AgentProtocol:
             if row['payment_state']=='paid':self.queue_refund(row['id'])
             return self.document(row['id'],peer)
         raise RpcError(-32601,'MethodNotFoundError')
+    def subscribe(self,row,peer,rid):
+        with self.engine.tx() as db:
+            old=db.execute('SELECT 1 FROM a2a_subscriptions WHERE task_id=? AND peer=? AND rpc_id=?',(row['id'],peer,rid)).fetchone()
+            if old is None and db.execute('SELECT count(*) FROM a2a_subscriptions').fetchone()[0]>=1000:raise Rejected('A2A_SUBSCRIPTION_LIMIT')
+            db.execute('INSERT OR IGNORE INTO a2a_subscriptions VALUES (?,?,?,?)',(row['id'],peer,rid,row['sequence']))
     def send_message(self,peer,params):
         if set(params)-{'message','configuration','metadata'} or not isinstance(params.get('message'),dict):raise RpcError(-32602,'InvalidParamsError')
         message=params['message'];required={'messageId','role','parts'}
@@ -261,6 +300,12 @@ class AgentProtocol:
         if not isinstance(part,dict) or not isinstance(part.get('data'),dict) or set(part)-{'data','mediaType'}:raise RpcError(-32602,'InvalidParamsError')
         data=part['data'];cfg=params.get('configuration',{})
         if not isinstance(cfg,dict) or set(cfg)-{'acceptedOutputModes','historyLength','returnImmediately'}:raise RpcError(-32602,'InvalidParamsError')
+        if 'returnImmediately' in cfg and type(cfg['returnImmediately'])is not bool:raise RpcError(-32602,'InvalidParamsError')
+        if 'historyLength' in cfg and (type(cfg['historyLength'])is not int or not 0<=cfg['historyLength']<=2147483647):raise RpcError(-32602,'InvalidParamsError')
+        if 'acceptedOutputModes' in cfg:
+            modes=cfg['acceptedOutputModes']
+            if not isinstance(modes,list) or not modes or any(not isinstance(mode,str) for mode in modes):raise RpcError(-32602,'InvalidParamsError')
+            if 'application/json' not in modes:raise RpcError(-32005,'ContentTypeNotSupportedError')
         # Payment negotiation reaches INPUT_REQUIRED immediately, so it conforms
         # to both blocking and returnImmediately SendMessage configurations.
         if 'taskId' in message:
@@ -364,11 +409,22 @@ class AgentProtocol:
                 self._set(row['id'],state=local['state'],error=local.get('error') or 'Service did not complete.');self.queue_refund(row['id'])
         with self.engine.tx() as db:subscriptions=[dict(r) for r in db.execute('SELECT * FROM a2a_subscriptions')]
         for sub in subscriptions:
+            # The receiver must durably store the initial Task response before
+            # later events are queued. Transport retries retain exact messages.
+            initial_id='rpc-result-'+hashlib.sha256((sub['peer']+'\0'+sub['rpc_id']).encode()).hexdigest()
+            try:initial_status=self.mailbox.status(initial_id)
+            except Rejected:continue
+            if initial_status['state']!='acknowledged':continue
             with self.engine.tx() as db:events=list(db.execute('SELECT * FROM a2a_events WHERE task_id=? AND sequence>? ORDER BY sequence LIMIT 10',(sub['task_id'],sub['last_sequence'])))
             for event in events:
                 payload={'requestId':sub['rpc_id'],'sequence':event['sequence'],'response':json.loads(event['event'])}
-                self.mailbox.enqueue(sub['peer'],'a2a-event',payload,message_id='a2a-event-'+hashlib.sha256((sub['rpc_id']+str(event['sequence'])).encode()).hexdigest(),ttl=86400)
+                self.mailbox.enqueue(sub['peer'],'a2a-event',payload,message_id='a2a-event-'+hashlib.sha256((sub['peer']+'\0'+sub['task_id']+'\0'+sub['rpc_id']+'\0'+str(event['sequence'])).encode()).hexdigest(),ttl=86400)
                 with self.engine.tx() as db:db.execute('UPDATE a2a_subscriptions SET last_sequence=? WHERE task_id=? AND peer=? AND rpc_id=?',(event['sequence'],sub['task_id'],sub['peer'],sub['rpc_id']))
+            with self.engine.tx() as db:
+                current=db.execute('SELECT state,sequence FROM a2a_tasks WHERE id=?',(sub['task_id'],)).fetchone()
+                delivered=db.execute('SELECT last_sequence FROM a2a_subscriptions WHERE task_id=? AND peer=? AND rpc_id=?',(sub['task_id'],sub['peer'],sub['rpc_id'])).fetchone()
+                if current and delivered and current['state'] in TERMINAL and delivered[0]>=current['sequence']:
+                    db.execute('DELETE FROM a2a_subscriptions WHERE task_id=? AND peer=? AND rpc_id=?',(sub['task_id'],sub['peer'],sub['rpc_id']))
         if self.refund_future and self.refund_future.done():self.refund_future=None
         if self.refund_future is None:
             with self.engine.tx() as db:row=db.execute("SELECT task_id FROM a2a_refunds WHERE state!='confirmed' AND next_try<=? ORDER BY rowid LIMIT 1",(int(self.engine.clock()),)).fetchone()

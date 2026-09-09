@@ -1,0 +1,66 @@
+{
+  "checked_at": 1788953292.331319,
+  "client_task": "05c156145c5d4bc5a6a44b93f1e3b6d1",
+  "remote_task": "fffba0271dd14ca018d4b5b8ad6200f4",
+  "provider_local_task": "d6641e6cb2d046a393a0fc33878efd4c",
+  "state": "completed",
+  "price": "3",
+  "asset": "LEZ-testnet",
+  "settlement_rows": 1,
+  "remaining_reservations": 0,
+  "payment_transaction": "d52c09ba97c0e0cec56268b14ad5ba452a811372ee99ecceadf5bd38a9062a59",
+  "public_confirmed_block": 1311,
+  "provider_client_artifacts_match": true,
+  "query_block": 1311,
+  "queried_account": "eb038d5a8a9e154c9d23ff8f9c48656ac970e061d688d5262d736770020c9ac6",
+  "queried_program_owner": [
+    3889587528,
+    4072157194,
+    1675466154,
+    3386074792,
+    1392369498,
+    2156404430,
+    3280262519,
+    3599087292
+  ],
+  "decoded_group": {
+    "root": "94949b86fcec4d243c2631c299524ad7bb724d0956c188ebb2ca3d10acebc564",
+    "member_count": 3,
+    "threshold": 2,
+    "value": 43,
+    "sequence": 2,
+    "proposal": {
+      "sequence": 2,
+      "next_value": 43,
+      "unique_approvals": 2,
+      "executed": true
+    }
+  },
+  "provider_event_sequences": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "provider_subscription_progress": [
+    {
+      "last_sequence": 5
+    }
+  ],
+  "client_mirror": {
+    "state": "TASK_STATE_COMPLETED",
+    "sequence": 5,
+    "artifacts_match": true
+  },
+  "new_funding": false,
+  "new_transaction_submissions_by_audit": 0,
+  "initiated_from_basecamp_ui": true,
+  "client_received_event_sequences": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "subscription_delivery_verified": true,
+  "audit_note": "Client mirror read from a2a_remote_tasks; provider-owned a2a_tasks is not the client cache."
+}

@@ -77,10 +77,11 @@ before that action is submitted. Declining creates no task. See
 Fresh UI checks on 9 September covered an approved 49-byte synthetic upload, a
 declined request, restart persistence, and two successful free peer delegations.
 Each peer returned 21 capabilities, checked against both sides' task records.
-See `evidence/20260909-*.json`. The current source candidate passes 504 Python and
+See `evidence/20260909-*.json`. The current source candidate passes 525 Python and
 132 JavaScript tests locally. Public CI, Linux and release verification remain
-separate checks for this candidate. A new UI-initiated paid query is still proving;
-it is not included as a completed payment in these records.
+separate checks for this candidate. The fresh paid peer query also completed: its
+three-unit payment was confirmed at block 1311, and the provider result matched
+the caller artifact. See `evidence/20260909-paid-peer-demo.json`.
 
 ## Current deployment acceptance, checked 9 September 2026
 
