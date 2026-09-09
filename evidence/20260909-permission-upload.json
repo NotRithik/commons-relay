@@ -1,0 +1,31 @@
+{
+  "checked_at": 1788948910.297764,
+  "goal_id": "chat-ce7af7cb71da6515058f1b3d",
+  "ui": {
+    "requested_with_actions_disabled": true,
+    "full_inputs_reviewed": true,
+    "spending_limit_shown": "0",
+    "approval_clicked_once": true,
+    "completed_receipt_opened": true
+  },
+  "preapproval_receipt": "live-permission-before-approval.json",
+  "task": {
+    "id": "a9b732309cf34d19b79626d863192757",
+    "skill": "storage.upload",
+    "state": "completed",
+    "amount": "0",
+    "result": {
+      "address": "zDvZRwzmCdBiTRjNXkDamyrhBYVNdk8jK7P6asNLNaudY9DLnZPp",
+      "bytes": 49,
+      "label": "permission-ui-demo"
+    },
+    "error": null,
+    "arguments": {
+      "label": "permission-ui-demo",
+      "path": "demo-note.txt"
+    }
+  },
+  "estimated_shared_model_spend_micro_usd": 18887,
+  "reserved_model_micro_usd": 5511,
+  "remaining_ui_issue": "Conversation heading still waiting despite completed task; derived-state fix under test."
+}

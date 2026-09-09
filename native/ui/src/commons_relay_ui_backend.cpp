@@ -31,6 +31,18 @@ QString friendlyError(const QString& raw) {
         {"PLANNER_RESTARTED", "The agent restarted during this message. It did not repeat the paid model request. Check Activity for any task already started."},
         {"TEST_BUDGET_EXHAUSTED", "The shared model-test budget is used up or reserved by an uncertain request. No new model request was sent."},
         {"INVALID_PLANNER_PROMPT", "Write a message of up to 4,000 characters. Large messages may need to be split into shorter questions."},
+        {"INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN", "The inference configuration changed. Reload its settings and review the destination again."},
+        {"INFERENCE_KEY_DESTINATION_CHANGED", "An existing API key cannot be sent to a different endpoint. Enter a new key or choose No API key."},
+        {"INFERENCE_HTTPS_REQUIRED", "Use HTTPS for a remote inference server. HTTP is allowed only for a local server on the agent."},
+        {"INFERENCE_CHANGE_WHILE_BUSY", "Wait for the current model conversation to finish before changing its settings."},
+        {"INVALID_INFERENCE_CREDENTIAL", "Check the API key in Inference settings. Do not paste it into a conversation."},
+        {"INFERENCE_BASE_URL_REQUIRED", "Enter the API base URL, such as https://api.openai.com/v1, without /responses or /chat/completions."},
+        {"PERMISSION_ACTION_ALREADY_SUBMITTED", "This action was already submitted before the interruption. Inspect Activity before cancelling or retrying it."},
+        {"PERMISSION_REVIEW_CHANGED", "The requested action changed. Open it again before deciding."},
+        {"PERMISSION_TURN_STILL_RUNNING", "Wait for the agent to finish requesting permission before deciding."},
+        {"PERMISSION_REQUEST_EXPIRED", "This permission request expired. Ask the agent for a fresh request."},
+        {"PERMISSION_QUOTE_OR_POLICY_CHANGED", "The price or spending policy changed. Ask for a fresh action request."},
+        {"INVALID_INFERENCE_SETTINGS", "Check the endpoint, model, API format and token limits in Inference settings."},
         {"OWNER_ROOT_NOT_CONFIGURED", "Set the local owner-profile directory before controlling agents."},
         {"OWNER_ROOT_PERMISSIONS", "The owner-profile directory must be private to your macOS user."},
         {"OWNER_KEY_BINDING_CHANGED", "This owner key does not match the selected agent. Nothing was signed."},
@@ -143,6 +155,7 @@ void CommonsRelayUiBackend::onContextReady() {
     loadOwnerProfiles();
     const auto profile = qEnvironmentVariable("COMMONS_RELAY_DEFAULT_PROFILE");
     if (!profile.isEmpty()) QTimer::singleShot(0, this, [this, profile] { configure(profile); });
+    else QTimer::singleShot(0, this, [this] { refresh(); });
     pollTimer_.start();
 }
 
@@ -246,6 +259,7 @@ QString CommonsRelayUiBackend::selectOwnerProfile(QString name) {
     }
     if (selected.isEmpty()) { fail("INVALID_OWNER_PROFILE_NAME"); return "INVALID_OWNER_PROFILE_NAME"; }
     ++generation_;
+    setPermissionReviewJson("{}");
     helperQueue_.clear();
     ownerPending_.clear();
     setSelectedProfile(name);
@@ -258,6 +272,7 @@ QString CommonsRelayUiBackend::selectOwnerProfile(QString name) {
     setTaskDetailsJson("{}");
     setSkillDetailsJson("{}");
     setHasMoreTasks(false);
+    setHasMoreConversation(false); conversationOffset_ = 0;
     requestedSkill_.clear();
     requestedTask_.clear();
     nextTaskOffset_ = 0;
@@ -285,15 +300,69 @@ QString CommonsRelayUiBackend::refreshPlanner() {
     return compose({{"kind", "planner_status"}});
 }
 
+QString CommonsRelayUiBackend::configureInference(QString settingsJson, QString apiKey, QString expectedHash) {
+    if (!remoteReady() || selectedAgent().isEmpty()) { fail("CHOOSE_AN_AGENT"); return "CHOOSE_AN_AGENT"; }
+    if (chatBusy() || requestPending()) { fail("PLANNER_BUSY"); return "PLANNER_BUSY"; }
+    const auto info = object(plannerInfoJson());
+    if (expectedHash != info.value("configuration_hash").toString()
+        || !QRegularExpression("^[a-f0-9]{64}$").match(expectedHash).hasMatch()) {
+        fail("INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN"); return "INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN";
+    }
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(settingsJson.toUtf8(), &error);
+    if (settingsJson.toUtf8().size() > 4096 || apiKey.size() > 4096 || error.error != QJsonParseError::NoError || !document.isObject()) {
+        fail("INVALID_INFERENCE_SETTINGS"); return "INVALID_INFERENCE_SETTINGS";
+    }
+    setStatusText("Saving your inference settings to this agent. No model request is being made.");
+    // Only the one-shot local signer sees the entered key. Its output contains
+    // a recipient-sealed credential, never plaintext in the messaging journal.
+    return compose({{"kind", "planner_configure"}, {"settings", document.object()},
+        {"api_key", apiKey}, {"expected_hash", expectedHash}, {"box_key", info.value("configuration_box_key")},
+        {"credential_digest", info.value("credential_digest")}});
+}
+
 QString CommonsRelayUiBackend::loadConversation() {
     if (selectedAgent().isEmpty()) return "CHOOSE_AN_AGENT";
     return compose({{"kind", "planner_history"}, {"offset", 0}});
 }
 
-QString CommonsRelayUiBackend::startConversation(QString prompt, bool allowActions, QString maximumSpend) {
+QString CommonsRelayUiBackend::loadEarlierConversation() {
+    if (selectedAgent().isEmpty() || !hasMoreConversation()) return "NO_EARLIER_MESSAGES";
+    return compose({{"kind", "planner_history"}, {"offset", conversationOffset_}});
+}
+QString CommonsRelayUiBackend::loadConversationGoal(QString goalId) {
+    if (selectedAgent().isEmpty()) return "CHOOSE_AN_AGENT";
+    if (!QRegularExpression("^[A-Za-z0-9_.:-]{1,120}$").match(goalId).hasMatch()) return "INVALID_GOAL_ID";
+    return compose({{"kind", "planner_goal"}, {"goal_id", goalId}});
+}
+
+QString CommonsRelayUiBackend::reviewConversationPermission(QString goalId) {
+    setPermissionReviewJson("{}");
+    if (!remoteReady() || selectedAgent().isEmpty()) return "CHOOSE_AN_AGENT";
+    if (!QRegularExpression("^[A-Za-z0-9_.:-]{1,120}$").match(goalId).hasMatch()) return "INVALID_GOAL_ID";
+    return compose({{"kind", "planner_permission_review"}, {"goal_id", goalId}});
+}
+
+QString CommonsRelayUiBackend::decideConversationPermission(QString goalId, QString permissionHash, bool approve) {
+    if (!remoteReady() || chatBusy() || requestPending()) { fail("PERMISSION_TURN_STILL_RUNNING"); return "PERMISSION_TURN_STILL_RUNNING"; }
+    const auto review = object(permissionReviewJson());
+    const auto permission = review.value("permission").toObject();
+    const auto request = permission.value("request").toObject();
+    if (review.value("agent_id").toString() != selectedAgent() || review.value("id").toString() != goalId
+        || permission.value("decision") != "pending" || request.value("intent_hash").toString() != permissionHash
+        || !QRegularExpression("^[a-f0-9]{64}$").match(permissionHash).hasMatch()) {
+        fail("PERMISSION_REVIEW_CHANGED"); return "PERMISSION_REVIEW_CHANGED";
+    }
+    setPermissionReviewJson("{}");
+    return compose({{"kind", "planner_permission"}, {"goal_id", goalId}, {"permission", request},
+                    {"decision", approve ? "approve" : "decline"}});
+}
+
+QString CommonsRelayUiBackend::startConversation(QString prompt, bool allowActions, QString maximumSpend, QString inferenceHash) {
     if (!remoteReady() || selectedAgent().isEmpty()) { fail("CHOOSE_AN_AGENT"); return "CHOOSE_AN_AGENT"; }
     const auto info = object(plannerInfoJson());
     if (!info.value("enabled").toBool()) { fail("PLANNER_NOT_CONFIGURED"); return "PLANNER_NOT_CONFIGURED"; }
+    if (inferenceHash != info.value("configuration_hash").toString() || !QRegularExpression("^[a-f0-9]{64}$").match(inferenceHash).hasMatch()) { fail("INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN"); return "INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN"; }
     if (chatBusy() || requestPending()) { fail("PLANNER_BUSY"); return "PLANNER_BUSY"; }
     prompt = prompt.trimmed();
     if (prompt.isEmpty() || prompt.size() > 4000) { fail("INVALID_PLANNER_PROMPT"); return "INVALID_PLANNER_PROMPT"; }
@@ -309,7 +378,8 @@ QString CommonsRelayUiBackend::startConversation(QString prompt, bool allowActio
     return compose({{"kind", "planner_start"}, {"goal", prompt},
         {"delegate_key_id", info.value("delegate_key_id")}, {"mode", allowActions ? "actions" : "read"},
         {"allowed_skills", scope}, {"maximum_spend", maximumSpend}, {"max_steps", 8},
-        {"expires_in", ttl}, {"policy_version", policy.value("version").toInt(1)}});
+        {"expires_in", ttl}, {"policy_version", policy.value("version").toInt(1)},
+        {"inference_hash", info.value("configuration_hash")}});
 }
 
 QString CommonsRelayUiBackend::cancelConversation() {
@@ -426,6 +496,9 @@ void CommonsRelayUiBackend::startNextHelper() {
     environment.insert("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
     environment.insert("HOME", ownerRoot);
     environment.insert("COMMONS_RELAY_OWNER_ROOT", ownerRoot);
+    environment.insert("PYTHONNOUSERSITE", "1");
+    const auto sodium = qEnvironmentVariable("COMMONS_RELAY_SODIUM_LIBRARY");
+    if (!sodium.isEmpty()) environment.insert("COMMONS_RELAY_SODIUM_LIBRARY", sodium);
     helper_.setProcessEnvironment(environment);
     helper_.setWorkingDirectory(directory);
     helper_.setProgram(python);
@@ -456,6 +529,7 @@ void CommonsRelayUiBackend::finishHelper(int code) {
     helperOutput_ += helper_.readAllStandardOutput();
     helperActive_ = false;
     const auto work = activeHelper_;
+    activeHelper_.request = {}; // release any local credential input promptly
     if (helperOutput_.size() > 60000) {
         helperOutput_.clear(); fail("OWNER_UI_RESPONSE_LIMIT"); updatePending(); startNextHelper(); return;
     }
@@ -586,6 +660,15 @@ void CommonsRelayUiBackend::consumeOwnerMessage(const QJsonObject& message) {
         }
         setTasksJson(compact(tasks));
         if (taskId == requestedTask_) requestTask(taskId);
+        const auto taskState = update.value("state").toString();
+        if (taskState == "completed" || taskState == "failed" || taskState == "rejected" || taskState == "canceled") {
+            int refreshed = 0;
+            for (const auto& item : array(conversationJson())) {
+                const auto goal = item.toObject();
+                if (goal.value("task_ids").toArray().contains(QJsonValue(taskId)) && refreshed++ < 4)
+                    loadConversationGoal(goal.value("id").toString());
+            }
+        }
     } else if (remoteReady() && payload.contains("notice")) {
         refreshAgent();
         if (payload.value("notice").toObject().value("task_id").toString() == requestedTask_)
@@ -609,6 +692,13 @@ void CommonsRelayUiBackend::applyOwnerResult(const QJsonObject& result, const QS
     if (result.contains("agent_id") && result.value("agent_id").toString() != selectedAgent()) {
         fail("OWNER_REPLY_AGENT_MISMATCH"); return;
     }
+    if (kind == "planner_configure" && result.value("inference_updated").toBool()) {
+        const auto current = result.value("planner").toObject();
+        if (current.value("agent_id").toString() != selectedAgent()) { fail("OWNER_REPLY_AGENT_MISMATCH"); return; }
+        setPlannerInfoJson(compact(current));
+        setStatusText("Inference settings saved. Review the data-sharing notice before sending a message.");
+        return;
+    }
     if (result.value("planner_status").toBool()) {
         setPlannerInfoJson(compact(result));
         if (result.value("active_goal").isString() && !result.value("active_goal").toString().isEmpty()) {
@@ -617,14 +707,45 @@ void CommonsRelayUiBackend::applyOwnerResult(const QJsonObject& result, const QS
         return;
     }
     if (result.value("planner_history").toBool()) {
-        auto goals = result.value("goals").toArray();
-        QJsonArray chronological;
-        for (int index = goals.size() - 1; index >= 0; --index) chronological.append(goals[index]);
+        const auto goals = result.value("goals").toArray();
+        const auto existing = array(conversationJson());
+        QJsonArray page, chronological;
+        QSet<QString> pageIds;
+        for (int index = goals.size() - 1; index >= 0; --index) {
+            auto goal = goals[index].toObject();
+            const auto id = goal.value("id").toString();
+            if (id.isEmpty() || pageIds.contains(id)) continue;
+            pageIds.insert(id);
+            for (const auto& previous : existing) {
+                const auto old = previous.toObject();
+                if (old.value("id") == goal.value("id") && !old.value("preview").toBool()
+                    && old.value("updated").toInteger() >= goal.value("updated").toInteger()) goal = old;
+            }
+            page.append(goal);
+        }
+        if (result.value("offset").toInt() == 0) {
+            for (const auto& old : existing) if (!pageIds.contains(old.toObject().value("id").toString())) chronological.append(old);
+            for (const auto& goal : page) chronological.append(goal);
+        } else {
+            for (const auto& goal : page) chronological.append(goal);
+            for (const auto& old : existing) if (!pageIds.contains(old.toObject().value("id").toString())) chronological.append(old);
+        }
+        while (chronological.size() > 1000) chronological.removeFirst();
+        conversationOffset_ = qMax(conversationOffset_, result.value("next_offset").toInt());
+        setHasMoreConversation(result.value("has_more").toBool());
         setConversationJson(compact(chronological));
         return;
     }
+    if (kind == "planner_permission_review" && result.value("permission_review").toBool()) {
+        setPermissionReviewJson(compact(result)); return;
+    }
     if (result.value("planner_goal").toBool()) {
-        mergeGoal(result.value("goal").toObject());
+        const auto goal = result.value("goal").toObject();
+        mergeGoal(goal);
+        if (kind == "planner_permission_review") {
+            auto review = goal; review["agent_id"] = selectedAgent();
+            setPermissionReviewJson(compact(review));
+        }
         if (!chatBusy()) { refreshPlanner(); refreshAgent(); }
         return;
     }

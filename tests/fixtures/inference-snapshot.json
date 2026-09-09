@@ -1,0 +1,17 @@
+{
+  "node": "/usr/local/bin/node",
+  "runner": "/tmp/inference-fixture/goal-worker.mjs",
+  "model": "vendor/fixture:1",
+  "api_key_file": "/tmp/inference-fixture/credential.txt",
+  "budget_file": "/tmp/inference-fixture/budget.json",
+  "budget_micro_usd": 1000000,
+  "input_micro_per_million": 250000,
+  "output_micro_per_million": 1200000,
+  "endpoint": "https://inference.example/v1",
+  "api": "responses",
+  "max_output_tokens": 1536,
+  "credential_mode": "replace",
+  "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runner_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "configuration_hash": "537fa72d312d24b86daa85a492fd3e16f82722624ce1de85c702f50cc459c0c3"
+}

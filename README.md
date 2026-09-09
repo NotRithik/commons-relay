@@ -62,6 +62,26 @@ The pre-reset testnet build was exercised as a real Logos Core module, not only 
 
 The repository contains no production wallet or owner keys. Development evidence uses disposable testnet accounts only.
 
+## Chat and action review
+
+The chat interface keeps separate drafts for each agent during the app session,
+loads earlier messages, and shows complete replies on request. The selected model
+and endpoint are visible beside Send. Inference settings accept an explicit
+endpoint and model; credentials are not silently reused at a different endpoint.
+
+A read-only turn can ask permission for one specific action without expanding its
+original grant. The owner reviews the exact inputs, consequences and token limit
+before that action is submitted. Declining creates no task. See
+[`docs/OWNER.md`](docs/OWNER.md) for the review and restart behavior.
+
+Fresh UI checks on 9 September covered an approved 49-byte synthetic upload, a
+declined request, restart persistence, and two successful free peer delegations.
+Each peer returned 21 capabilities, checked against both sides' task records.
+See `evidence/20260909-*.json`. The current source candidate passes 504 Python and
+132 JavaScript tests locally. Public CI, Linux and release verification remain
+separate checks for this candidate. A new UI-initiated paid query is still proving;
+it is not included as a completed payment in these records.
+
 ## Current deployment acceptance, checked 9 September 2026
 
 Three fresh independent role wallets were shielded on the restarted public testnet.

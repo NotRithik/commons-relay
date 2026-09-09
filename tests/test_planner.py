@@ -47,10 +47,15 @@ print(json.dumps({'kind':'done','text':'Labelled test fixture, not a language-mo
         path.write_bytes(canonical(value));path.chmod(0o600)
     def enable(self):self.write_private(self.profile/'planner.json',self.config)
     def grant(self,**changes):
+        try:
+            config = self.planner.configuration()
+            reviewed = config.configuration_hash if config else '0' * 64
+        except Rejected:
+            reviewed = '0' * 64  # negative configuration cases are rejected by start(), not the fixture
         body={'domain':GRANT_DOMAIN,'agent_id':'planner-fixture','grant_id':'chat-fixture',
             'delegate_key_id':self.planner.delegate_id,'goal':'List my saved files.',
             'allowed_skills':['storage.list'],'maximum_spend':'0','max_steps':4,
-            'expires_at':int(time.time())+600,'policy_version':1}
+            'expires_at':int(time.time())+600,'policy_version':1, 'inference_hash':reviewed}
         body.update(changes);return sign_envelope(body,self.key,self.owner)
     def wait(self):
         self.planner.thread.join(timeout=5)

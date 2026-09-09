@@ -1,0 +1,68 @@
+{
+  "at": 1788950307.677027,
+  "discovery_task": "0e176c7ff15f45c78d24cb9432c5a2f6",
+  "peers": [
+    {
+      "role": "messaging",
+      "client_task": "6775ae08eff6412386be568c85c93335",
+      "remote_task": "2627ff64d90051e14fea9d30571f4add",
+      "provider_local_task": "1f96b300e796477bafe4f2a2fcecd4d7",
+      "states_match": true,
+      "results_match": true,
+      "capability_count": 21,
+      "paid_amount": "0",
+      "payment_transaction": null,
+      "recorded_event_sequences": [
+        2,
+        3,
+        4
+      ],
+      "control_calls": [
+        {
+          "method": "GetTask",
+          "has_result": true,
+          "error": null
+        },
+        {
+          "method": "SubscribeToTask",
+          "has_result": false,
+          "error": {
+            "code": -32004,
+            "message": "UnsupportedOperationError"
+          }
+        }
+      ]
+    },
+    {
+      "role": "blockchain",
+      "client_task": "52a9c7bab49947b5afc33244aff916fb",
+      "remote_task": "9ef4664959366d7c64d22f39e2e3af50",
+      "provider_local_task": "3b0f409639f340eaaf8694af29e10c89",
+      "states_match": true,
+      "results_match": true,
+      "capability_count": 21,
+      "paid_amount": "0",
+      "payment_transaction": null,
+      "recorded_event_sequences": [
+        2,
+        3,
+        4
+      ],
+      "control_calls": [
+        {
+          "method": "GetTask",
+          "has_result": true,
+          "error": null
+        },
+        {
+          "method": "SubscribeToTask",
+          "has_result": false,
+          "error": {
+            "code": -32004,
+            "message": "UnsupportedOperationError"
+          }
+        }
+      ]
+    }
+  ]
+}

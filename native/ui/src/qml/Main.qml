@@ -23,7 +23,9 @@ Item {
             if (backend && profiles[i].name === backend.selectedProfile) return profiles[i].label
         return "Choose an agent"
     }
-    property bool modelConsent: false
+    readonly property string providerLabel: planner.provider || "the configured model provider"
+    readonly property string inferenceFingerprint: root.planner.configuration_hash || ""
+    onInferenceFingerprintChanged: { root.reviewedChat = ({}); chatPermissionDialog.close() }
     property bool showTechnical: false
     property bool manualTools: false
     property var fields: []
@@ -34,6 +36,12 @@ Item {
     property string viewError: ""
     property string pendingDraft: ""
     property string pendingDraftAgent: ""
+    property var draftByProfile: ({})
+    property string draftProfile: ""
+    property string permissionGoalRequested: ""
+    property string permissionProfile: ""
+    property string permissionAgent: ""
+    property var permissionReview: ({})
 
     function parse(value, fallback) {
         try { return JSON.parse(value) } catch (_) { return fallback }
@@ -58,11 +66,7 @@ Item {
         return names[state] || state
     }
     function showLatestMessage() {
-        Qt.callLater(function() {
-            const view = mainScroll.contentItem
-            if (view && typeof view.contentY === "number")
-                view.contentY = Math.max(0, view.contentHeight - view.height)
-        })
+        chatTranscript.goToLatest()
     }
     function chatState(state) {
         const names = { queued: "Queued", thinking: "Thinking", working: "Using tools", completed: "Complete",
@@ -197,8 +201,8 @@ Item {
             root.viewError = "Choose an available agent with its model connected first."
             return
         }
-        if (!root.modelConsent) {
-            root.viewError = "Read and accept the model data-sharing notice before sending."
+        if (!/^[a-f0-9]{64}$/.test(root.planner.configuration_hash || "")) {
+            root.viewError = "Wait for the selected model settings to load."
             return
         }
         const message = chatInput.text.trim()
@@ -208,27 +212,29 @@ Item {
             return
         }
         root.reviewedChat = { profile: root.backend.selectedProfile, agent: root.backend.selectedAgent,
-            label: root.selectedLabel, message: message, actions: allowChatActions.checked, amount: amount }
+            label: root.selectedLabel, message: message, actions: allowChatActions.checked, amount: amount, inference_hash: root.planner.configuration_hash || "" }
         if (root.reviewedChat.actions) chatPermissionDialog.open()
         else root.submitReviewedChat()
     }
     function submitReviewedChat() {
         const reviewed = root.reviewedChat
-        if (!reviewed.message || !root.backend || !root.modelConsent
+        if (!reviewed.message || !root.backend
+                || reviewed.inference_hash !== root.planner.configuration_hash
                 || reviewed.profile !== root.backend.selectedProfile
                 || reviewed.agent !== root.backend.selectedAgent) {
-            root.viewError = "The agent or consent changed. Review your message again."
+            root.viewError = "The agent or model settings changed. Review your message again."
             return
         }
         root.viewError = ""
         root.pendingDraft = reviewed.message
         root.pendingDraftAgent = reviewed.agent
-        root.call(root.backend.startConversation(reviewed.message, reviewed.actions, reviewed.amount))
+        root.call(root.backend.startConversation(reviewed.message, reviewed.actions, reviewed.amount, reviewed.inference_hash))
         root.reviewedChat = ({})
     }
     Connections {
         target: root.backend
         function onSkillDetailsJsonChanged() { root.renderFieldValues() }
+        function onPermissionReviewJsonChanged() { root.receivePermissionReview() }
         function onSelectedProfileChanged() {
             root.fields = []
             root.formValues = ({})
@@ -238,9 +244,107 @@ Item {
             root.viewError = ""
             reviewDialog.close()
             chatPermissionDialog.close()
+            modelActionDialog.close()
+            root.permissionGoalRequested = ""
+            root.permissionReview = ({})
         }
     }
 
+    function reviewModelAction(goalId) {
+        if (!root.backend || !root.backend.remoteReady) return
+        root.viewError = "Loading the current action request..."
+        root.permissionGoalRequested = goalId
+        root.permissionProfile = root.backend.selectedProfile
+        root.permissionAgent = root.backend.selectedAgent
+        root.permissionReview = ({})
+        root.call(root.backend.reviewConversationPermission(goalId))
+    }
+    function receivePermissionReview() {
+        if (!root.backend) return
+        const goal = root.parse(root.backend.permissionReviewJson, {})
+        if (!goal.id || goal.id !== root.permissionGoalRequested || goal.agent_id !== root.permissionAgent
+            || root.backend.selectedAgent !== root.permissionAgent || root.backend.selectedProfile !== root.permissionProfile) return
+        const permission = goal.permission
+        if (!permission || permission.decision !== "pending" || !permission.request) {
+            root.viewError = "This action request no longer needs a decision."
+            return
+        }
+        root.permissionReview = JSON.parse(JSON.stringify(permission.request))
+        actionRequestReviewed.checked = false
+        root.viewError = ""
+        modelActionDialog.open()
+    }
+    function confirmRequestedAction(approve) {
+        const request = root.permissionReview
+        if (!root.backend || !root.backend.remoteReady || root.backend.chatBusy || root.pending
+            || root.backend.selectedProfile !== root.permissionProfile || root.backend.selectedAgent !== root.permissionAgent
+            || request.goal_id !== root.permissionGoalRequested || !/^[a-f0-9]{64}$/.test(request.intent_hash || "")
+            || (approve && !actionRequestReviewed.checked)) {
+            root.viewError = "Reload this action request and read its details before deciding."
+            return
+        }
+        root.call(root.backend.decideConversationPermission(request.goal_id, request.intent_hash, approve))
+        modelActionDialog.close()
+        root.permissionReview = ({})
+        root.permissionGoalRequested = ""
+    }
+    function actionImplications(skill) {
+        if (skill === "wallet.send") return "Transfers testnet tokens to the recipient below. A confirmed transfer cannot be undone here."
+        if (skill === "messaging.send" || skill === "storage.share") return "Sends information to the recipient below. They may keep what they receive."
+        if (skill === "storage.upload") return "Reads the named file on the agent and stores an encrypted copy in Logos Storage."
+        if (skill === "storage.download") return "Downloads and decrypts the named stored file to the agent's output directory."
+        if (skill === "program.call" || skill === "program.deploy") return "Submits a testnet program operation. Check the program and all inputs before approving."
+        if (skill === "agent.task") return "Sends the inputs below to another agent. Its quoted token price is shown separately."
+        if (skill === "messaging.create_group" || skill === "messaging.join") return "Creates or joins the specified messaging group and may send invitations."
+        return "Runs this registered tool once with exactly the inputs below."
+    }
+    function priceMicro(value) {
+        const raw = String(value).trim()
+        if (!/^(0|[1-9][0-9]{0,3})([.][0-9]{1,6})?$/.test(raw)) throw new Error("Use a non-negative price with up to six decimal places.")
+        const parts = raw.split(".")
+        const result = Number(parts[0]) * 1000000 + Number((parts[1] || "").padEnd(6, "0"))
+        if (result > 1000000000) throw new Error("The price estimate is too large.")
+        return result
+    }
+    function openInferenceSettings() {
+        inferenceDialog.profileAtOpen = root.backend ? root.backend.selectedProfile : ""
+        inferenceDialog.hashAtOpen = root.planner.configuration_hash || ""
+        inferenceDialog.errorText = ""
+        inferenceDialog.saveAttempted = false
+        inferenceEndpoint.text = root.planner.endpoint || "https://api.openai.com/v1"
+        inferenceModel.text = root.planner.model || ""
+        inferenceApi.currentIndex = root.planner.api === "chat-completions" ? 1 : 0
+        inferenceCredential.currentIndex = root.planner.credential_configured ? 0 : 2
+        inferenceKey.text = ""
+        inferenceOutput.text = String(root.planner.max_output_tokens || 1536)
+        inferenceInputPrice.text = String(Number(root.planner.input_micro_per_million || 0) / 1000000)
+        inferenceOutputPrice.text = String(Number(root.planner.output_micro_per_million || 0) / 1000000)
+        inferenceReview.checked = false
+        inferenceDialog.open()
+    }
+    function saveInferenceSettings() {
+        try {
+            if (!root.backend || !root.backend.remoteReady
+                || inferenceDialog.profileAtOpen !== root.backend.selectedProfile
+                || !inferenceDialog.hashAtOpen || inferenceDialog.hashAtOpen !== (root.planner.configuration_hash || ""))
+                throw new Error("Connect to the selected agent and reload its current inference settings.")
+            if (!inferenceReview.checked) throw new Error("Review the destination before saving.")
+            if (!/^[0-9]{3,4}$/.test(inferenceOutput.text)) throw new Error("Output tokens must be a whole number between 128 and 8192.")
+            const maximum = Number(inferenceOutput.text)
+            if (maximum < 128 || maximum > 8192) throw new Error("Output tokens must be between 128 and 8192.")
+            const settings = { api: inferenceApi.currentIndex === 0 ? "responses" : "chat-completions",
+                endpoint: inferenceEndpoint.text.trim(), model: inferenceModel.text.trim(),
+                credential_mode: ["keep", "replace", "none"][inferenceCredential.currentIndex],
+                max_output_tokens: maximum, input_micro_per_million: root.priceMicro(inferenceInputPrice.text),
+                output_micro_per_million: root.priceMicro(inferenceOutputPrice.text) }
+            const key = settings.credential_mode === "replace" ? inferenceKey.text : ""
+            if (settings.credential_mode === "replace" && !key) throw new Error("Enter the new endpoint's API key, or choose No API key.")
+            inferenceDialog.saveAttempted = true
+            root.call(root.backend.configureInference(JSON.stringify(settings), key, inferenceDialog.hashAtOpen))
+            inferenceKey.text = ""
+            inferenceReview.checked = false
+        } catch (error) { inferenceDialog.errorText = String(error.message || error) }
+    }
     function skillTitle(id) {
         for (let i = 0; i < root.skills.length; ++i)
             if (root.skills[i].id === id) return root.skills[i].description
@@ -286,7 +390,7 @@ Item {
         const count = function(x) { return typeof x === "number" && isFinite(x) && x >= 0 && Math.floor(x) === x && x <= 9007199254740991 }
         const block = count(result.block) ? " Recorded at block " + result.block + "." : ""
         if (value.skill === "wallet.balance" && decimal(result.balance))
-            return "Recorded wallet balance: " + result.balance + " testnet units." + block + " This is a test-network balance, not money earned."
+            return "Recorded wallet balance: " + result.balance + " testnet units." + block + ""
         if (value.skill === "storage.list" && Array.isArray(result.files))
             return result.files.length === 0 ? "No saved files were found in this agent's file vault." : result.files.length + " saved files were found. Open technical details for their recorded references."
         if (value.skill === "storage.upload" && count(result.bytes) && typeof result.address === "string")
@@ -315,9 +419,12 @@ Item {
     Connections {
         target: root.backend
         function onSelectedProfileChanged() {
-            root.modelConsent = false
+            const drafts = Object.assign({}, root.draftByProfile)
+            drafts[root.draftProfile || "__unselected__"] = chatInput.text
+            root.draftByProfile = drafts
+            root.draftProfile = root.backend ? root.backend.selectedProfile : ""
             allowChatActions.checked = false
-            chatInput.text = ""
+            chatInput.text = drafts[root.draftProfile || "__unselected__"] || ""
             root.pendingDraft = ""
             root.pendingDraftAgent = ""
             detailsDialog.close()
@@ -516,22 +623,22 @@ Item {
     Rectangle { anchors.fill: parent; color: Theme.palette.background }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.spacing.xxlarge
-        spacing: Theme.spacing.large
+        anchors.margins: 16
+        spacing: 10
         RowLayout {
             Layout.fillWidth: true
             ColumnLayout {
                 Layout.fillWidth: true
-                Copy { text: "Commons Relay"; font.pixelSize: Theme.typography.pageTitleText; font.weight: Theme.typography.weightMedium }
-                Caption { text: "Talk to your agents. Stay in control." }
+                Copy { text: "Commons Relay"; font.pixelSize: 26; font.weight: Theme.typography.weightMedium }
             }
             Caption { text: "TESTNET"; color: Theme.palette.warning }
             LogosButton { text: "How to use Relay"; Accessible.name: "Open Relay tutorial"; onClicked: helpDialog.open() }
         }
         Card {
+            padding: 10
             Layout.fillWidth: true
             contentItem: ColumnLayout {
-                spacing: Theme.spacing.medium
+                spacing: 6
                 RowLayout {
                     Layout.fillWidth: true
                     Copy { text: "Agent" }
@@ -582,8 +689,26 @@ Item {
             LogosTabButton { text: "Activity"; Accessible.name: "Relay activity tab"; width: implicitWidth + Theme.spacing.xlarge }
             LogosTabButton { text: "Skills & tools"; Accessible.name: "Relay skills tab"; width: implicitWidth + Theme.spacing.xlarge }
         }
+        ChatTranscript {
+            id: chatTranscript
+            visible: tabs.currentIndex === 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            entries: root.conversation
+            agentLabel: root.selectedLabel
+            hasEarlier: root.backend && root.backend.hasMoreConversation
+            loading: root.pending
+            describeState: root.chatState
+            describeError: root.taskError
+            onEarlierRequested: root.call(root.backend.loadEarlierConversation())
+            onFullReplyRequested: function(goalId) { root.call(root.backend.loadConversationGoal(goalId)) }
+            onTaskRequested: function(taskId) { root.openTask(taskId) }
+            onPermissionRequested: function(goalId) { root.reviewModelAction(goalId) }
+            onExampleRequested: function(text) { root.example(text) }
+        }
         ScrollView {
             id: mainScroll
+            visible: tabs.currentIndex !== 0
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -592,50 +717,6 @@ Item {
             ColumnLayout {
                 width: mainScroll.availableWidth
                 spacing: Theme.spacing.large
-                Card {
-                    visible: tabs.currentIndex === 0 && root.conversation.length === 0
-                    Layout.fillWidth: true
-                    contentItem: ColumnLayout {
-                        spacing: Theme.spacing.medium
-                        Heading { text: "What would you like help with?"; Layout.fillWidth: true }
-                        Copy { text: "Use ordinary language. The agent can explain its capabilities and check information for you. Enable actions only when you want it to change files, send messages or make a testnet payment."; Layout.fillWidth: true }
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: Theme.spacing.small
-                            LogosButton { text: "What can you do?"; onClicked: root.example("What can you help me with? Explain it simply.") }
-                            LogosButton { text: "List stored files"; onClicked: root.example("List the files this agent has stored. Do not change or share anything.") }
-                            LogosButton { text: "Explain approvals"; onClicked: root.example("Explain which actions need my approval and what my current limits are.") }
-                        }
-                        Caption { text: "Suggestions only fill the message box. Nothing is sent until you press Send."; Layout.fillWidth: true }
-                    }
-                }
-                Card {
-                    visible: tabs.currentIndex === 0 && root.backend && root.backend.remoteReady && root.planner.enabled !== true
-                    Layout.fillWidth: true
-                    contentItem: ColumnLayout {
-                        Heading { text: "Chat is not connected yet" }
-                        Copy { text: "The agent is online, but its language model is not configured. You can still inspect its activity and use its registered tools. A missing model is not a completed conversation."; Layout.fillWidth: true }
-                        Caption { text: root.planner.configuration_error ? "Setup status: " + root.planner.configuration_error : "The model configuration is supplied by the local operator, not pasted into chat."; Layout.fillWidth: true }
-                    }
-                }
-                Repeater {
-                    model: tabs.currentIndex === 0 ? root.conversation : []
-                    delegate: Card {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        contentItem: ColumnLayout {
-                            spacing: Theme.spacing.medium
-                            Caption { text: "You" }
-                            Copy { text: modelData.prompt || ""; Layout.fillWidth: true }
-                            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.palette.backgroundElevated }
-                            Caption { text: root.selectedLabel + "  /  " + root.chatState(modelData.state); color: modelData.state === "failed" ? Theme.palette.error : Theme.palette.textSecondary }
-                            Copy { text: modelData.reply || (modelData.state === "queued" ? "Your message is queued." : modelData.state === "thinking" ? "Thinking..." : modelData.state === "working" ? "Checking the requested tools..." : "No response text was received."); Layout.fillWidth: true }
-                            Caption { visible: !!modelData.error; text: root.taskError(modelData.error); color: Theme.palette.error; Layout.fillWidth: true }
-                            Caption { visible: modelData.task_ids && modelData.task_ids.length > 0; text: (modelData.task_ids || []).length + " linked actions. Their verified results are in Activity."; Layout.fillWidth: true }
-                            LogosButton { visible: modelData.task_ids && modelData.task_ids.length > 0; text: "View activity"; onClicked: { tabs.currentIndex = 1; root.call(root.backend.refreshAgent()) } }
-                        }
-                    }
-                }
                 Card {
                     visible: tabs.currentIndex === 1
                     Layout.fillWidth: true
@@ -777,25 +858,21 @@ Item {
                 }
             }
         }
-        RowLayout {
-            visible: tabs.currentIndex === 0 && root.conversation.length > 1
-            Layout.fillWidth: true
-            Caption { text: "Previous replies and failed attempts remain in this conversation."; Layout.fillWidth: true }
-            LogosButton { text: "Latest reply"; Accessible.name: "Scroll to latest agent reply"; onClicked: root.showLatestMessage() }
-        }
         Card {
             visible: tabs.currentIndex === 0
+            padding: 10
             Layout.fillWidth: true
             contentItem: ColumnLayout {
                 spacing: Theme.spacing.small
                 InputArea {
                     id: chatInput
                     objectName: "commons_relay.chatInput"
+                    enabled: true
                     Accessible.name: "Message your agent"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 90
-                    placeholderText: "Ask a question or describe what you want to do..."
-                    enabled: root.backend && root.backend.remoteReady && !root.backend.chatBusy
+                    Layout.preferredHeight: Math.min(128, Math.max(62, contentHeight + 20))
+                    Keys.onPressed: function(event) { if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier)) { root.sendChat(); event.accepted = true } }
+                    placeholderText: root.backend && root.backend.remoteReady ? "Ask a question or describe what you want to do..." : "Write a draft here. Connect an agent before sending."
                 }
                 RowLayout {
                     Layout.fillWidth: true
@@ -808,25 +885,17 @@ Item {
                         text: root.backend && root.backend.chatBusy ? "Working..." : "Send"
                         Accessible.name: "Send message to agent"
                         variant: LogosButton.Variant.Primary
-                        enabled: root.backend && root.backend.remoteReady && root.planner.enabled && !root.backend.chatBusy && !root.pending && root.modelConsent && chatInput.text.trim().length > 0
+                        enabled: root.backend && root.backend.remoteReady && root.planner.enabled && !root.backend.chatBusy && !root.pending && chatInput.text.trim().length > 0
                         onClicked: root.sendChat()
                     }
                 }
-                Caption { text: allowChatActions.checked ? "Up to 8 tool steps. File changes and messaging are allowed; spending is limited separately and may still need approval." : "Read-only by default. No file changes, outgoing personal messages or testnet spending."; Layout.fillWidth: true }
-                ConsentCheck {
-                    id: consentBox
+                RowLayout {
                     Layout.fillWidth: true
-                    checked: root.modelConsent
-                    onCheckedChanged: if (root.modelConsent !== checked) root.modelConsent = checked
-                    palette.text: Theme.palette.text
-                    text: "Send this conversation and requested tool results to OpenAI. Private keys stay on this device."
-                    enabled: root.backend && !root.backend.chatBusy
+                    Caption { text: allowChatActions.checked ? "Actions enabled · spending capped separately" : "Read-only · actions need permission"; Layout.fillWidth: true }
+                    Caption { text: root.planner.enabled ? root.planner.model + " · " + root.providerLabel : "Model not connected"; color: Theme.palette.textSecondary }
+                    LogosButton { text: "Model settings"; Accessible.name: "Open inference settings"; enabled: !root.backend || !root.backend.chatBusy; onClicked: root.openInferenceSettings() }
                 }
-                Caption {
-                    visible: root.planner.enabled === true
-                    text: "Model: " + (root.planner.model || "") + "  /  Estimated model budget remaining: $" + (Number((root.planner.budget || {}).remaining_micro_usd || 0) / 1000000).toFixed(3) + ". Model charges are separate from testnet tokens."
-                    Layout.fillWidth: true
-                }
+
             }
         }
         RowLayout {
@@ -845,6 +914,43 @@ Item {
     }
 
     ThemedDialog {
+        id: modelActionDialog
+        title: "Allow this action?"
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(root.width - 32, 700)
+        height: Math.min(root.height - 32, 650)
+        standardButtons: Dialog.Close
+        contentItem: ScrollView {
+            id: actionReviewScroll
+            contentWidth: availableWidth
+            ColumnLayout {
+                width: actionReviewScroll.availableWidth
+                spacing: 12
+                Heading { text: root.permissionReview.description || "Requested action"; Layout.fillWidth: true }
+                Copy { text: root.permissionReview.reason || ""; Layout.fillWidth: true }
+                Copy { text: root.actionImplications(root.permissionReview.skill || ""); Layout.fillWidth: true }
+                Caption { text: "Tool: " + (root.permissionReview.skill || ""); Layout.fillWidth: true }
+                Repeater {
+                    model: Object.keys(root.permissionReview.arguments || {})
+                    delegate: ColumnLayout {
+                        required property string modelData
+                        Layout.fillWidth: true
+                        Caption { text: root.label(modelData) }
+                        Copy { text: typeof root.permissionReview.arguments[modelData] === "string" ? root.permissionReview.arguments[modelData] : JSON.stringify(root.permissionReview.arguments[modelData], null, 2); Layout.fillWidth: true }
+                    }
+                }
+                Copy { text: "Maximum token spend: " + (root.permissionReview.maximum_spend || "0") + " " + (root.permissionReview.asset || ""); Layout.fillWidth: true }
+                Caption { text: "Approving allows this one action, not every action in the conversation. Existing spending limits still apply and may require a separate transaction approval. Declining runs nothing."; Layout.fillWidth: true }
+                ConsentCheck { id: actionRequestReviewed; text: "I reviewed the recipient, inputs and spending limit."; Layout.fillWidth: true }
+                RowLayout {
+                    LogosButton { text: "Decline"; Accessible.name: "Decline requested action"; enabled: !root.pending && root.backend && !root.backend.chatBusy; onClicked: root.confirmRequestedAction(false) }
+                    LogosButton { text: "Approve this action"; Accessible.name: "Approve exact requested action"; enabled: actionRequestReviewed.checked && !root.pending && root.backend && !root.backend.chatBusy; onClicked: root.confirmRequestedAction(true) }
+                }
+            }
+        }
+    }
+    ThemedDialog {
         id: chatPermissionDialog
         confirmLabel: "Authorize and send"
         objectName: "commons_relay.chatReview"
@@ -862,7 +968,7 @@ Item {
             Heading { text: root.reviewedChat.label || "Selected agent" }
             Copy { text: root.reviewedChat.message || ""; Layout.fillWidth: true; maximumLineCount: 5; elide: Text.ElideRight }
             Copy { text: "Authorize this message for up to 8 tool steps and " + (root.reviewedChat.amount || "0") + " testnet units. Existing transaction limits still apply. The agent cannot approve its own spending."; Layout.fillWidth: true }
-            Caption { text: "The message, recent conversation and requested tool results go to the configured OpenAI model. No private signing keys are sent. Model charges use a separate, estimated budget."; Layout.fillWidth: true }
+            Caption { text: "The message, recent conversation and requested tool results go to " + root.providerLabel + ". No private signing keys are sent. Model charges use a separate, estimated budget."; Layout.fillWidth: true }
             Caption { text: "An uncertain model request is not automatically retried."; Layout.fillWidth: true }
         }
         onAccepted: root.submitReviewedChat()
@@ -957,6 +1063,52 @@ Item {
         onRejected: { root.reviewKind = ""; root.reviewed = ({}) }
     }
     ThemedDialog {
+        id: inferenceDialog
+        objectName: "commons_relay.inferenceSettings"
+        property string profileAtOpen: ""
+        property string hashAtOpen: ""
+        property string errorText: ""
+        property bool saveAttempted: false
+        title: "Inference settings"
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(root.width - 40, 690)
+        height: Math.min(root.height - 40, 710)
+        standardButtons: Dialog.Close
+        onClosed: inferenceKey.text = ""
+        contentItem: ScrollView {
+            id: inferenceScroll; contentWidth: availableWidth
+            ColumnLayout {
+                width: inferenceScroll.availableWidth; spacing: 10
+                Copy { Layout.fillWidth: true; text: "Choose where this agent sends model requests. Saving changes settings only; it does not send a conversation to the model." }
+                Caption { Layout.fillWidth: true; visible: !root.backend || !root.backend.remoteReady; text: "Connect to an agent to load and save its settings. You can still edit a draft here."; color: Theme.palette.warning }
+                Caption { text: "API format" }
+                ThemedPicker { id: inferenceApi; onActivated: inferenceReview.checked = false; Layout.fillWidth: true; model: ["Responses API", "OpenAI-compatible Chat Completions"]; Accessible.name: "Inference API format" }
+                Caption { text: "API base URL" }
+                Field { id: inferenceEndpoint; onTextChanged: inferenceReview.checked = false; Layout.fillWidth: true; placeholderText: "https://your-provider.example/v1"; Accessible.name: "Inference endpoint" }
+                Caption { Layout.fillWidth: true; text: "Use HTTPS for remote servers. HTTP localhost addresses refer to the machine running the agent, not necessarily this laptop." }
+                Caption { text: "Model ID" }
+                Field { id: inferenceModel; onTextChanged: inferenceReview.checked = false; Layout.fillWidth: true; placeholderText: "Model name supplied by your provider"; Accessible.name: "Inference model" }
+                Caption { text: "API credential" }
+                ThemedPicker { id: inferenceCredential; Layout.fillWidth: true; model: ["Keep key for this same endpoint", "Set a new API key", "No API key (for example, a local server)"]; Accessible.name: "Inference credential mode"; onActivated: { inferenceKey.text = ""; inferenceReview.checked = false } }
+                Field { id: inferenceKey; onTextChanged: inferenceReview.checked = false; visible: inferenceCredential.currentIndex === 1; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "New endpoint API key"; Accessible.name: "New inference API key" }
+                Caption { Layout.fillWidth: true; text: "A new key is sealed to this agent before it enters the message channel, then stored privately on the agent. Existing keys are never silently sent to another endpoint." }
+                Caption { text: "Maximum output tokens per request" }
+                Field { id: inferenceOutput; onTextChanged: inferenceReview.checked = false; Layout.fillWidth: true; Accessible.name: "Inference output token limit" }
+                RowLayout {
+                    Layout.fillWidth: true
+                    ColumnLayout { Layout.fillWidth: true; Caption { text: "Input USD per million tokens" } Field { id: inferenceInputPrice; onTextChanged: inferenceReview.checked = false; Layout.fillWidth: true; Accessible.name: "Inference input price estimate" } }
+                    ColumnLayout { Layout.fillWidth: true; Caption { text: "Output USD per million tokens" } Field { id: inferenceOutputPrice; onTextChanged: inferenceReview.checked = false; Layout.fillWidth: true; Accessible.name: "Inference output price estimate" } }
+                }
+                Caption { Layout.fillWidth: true; text: "These price estimates protect the existing model budget; they are not provider billing guarantees. Use the provider's own spending controls as well. Use zero only for genuinely free inference." }
+                ConsentCheck { id: inferenceReview; Layout.fillWidth: true; text: "I reviewed the endpoint, model and price estimates above."; onCheckedChanged: inferenceDialog.errorText = "" }
+                Copy { Layout.fillWidth: true; visible: !!inferenceDialog.errorText; color: Theme.palette.error; text: inferenceDialog.errorText }
+                Caption { Layout.fillWidth: true; visible: inferenceDialog.saveAttempted; text: root.backend ? root.backend.statusText : ""; Accessible.name: text }
+                LogosButton { text: "Save inference settings"; Accessible.name: "Save inference settings"; enabled: root.backend && root.backend.remoteReady && !root.pending && !root.backend.chatBusy && inferenceReview.checked; onClicked: root.saveInferenceSettings() }
+            }
+        }
+    }
+    ThemedDialog {
         id: connectionDialog
         title: "Connection settings"
         modal: true
@@ -974,7 +1126,7 @@ Item {
                 LogosButton { text: "Connect profile"; enabled: root.ready && transportProfile.text.length > 0 && !root.pending; onClicked: root.call(root.backend.configure(transportProfile.text)) }
                 LogosButton { text: "Reload agent list"; enabled: root.ready && !root.pending; onClicked: root.call(root.backend.loadOwnerProfiles()) }
             }
-            Caption { text: "Model credentials are supplied by the operator's private configuration. Never paste API keys, seed phrases or signing keys into a conversation."; Layout.fillWidth: true }
+            Caption { text: "Use Inference settings to choose the model and its endpoint. Never paste API keys, seed phrases or signing keys into a conversation."; Layout.fillWidth: true }
         }
     }
     ThemedDialog {
@@ -999,7 +1151,7 @@ Item {
                 Heading { text: "1. Choose an agent" }
                 Copy { text: "Choose an instance in the Agent selector. Wait for the authenticated connection and Chat ready indicator. Its available tools come from its live registry, including installed custom skills. Each instance keeps its own history and permissions."; Layout.fillWidth: true }
                 Heading { text: "2. Ask in ordinary language" }
-                Copy { text: "Start with 'What can you help me with?' or 'List my stored files.' Read and accept the OpenAI data-sharing notice, then send. Chat is read-only by default."; Layout.fillWidth: true }
+                Copy { text: "Start with 'What can you help me with?' or 'List my stored files.' Read and accept the selected provider's data-sharing notice, then send. Chat is read-only by default."; Layout.fillWidth: true }
                 Heading { text: "3. Review actions and results" }
                 Copy { text: "For an upload, a message or a payment, enable Allow actions for this message and review the exact spending limit. A larger or restricted action appears in Activity for your separate approval. Activity shows the agent's recorded result, not just a model claim."; Layout.fillWidth: true }
                 Heading { text: "Model costs are not testnet tokens" }

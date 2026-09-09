@@ -163,10 +163,17 @@ class Service:
         if method == 'owner.task' and set(params) == {'task_id'}:
             from .owner_views import task_details
             return task_details(self.engine, params['task_id'])
+        if method == 'planner.permission' and set(params) == {'envelope'}:
+            return self.get_planner().permissions.decide(params['envelope'])
+        if method == 'planner.configure' and set(params) == {'envelope'}:
+            from .inference_settings import InferenceStore
+            return InferenceStore(self.get_planner()).configure(params['envelope'])
         if method == 'planner.status' and not params:
             return self.get_planner().status()
         if method == 'planner.history' and set(params) == {'offset'}:
             return self.get_planner().history(params['offset'])
+        if method == 'planner.permission_view' and set(params) == {'goal_id'}:
+            return self.get_planner().permission_review(params['goal_id'])
         if method == 'planner.goal' and set(params) == {'goal_id'}:
             return self.get_planner().view(params['goal_id'])
         if method == 'planner.start' and set(params) == {'envelope'}:
@@ -181,7 +188,10 @@ class Service:
             result=self.bridge.call('storage.connect-local',params)
             return {'connected':True,'result':result}
         if method=='agent.start' and not params:
-            protocol=self.get_agent_protocol();self.get_controller().start();protocol.discover(protocol.config['discovery_topic']);return {'started':True,'card':protocol.card()}
+            protocol=self.get_agent_protocol();controller=self.get_controller();controller.start()
+            if (self.root/'planner'/'conversations.sqlite').exists():
+                self.get_planner().permissions.resume_accepted(controller)
+            protocol.discover(protocol.config['discovery_topic']);return {'started':True,'card':protocol.card()}
         if method=='agent.cards' and not params:
             return {'agents':self.get_agent_protocol().cards()}
         if method=='controller.start' and not params:

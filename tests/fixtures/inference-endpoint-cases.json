@@ -1,0 +1,525 @@
+{
+  "schema_version": 1,
+  "purpose": "Deterministic cases for a future owner-authorized inference endpoint/model/API validator. No case requires network access.",
+  "constraints": {
+    "remote_scheme": "https",
+    "http_hosts_exact_after_ascii_case_normalization": [
+      "localhost",
+      "127.0.0.1",
+      "[::1]"
+    ],
+    "forbidden_url_components": [
+      "userinfo",
+      "query",
+      "fragment"
+    ],
+    "forbidden_raw_url_features": [
+      "whitespace",
+      "backslash",
+      "percent-encoded path octets",
+      "dot path segments"
+    ],
+    "forbidden_base_url_suffixes": [
+      "/responses",
+      "/chat/completions"
+    ],
+    "model_id_regex": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$",
+    "api_choices": [
+      "responses",
+      "chat-completions"
+    ],
+    "canonicalization": [
+      "lowercase scheme and host",
+      "remove the default port for the scheme",
+      "preserve a non-default port, including bracketed IPv6 ports",
+      "remove a single trailing slash from a non-root path and represent root without a trailing slash",
+      "do not decode or rewrite an otherwise forbidden path into acceptance"
+    ]
+  },
+  "base_url_cases": [
+    {
+      "id": "https-remote-root",
+      "input": "https://api.example.com",
+      "valid": true,
+      "canonical": "https://api.example.com"
+    },
+    {
+      "id": "https-remote-v1-trailing-default-port",
+      "input": "https://API.Example.COM:443/v1/",
+      "valid": true,
+      "canonical": "https://api.example.com/v1"
+    },
+    {
+      "id": "https-remote-nondefault-port",
+      "input": "https://api.example.com:8443/v1/",
+      "valid": true,
+      "canonical": "https://api.example.com:8443/v1"
+    },
+    {
+      "id": "https-remote-ipv6-port",
+      "input": "https://[2001:db8::1]:8443/v1/",
+      "valid": true,
+      "canonical": "https://[2001:db8::1]:8443/v1"
+    },
+    {
+      "id": "http-localhost-port",
+      "input": "http://localhost:11434/v1/",
+      "valid": true,
+      "canonical": "http://localhost:11434/v1"
+    },
+    {
+      "id": "http-localhost-case-default-port",
+      "input": "http://LOCALHOST:80/",
+      "valid": true,
+      "canonical": "http://localhost"
+    },
+    {
+      "id": "http-ipv4-loopback-port",
+      "input": "http://127.0.0.1:8000/v1/",
+      "valid": true,
+      "canonical": "http://127.0.0.1:8000/v1"
+    },
+    {
+      "id": "http-ipv6-loopback-port",
+      "input": "http://[::1]:11434/v1/",
+      "valid": true,
+      "canonical": "http://[::1]:11434/v1"
+    },
+    {
+      "id": "https-loopback-is-also-valid",
+      "input": "https://127.0.0.1:9443/v1/",
+      "valid": true,
+      "canonical": "https://127.0.0.1:9443/v1"
+    },
+    {
+      "id": "http-remote-downgrade",
+      "input": "http://api.example.com/v1",
+      "valid": false,
+      "reason": "http_remote_disallowed"
+    },
+    {
+      "id": "http-ipv6-remote",
+      "input": "http://[2001:db8::1]:11434/v1",
+      "valid": false,
+      "reason": "http_remote_disallowed"
+    },
+    {
+      "id": "http-loopback-127-0-0-2-lookalike",
+      "input": "http://127.0.0.2:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-loopback-short-ipv4-lookalike",
+      "input": "http://127.1:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-loopback-integer-lookalike",
+      "input": "http://2130706433:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-loopback-ipv4-mapped-ipv6-lookalike",
+      "input": "http://[::ffff:127.0.0.1]:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-localhost-subdomain-lookalike",
+      "input": "http://localhost.example.com:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-localhost-trailing-dot-lookalike",
+      "input": "http://localhost.:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback"
+    },
+    {
+      "id": "http-localhost-unicode-lookalike",
+      "input": "http://locаlhost:8000/v1",
+      "valid": false,
+      "reason": "http_host_not_exact_loopback",
+      "note": "The a in locаlhost is Cyrillic U+0430."
+    },
+    {
+      "id": "userinfo-username",
+      "input": "https://user@api.example.com/v1",
+      "valid": false,
+      "reason": "userinfo_forbidden"
+    },
+    {
+      "id": "userinfo-credential-like",
+      "input": "https://user:pass@api.example.com/v1",
+      "valid": false,
+      "reason": "userinfo_forbidden"
+    },
+    {
+      "id": "query-forbidden",
+      "input": "https://api.example.com/v1?deployment=test",
+      "valid": false,
+      "reason": "query_forbidden"
+    },
+    {
+      "id": "fragment-forbidden",
+      "input": "https://api.example.com/v1#responses",
+      "valid": false,
+      "reason": "fragment_forbidden"
+    },
+    {
+      "id": "percent-encoded-path-character",
+      "input": "https://api.example.com/v%31",
+      "valid": false,
+      "reason": "percent_encoded_path_forbidden"
+    },
+    {
+      "id": "percent-encoded-slash",
+      "input": "https://api.example.com/v1%2Ftenant",
+      "valid": false,
+      "reason": "percent_encoded_path_forbidden"
+    },
+    {
+      "id": "percent-encoded-dot-segment",
+      "input": "https://api.example.com/v1/%2e%2e/admin",
+      "valid": false,
+      "reason": "percent_encoded_path_forbidden"
+    },
+    {
+      "id": "backslash-in-path",
+      "input": "https://api.example.com/v1\\tenant",
+      "valid": false,
+      "reason": "backslash_forbidden"
+    },
+    {
+      "id": "leading-whitespace",
+      "input": " https://api.example.com/v1",
+      "valid": false,
+      "reason": "whitespace_forbidden"
+    },
+    {
+      "id": "trailing-whitespace",
+      "input": "https://api.example.com/v1 ",
+      "valid": false,
+      "reason": "whitespace_forbidden"
+    },
+    {
+      "id": "embedded-whitespace",
+      "input": "https://api.example.com/v 1",
+      "valid": false,
+      "reason": "whitespace_forbidden"
+    },
+    {
+      "id": "dot-segment-parent",
+      "input": "https://api.example.com/v1/../v2",
+      "valid": false,
+      "reason": "dot_segment_forbidden"
+    },
+    {
+      "id": "dot-segment-current",
+      "input": "https://api.example.com/v1/./models",
+      "valid": false,
+      "reason": "dot_segment_forbidden"
+    },
+    {
+      "id": "responses-suffix-root",
+      "input": "https://api.example.com/responses",
+      "valid": false,
+      "reason": "api_operation_suffix_forbidden"
+    },
+    {
+      "id": "responses-suffix-nested",
+      "input": "https://api.example.com/v1/responses/",
+      "valid": false,
+      "reason": "api_operation_suffix_forbidden"
+    },
+    {
+      "id": "chat-completions-suffix-root",
+      "input": "https://api.example.com/chat/completions",
+      "valid": false,
+      "reason": "api_operation_suffix_forbidden"
+    },
+    {
+      "id": "chat-completions-suffix-nested",
+      "input": "https://api.example.com/v1/chat/completions/",
+      "valid": false,
+      "reason": "api_operation_suffix_forbidden"
+    },
+    {
+      "id": "relative-url",
+      "input": "/v1",
+      "valid": false,
+      "reason": "absolute_http_url_required"
+    },
+    {
+      "id": "ftp-scheme",
+      "input": "ftp://api.example.com/v1",
+      "valid": false,
+      "reason": "scheme_forbidden"
+    },
+    {
+      "id": "file-scheme",
+      "input": "file:///tmp/v1",
+      "valid": false,
+      "reason": "scheme_forbidden"
+    },
+    {
+      "id": "empty-url",
+      "input": "",
+      "valid": false,
+      "reason": "absolute_http_url_required"
+    }
+  ],
+  "model_id_cases": [
+    {
+      "id": "simple-gpt",
+      "input": "gpt-5.6-luna",
+      "valid": true
+    },
+    {
+      "id": "vendor-slash-model",
+      "input": "openai/gpt-5.6",
+      "valid": true
+    },
+    {
+      "id": "colon-slash-underscore-dot",
+      "input": "azure:gpt-4.1/deployment_01",
+      "valid": true
+    },
+    {
+      "id": "single-character",
+      "input": "A",
+      "valid": true
+    },
+    {
+      "id": "maximum-length-160",
+      "generate": {
+        "prefix": "A",
+        "repeat": "x",
+        "repeat_count": 159
+      },
+      "valid": true
+    },
+    {
+      "id": "too-long-161",
+      "generate": {
+        "prefix": "A",
+        "repeat": "x",
+        "repeat_count": 160
+      },
+      "valid": false,
+      "reason": "model_id_too_long"
+    },
+    {
+      "id": "empty-model",
+      "input": "",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "starts-hyphen",
+      "input": "-model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "starts-underscore",
+      "input": "_model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "starts-dot",
+      "input": ".model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "starts-slash",
+      "input": "/model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "starts-colon",
+      "input": ":model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "contains-space",
+      "input": "model name",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "leading-whitespace-model",
+      "input": " model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "trailing-whitespace-model",
+      "input": "model ",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "unicode-model",
+      "input": "模型",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "backslash-model",
+      "input": "vendor\\model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "at-sign-model",
+      "input": "vendor@model",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "query-like-model",
+      "input": "model?fast=1",
+      "valid": false,
+      "reason": "model_id_invalid"
+    },
+    {
+      "id": "fragment-like-model",
+      "input": "model#fast",
+      "valid": false,
+      "reason": "model_id_invalid"
+    }
+  ],
+  "api_choice_cases": [
+    {
+      "id": "responses",
+      "input": "responses",
+      "valid": true,
+      "canonical": "responses"
+    },
+    {
+      "id": "chat-completions",
+      "input": "chat-completions",
+      "valid": true,
+      "canonical": "chat-completions"
+    },
+    {
+      "id": "responses-uppercase",
+      "input": "Responses",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "chat-completions-slash",
+      "input": "chat/completions",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "chat-completions-underscore",
+      "input": "chat_completions",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "responses-leading-slash",
+      "input": "/responses",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "responses-trailing-slash",
+      "input": "responses/",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "api-leading-whitespace",
+      "input": " responses",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    },
+    {
+      "id": "empty-api",
+      "input": "",
+      "valid": false,
+      "reason": "api_choice_invalid"
+    }
+  ],
+  "request_join_cases": [
+    {
+      "id": "responses-joined-once",
+      "base_url": "https://api.example.com/v1",
+      "api": "responses",
+      "expected_request_url": "https://api.example.com/v1/responses"
+    },
+    {
+      "id": "chat-completions-joined-once",
+      "base_url": "https://api.example.com/v1",
+      "api": "chat-completions",
+      "expected_request_url": "https://api.example.com/v1/chat/completions"
+    },
+    {
+      "id": "responses-root-base",
+      "base_url": "https://api.example.com",
+      "api": "responses",
+      "expected_request_url": "https://api.example.com/responses"
+    },
+    {
+      "id": "local-ipv6-chat-completions",
+      "base_url": "http://[::1]:11434/v1",
+      "api": "chat-completions",
+      "expected_request_url": "http://[::1]:11434/v1/chat/completions"
+    }
+  ],
+  "transport_guard_cases": [
+    {
+      "id": "wrong-credentials-no-fallback",
+      "base_url": "https://api.example.com/v1",
+      "model": "vendor/model-1",
+      "api": "responses",
+      "synthetic_http_status": 401,
+      "expect": {
+        "attempts": 1,
+        "follow_redirect": false,
+        "fallback_endpoint": false,
+        "fallback_model": false,
+        "credential_in_error": false
+      }
+    },
+    {
+      "id": "https-to-http-downgrade-redirect-not-followed",
+      "base_url": "https://api.example.com/v1",
+      "model": "vendor/model-1",
+      "api": "responses",
+      "synthetic_http_status": 302,
+      "synthetic_location": "http://api.example.com/v1/responses",
+      "expect": {
+        "attempts": 1,
+        "follow_redirect": false,
+        "fallback_endpoint": false
+      }
+    },
+    {
+      "id": "loopback-http-to-lookalike-redirect-not-followed",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "model": "local/model-1",
+      "api": "chat-completions",
+      "synthetic_http_status": 302,
+      "synthetic_location": "http://127.0.0.1.example.com:8000/v1/chat/completions",
+      "expect": {
+        "attempts": 1,
+        "follow_redirect": false,
+        "fallback_endpoint": false
+      }
+    }
+  ]
+}

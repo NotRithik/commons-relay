@@ -6,7 +6,7 @@ passes through Engine.submit and the durable controller. Starting a conversation
 is explicit; restarting the service never repeats a paid model request.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import hashlib
 import json
 import os
@@ -49,18 +49,27 @@ class Configuration:
     budget_micro_usd: int
     input_micro_per_million: int
     output_micro_per_million: int
+    endpoint: str = "https://api.openai.com/v1"
+    api: str = "responses"
+    max_output_tokens: int = 1536
+    credential_mode: str = "keep"
+    configuration_hash: str = ""
+    credential_sha256: str = ""
+    runner_sha256: str = ""
 
     @classmethod
-    def load(cls, path: Path):
+    def load(cls, path: Path, *, owner_key=None, crypto=None, agent_id=""):
         raw = private_json(path)
         required = {'schema_version', 'node', 'runner', 'runner_sha256', 'model',
                     'api_key_file', 'budget_file', 'budget_micro_usd',
                     'input_micro_per_million', 'output_micro_per_million'}
         if set(raw) != required or raw['schema_version'] != 1:
             raise Rejected('INVALID_PLANNER_CONFIGURATION')
-        if not isinstance(raw.get('model'), str) or not re.fullmatch(r'gpt-[A-Za-z0-9.-]{1,80}', raw['model']):
+        from .inference_settings import effective, MODEL
+        raw = effective(path, raw, owner_key=owner_key, crypto=crypto, agent_id=agent_id)
+        if not isinstance(raw.get('model'), str) or not MODEL.fullmatch(raw['model']):
             raise Rejected('INVALID_PLANNER_MODEL')
-        for name in ['node', 'runner', 'api_key_file', 'budget_file']:
+        for name in ['node', 'runner', 'budget_file'] + (['api_key_file'] if raw['api_key_file'] else []):
             if not isinstance(raw[name], str): raise Rejected('INVALID_PLANNER_PATH')
             candidate = Path(raw[name])
             if not candidate.is_absolute() or candidate.is_symlink() or not candidate.is_file():
@@ -69,18 +78,20 @@ class Configuration:
             raise Rejected('PLANNER_NODE_UNAVAILABLE')
         if hashlib.sha256(Path(raw['runner']).read_bytes()).hexdigest() != raw['runner_sha256']:
             raise Rejected('PLANNER_RUNNER_CHANGED')
-        for name in ['api_key_file', 'budget_file']:
+        for name in ['budget_file'] + (['api_key_file'] if raw['api_key_file'] else []):
             if stat.S_IMODE(Path(raw[name]).stat().st_mode) & 0o077:
                 raise Rejected('PLANNER_SECRET_PERMISSIONS')
         for name in ['budget_micro_usd', 'input_micro_per_million', 'output_micro_per_million']:
-            if type(raw[name]) is not int or not 1 <= raw[name] <= 1000000000:
+            if type(raw[name]) is not int or not (1 if name == 'budget_micro_usd' else 0) <= raw[name] <= 1000000000:
                 raise Rejected('INVALID_PLANNER_BUDGET')
         if raw['budget_micro_usd'] > 15000000:
             raise Rejected('INVALID_PLANNER_BUDGET')
         ledger = private_json(Path(raw['budget_file']), 200000)
         if ledger.get('maximum_micro_usd') != raw['budget_micro_usd']:
             raise Rejected('PLANNER_BUDGET_MISMATCH')
-        return cls(**{key: raw[key] for key in cls.__dataclass_fields__})
+        fields = {key: raw[key] for key in cls.__dataclass_fields__ if key != 'configuration_hash'}
+        fields['configuration_hash'] = hashlib.sha256(canonical(fields)).hexdigest()
+        return cls(**fields)
 
     def public_budget(self) -> dict:
         ledger = private_json(Path(self.budget_file), 200000)
@@ -129,10 +140,12 @@ class Planner:
         self.active = None
         self.cancel_event = threading.Event()
         self.closing = False
+        from .conversation_permissions import ConversationPermissions
+        self.permissions = ConversationPermissions(self)
 
     def configuration(self):
         path = self.service.root / 'planner.json'
-        return Configuration.load(path) if path.exists() else None
+        return Configuration.load(path, owner_key=self.engine.owner_key, crypto=self.engine.crypto, agent_id=self.engine.agent) if path.exists() else None
 
     def status(self) -> dict:
         try:
@@ -145,11 +158,21 @@ class Planner:
         actions = [name for name in registered if name != 'meta.configure']
         result = {'planner_status': True, 'agent_id': self.engine.agent,
             'enabled': config is not None, 'model': config.model if config else None,
-            'provider': 'OpenAI' if config else None, 'delegate_key_id': self.delegate_id,
+            'provider': ('OpenAI' if config.endpoint == 'https://api.openai.com/v1' else __import__('urllib.parse', fromlist=['urlsplit']).urlsplit(config.endpoint).netloc) if config else None, 'delegate_key_id': self.delegate_id,
             'read_skills': read, 'action_skills': actions, 'active_goal': self.active,
             'maximum_steps': 8, 'error': error,
-            'privacy': 'Prompts and selected tool results are sent to the configured OpenAI model. Owner keys and wallet secrets are never supplied.'}
+            'privacy': 'Messages, relevant conversation history and requested tool results go to the selected inference endpoint. Private signing keys are not supplied.'}
         if config:
+            result.update(endpoint=config.endpoint, api=config.api, configuration_hash=config.configuration_hash,
+                max_output_tokens=config.max_output_tokens, credential_configured=bool(config.api_key_file),
+                credential_digest=config.credential_sha256, input_micro_per_million=config.input_micro_per_million,
+                output_micro_per_million=config.output_micro_per_million)
+            try:
+                from .inference_settings import InferenceStore
+                from .codec import b64
+                result['configuration_box_key'] = b64(InferenceStore(self).box_pair()[1])
+            except (Rejected, OSError):
+                result['configuration_box_key'] = None
             try: result['budget'] = config.public_budget()
             except Rejected as failure: result.update(enabled=False, error=str(failure))
         return result
@@ -163,12 +186,56 @@ class Planner:
         return row
 
     def view(self, goal_id) -> dict:
+        self.permissions.reconcile_existing(goal_id)
         row = self._row(goal_id)
-        return {'planner_goal': True, 'agent_id': self.engine.agent, 'goal': {
-            'id': row['id'], 'prompt': row['prompt'], 'reply': row['reply'],
+        goal = {'id': row['id'], 'prompt': row['prompt'], 'reply': row['reply'],
             'state': row['state'], 'error': row['error'], 'mode': row['mode'],
             'created': row['created'], 'updated': row['updated'],
-            'task_ids': json.loads(row['task_ids'])}}
+            'task_ids': json.loads(row['task_ids']), 'permission': self.permissions.view(goal_id)}
+        permission = goal['permission']
+        if permission and permission['decision'] == 'approve' and permission.get('task_id'):
+            task = self.engine.get(permission['task_id'])
+            request = permission['request']
+            if (task['skill'] != request['skill'] or task.get('arguments') != request['arguments']
+                    or task['maximum_spend'] != request['maximum_spend'] or task['asset'] != request['asset']):
+                raise Rejected('PERMISSION_TASK_BINDING_MISMATCH')
+            permission['task_state'] = task['state']
+            goal['updated'] = max(goal['updated'], task['updated'])
+            # Display a recorded tool outcome, not a new model answer or a retry.
+            # This derived view also works after a restart without modifying history.
+            if task['state'] == 'completed':
+                goal.update(state='completed', error=None,
+                    reply='The action you approved completed. Open the linked tool result for the recorded output.')
+            elif task['state'] in ('failed', 'rejected', 'canceled'):
+                goal.update(state='cancelled' if task['state'] == 'canceled' else 'failed', error=task['error'],
+                    reply='The action you approved did not complete. Open the linked tool result for its status and error.')
+        elif goal['state']=='waiting' and goal['task_ids'] and not (permission and permission['decision']=='pending'):
+            if len(goal['task_ids'])>16:raise Rejected('PLANNER_TASK_HISTORY_LIMIT')
+            receipts=[self.engine.get(task_id) for task_id in goal['task_ids']]
+            terminal={'completed','failed','rejected','canceled'}
+            if all(task['state'] in terminal for task in receipts):
+                failed=[task for task in receipts if task['state']!='completed']
+                goal['updated']=max([goal['updated']]+[task['updated'] for task in receipts])
+                goal['state']='failed' if failed else 'completed'
+                goal['error']=failed[0].get('error') if failed else None
+                goal['reply']=('One or more linked tasks did not complete. Open their results for the recorded status.' if failed
+                    else 'The requested task completed. Open the linked tool result for its recorded output.' if len(receipts)==1
+                    else 'All '+str(len(receipts))+' linked tasks completed. Open their tool results for the recorded outputs.')
+                goal['outcome_from_receipts']=True
+        response={'planner_goal': True, 'agent_id': self.engine.agent, 'goal': goal}
+        if len(canonical(response))>13200 and permission:
+            request=permission['request']
+            goal['permission']={**permission,'request':{key:request[key] for key in ['skill','maximum_spend','asset','intent_hash']}}
+            goal['permission']['request']['reason']=request['reason'][:200]
+            goal['permission_preview']=True
+            # The complete request remains available through the dedicated
+            # signed permission-review route, never approved from this preview.
+        return response
+
+    def permission_review(self, goal_id):
+        self._row(goal_id)
+        return {'permission_review': True, 'agent_id': self.engine.agent,
+                'id': goal_id, 'permission': self.permissions.view(goal_id)}
 
     def history(self, offset=0) -> dict:
         if type(offset) is not int or not 0 <= offset <= 100000:
@@ -182,6 +249,11 @@ class Planner:
             # Each single goal is available intact through planner.goal.
             compact = {**item, 'prompt': item['prompt'][:1000], 'reply': item['reply'][:1500],
                        'preview': len(item['prompt'])>1000 or len(item['reply'])>1500}
+            if compact.get('permission'):
+                permission=compact['permission']; request=permission['request']
+                compact['permission']={**permission, 'request': {key: request[key] for key in ['skill','maximum_spend','asset','intent_hash']}}
+                compact['permission']['request']['reason']=request['reason'][:200]
+                compact['permission_preview']=True
             if len(canonical({'goals': [*goals, compact]})) > 10500:
                 break
             goals.append(compact)
@@ -191,9 +263,11 @@ class Planner:
     def validate_grant(self, envelope):
         body = verify_envelope(envelope, self.engine.owner_key, self.engine.crypto)
         required = {'domain','agent_id','grant_id','delegate_key_id','goal','allowed_skills',
-                    'maximum_spend','max_steps','expires_at','policy_version'}
+                    'maximum_spend','max_steps','expires_at','policy_version','inference_hash'}
         if set(body) != required or body['domain'] != GRANT_DOMAIN or body['agent_id'] != self.engine.agent:
             raise Rejected('INVALID_GOAL_GRANT')
+        if 'inference_hash' in body and not re.fullmatch('[a-f0-9]{64}', str(body['inference_hash'])):
+            raise Rejected('INVALID_INFERENCE_REVIEW')
         if body['delegate_key_id'] != self.delegate_id:
             raise Rejected('PLANNER_DELEGATE_CHANGED')
         identifier(body['grant_id'])
@@ -232,6 +306,8 @@ class Planner:
                 raise Rejected('PLANNER_HISTORY_LIMIT')
             config = self.configuration()
             if config is None: raise Rejected('PLANNER_NOT_CONFIGURED')
+            if body.get('inference_hash') != config.configuration_hash:
+                raise Rejected('INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN')
             if config.public_budget()['remaining_micro_usd'] <= 0: raise Rejected('TEST_BUDGET_EXHAUSTED')
             self.engine.register_grant(envelope)
             now = int(self.clock())
@@ -261,6 +337,7 @@ class Planner:
         if not isinstance(command,dict) or set(command)!={'method','params'} or not isinstance(command['params'],dict):
             raise Rejected('INVALID_PLANNER_REQUEST')
         method=command['method'];params=command['params'];goal_id=grant['grant_id']
+        if method=='request_permission': return self.permissions.propose(grant,params)
         if method=='submit' and set(params)=={'envelope','public_key'}:
             public=unb64(params['public_key'],32)
             if public!=self.public:raise Rejected('PLANNER_DELEGATE_CHANGED')
@@ -300,9 +377,21 @@ class Planner:
         goal_id=grant['grant_id'];child=None;timer=None
         try:
             self._set(goal_id,state='thinking')
+            # The child gets this immutable per-goal snapshot, never the mutable
+            # operator configuration. It independently checks any credential digest.
+            from .inference_settings import private_write
+            snapshot = asdict(config)
+            if config.api_key_file:
+                from .inference_settings import credential_bytes
+                if hashlib.sha256(credential_bytes(config.api_key_file)).hexdigest() != config.credential_sha256:
+                    raise Rejected('INFERENCE_CREDENTIAL_CHANGED')
+            if hashlib.sha256(Path(config.runner).read_bytes()).hexdigest() != config.runner_sha256:
+                raise Rejected('PLANNER_RUNNER_CHANGED')
+            snapshot_path = self.root / ('run-' + goal_id + '.json')
+            private_write(snapshot_path, canonical(snapshot), exclusive=True)
             env={'PATH':'/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin',
                  'HOME':str(self.root),'TMPDIR':str(self.root),
-                 'COMMONS_PLANNER_CONFIG':str(self.service.root/'planner.json')}
+                 'COMMONS_PLANNER_CONFIG':str(snapshot_path)}
             child=subprocess.Popen([config.node,config.runner],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL,env=env,cwd=self.root,start_new_session=True)
             with self.lock:self.process=child
@@ -313,7 +402,9 @@ class Planner:
                     except ProcessLookupError:pass
             timer=threading.Timer(MAX_TURN_SECONDS,expire);timer.daemon=True;timer.start()
             skills=[row for row in self.engine.registry.describe() if row['id'] in grant['allowed_skills']]
+            permission_skills=[row for row in self.engine.registry.describe() if row['id'] not in grant['allowed_skills'] and row['id']!='meta.configure']
             initial={'grant':grant,'delegate_key_file':str(self.key_path),'skills':skills,
+                     'permission_skills':permission_skills,
                      'maximum_task_ttl':self.engine.policy.approval_ttl,
                      'history':self.history(0)['goals'][1:4]}
             child.stdin.write(canonical({'kind':'start','value':initial})+b'\n');child.stdin.flush()

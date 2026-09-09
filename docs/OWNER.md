@@ -12,13 +12,22 @@ permitted tools. They are not fixed-response bots or mandatory task categories.
 Choose an instance, then wait for an authenticated owner-channel reply. Opening
 the app proves neither an agent connection nor a completed task.
 
-**Chat** accepts ordinary language. Read-only is the default. The owner must accept
-the model data-sharing notice before sending a message. To allow file changes,
-messages or a payment, enable actions and review the goal and maximum test-token
-spend. The owner's local signer creates a bounded goal grant; the remote planner
-gets only delegated authority. Per-task limits and exact approvals still apply.
-A missing model configuration disables Send and explains why. Suggestions merely
-fill the input; they do not execute a hidden fixed scenario.
+**Chat** accepts ordinary language. Read-only is the default. The selected model
+and provider are shown beside the composer. Pressing Send uses that configuration
+for the message, recent conversation and requested tool results. Private signing
+keys are not sent. A configuration change invalidates an open Send review.
+
+To allow file changes, messages or a payment, enable actions and review the goal
+and maximum test-token spend. The local owner signer creates a bounded grant;
+the remote planner gets only delegated authority. Per-task limits still apply.
+A missing model configuration disables Send. Suggestions only fill the composer.
+
+A read-only turn can also ask for one action when it needs permission. The request
+appears in the conversation without executing a task. Open **Review requested
+action** to see the exact tool, recipient or path, inputs, implications and token
+limit. Approve authorizes only that action; Decline runs nothing. An existing
+spending limit can still require a separate transaction approval. The original
+read-only grant is not expanded.
 
 **Activity** shows the task engine's receipts and uncertainty states, not a model's
 claim of success. Open a task for its exact arguments and recorded result. Above-
@@ -92,7 +101,22 @@ Deployment creates an owner Messaging identity and pins it in the agent profile.
 
 Inference is optional and disabled by default. Connecting a planner does not grant it extra authority: model-selected tool calls still pass through the same task schemas, signed grants, spending policy, and effect reconciliation as CLI or Basecamp requests.
 
-The optional Pi adapter lives under `adapters/pi/`. API credentials belong in the planner process environment and are not forwarded to third-party skill subprocesses or returned through agent status APIs.
+The optional Pi adapter lives under `adapters/pi/`. API credentials are read from
+protected files by the model worker, not inherited from ambient environment
+variables. They are not forwarded to third-party skill processes or returned in
+status results.
+
+Use **Inference settings** to select an API base URL, model ID, Responses or Chat
+Completions format, output limit and price estimates. Saving settings makes no
+model request. Remote endpoints require HTTPS; HTTP is accepted only for exact
+local loopback hosts on the agent machine. A changed endpoint cannot inherit the
+old endpoint's key. A replacement key is sealed to the selected agent before it
+enters Messaging, then stored in an owner-only file.
+
+Every model turn binds a signed configuration hash to an immutable snapshot,
+including the endpoint, model, token limits, prices and credential digest. Changes
+to the active snapshot or credential fail rather than selecting a fallback.
+Prices are estimates used for the local budget, not provider billing guarantees.
 
 
 ## Verified conversation paths
@@ -103,9 +127,11 @@ an action-enabled, zero-token-budget request for the dynamically installed
 The model's words are not treated as the authority for completion. A failed
 provider request remains in history and is not automatically repeated.
 
-Switching agents clears the draft, action permission and provider consent. After
-a conversation finishes, the next message defaults to read-only again. Use
-**Latest reply** to reach the newest response without losing earlier records.
+Switching agents keeps a separate unsent draft for each profile during this app
+session and resets action permission. Drafts are not persisted across an app
+restart. After a turn finishes, the next message defaults to read-only. Use
+**Load earlier messages**, **Show full reply** and **Latest message** to read the
+history. Every linked result opens the corresponding recorded task.
 The owner may set a private `display_name` in a profile's `agent.json`; that is a
 label only and never changes the signed agent identity or its key binding.
 
@@ -134,3 +160,20 @@ preview. A public program account's balance is not labelled as your wallet balan
 Pending approvals still show their full arguments before any signature. Collapsing
 completed-task JSON does not hide what an approval authorizes. A missing or truncated
 result is not treated as a verified success summary.
+
+
+## Restart and action outcomes
+
+An accepted action keeps its original task reference across restarts. The
+conversation can reconstruct missing links from the engine's exact accepted
+intent. Reading history only repairs metadata; it does not execute a task.
+Explicitly starting an agent can restore the schedule for a previously accepted,
+still-valid task. Expired actions are linked to their terminal result rather
+than authorized again. Changes to price or policy after acceptance do not turn
+that existing task into a new one.
+
+A task that is still proving, working or checking an uncertain network result
+remains pending. Once its recorded task finishes, the chat status can update
+without another model request. Use the linked result for the returned data,
+payment reference or failure. Do not send a duplicate solely because a proof is
+slow or the app was closed.

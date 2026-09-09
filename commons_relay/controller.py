@@ -16,7 +16,7 @@ from .engine import TERMINAL
 OWNER_DOMAIN='commons/relay/owner-command/v1'
 OWNER_METHODS=frozenset(['status','skills','task','submit','approve','grant','revoke','cancel','configure',
                          'owner.snapshot','owner.skills','owner.skill','owner.task',
-                         'planner.status','planner.history','planner.goal','planner.start','planner.cancel'])
+                         'planner.status','planner.history','planner.goal','planner.start','planner.cancel','planner.configure','planner.permission','planner.permission_view'])
 
 class Controller:
     def __init__(self,service,owner_address:str):

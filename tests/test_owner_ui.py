@@ -54,7 +54,7 @@ class OwnerUiTests(unittest.TestCase):
                  'delegate_key_id': 'ed25519:' + 'a' * 64, 'mode': 'read',
                  'allowed_skills': ['meta.status', 'storage.list'],
                  'maximum_spend': '0', 'max_steps': 6, 'expires_in': 600,
-                 'policy_version': 1}
+                 'policy_version': 1, 'inference_hash': 'a' * 64}
         value.update(overrides)
         return value
 
@@ -77,6 +77,10 @@ class OwnerUiTests(unittest.TestCase):
         self.engine.register_grant(inner['params']['envelope'])
         self.assertEqual(self.engine.db.execute('SELECT COUNT(*) FROM grants').fetchone()[0], 1)
         self.assertNotIn('PRIVATE KEY', canonical(response).decode())
+
+    def test_planner_start_requires_current_inference_review(self):
+        command = self.planner_command(); command.pop('inference_hash')
+        with self.assertRaises(Rejected): self.compose(command)
 
     def test_planner_cancel_carries_a_separate_owner_revocation(self):
         response = self.compose({'kind': 'planner_cancel', 'goal_id': 'chat-fixture'})

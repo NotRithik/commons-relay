@@ -99,7 +99,13 @@ class OwnerUi:
             raise Rejected('INVALID_OWNER_UI_REQUEST')
         kind = command['kind']
         now = int(self.clock())
-        if kind == 'planner_status':
+        if kind == 'planner_configure':
+            from .inference_settings import seal_update
+            return seal_update(command, agent, signer, private, now)
+        if kind == 'planner_permission':
+            from .conversation_permissions import compose_decision
+            return compose_decision(command, agent, signer, private, now)
+        elif kind == 'planner_status':
             exact(command, {'kind'})
             return {'method': 'planner.status', 'params': {}}
         elif kind == 'planner_history':
@@ -107,13 +113,15 @@ class OwnerUi:
             if type(command['offset']) is not int or not 0 <= command['offset'] <= 100000:
                 raise Rejected('INVALID_OWNER_PAGE')
             return {'method': 'planner.history', 'params': {'offset': command['offset']}}
-        elif kind == 'planner_goal':
+        elif kind in ('planner_goal', 'planner_permission_review'):
             exact(command, {'kind','goal_id'})
-            return {'method': 'planner.goal', 'params': {'goal_id': identifier(command['goal_id'])}}
+            return {'method': 'planner.permission_view' if kind == 'planner_permission_review' else 'planner.goal', 'params': {'goal_id': identifier(command['goal_id'])}}
         elif kind == 'planner_start':
             from .planner import READ_SKILLS
-            exact(command, {'kind','goal','delegate_key_id','mode','allowed_skills',
-                            'maximum_spend','max_steps','expires_in','policy_version'})
+            required = {'kind','goal','delegate_key_id','mode','allowed_skills',
+                        'maximum_spend','max_steps','expires_in','policy_version','inference_hash'}
+            if set(command) != required:
+                raise Rejected('INVALID_OWNER_UI_REQUEST')
             goal=command['goal']; mode=command['mode']; skills=command['allowed_skills']
             if not isinstance(goal,str) or not 1 <= len(goal.strip()) <= 4000 or len(canonical(goal)) > 6000:
                 raise Rejected('INVALID_PLANNER_PROMPT')
@@ -136,6 +144,9 @@ class OwnerUi:
                   'delegate_key_id':delegate,'goal':goal.strip(),'allowed_skills':skills,
                   'maximum_spend':command['maximum_spend'],'max_steps':steps,'expires_at':now+ttl,
                   'policy_version':version}
+            if 'inference_hash' in command:
+                if not DIGEST.fullmatch(str(command['inference_hash'])):raise Rejected('INVALID_INFERENCE_REVIEW')
+                body['inference_hash'] = command['inference_hash']
             return {'method':'planner.start','params':{'envelope':sign_envelope(body,private,signer)}}
         elif kind == 'planner_cancel':
             exact(command, {'kind','goal_id'})

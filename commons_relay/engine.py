@@ -171,8 +171,9 @@ class Engine:
     def register_grant(self,envelope:dict)->dict:
         body=verify_envelope(envelope,self.owner_key,self.crypto)
         required={'domain','agent_id','grant_id','delegate_key_id','goal','allowed_skills','maximum_spend','max_steps','expires_at','policy_version'}
-        if set(body)!=required or body['domain']!=GRANT_DOMAIN or body['agent_id']!=self.agent or body['policy_version']!=self.policy.version:
+        if set(body) not in (required, required|{'inference_hash'}) or body['domain']!=GRANT_DOMAIN or body['agent_id']!=self.agent or body['policy_version']!=self.policy.version:
             raise Rejected('INVALID_GOAL_GRANT')
+        if 'inference_hash' in body and (not isinstance(body['inference_hash'],str) or len(body['inference_hash']) != 64 or any(c not in '0123456789abcdef' for c in body['inference_hash'])):raise Rejected('INVALID_INFERENCE_REVIEW')
         grant_id=identifier(body['grant_id']);delegate=identifier(body['delegate_key_id'])
         if not delegate.startswith('ed25519:') or len(delegate)!=72:raise Rejected('INVALID_DELEGATE_KEY')
         skills=body['allowed_skills']
@@ -225,7 +226,7 @@ class Engine:
             return {'agent_id':self.agent,'owner_key_id':self.owner,'policy':asdict(self.policy),'reserved_and_recent_spend':str(self._usage(db,'LEZ-testnet',now)),
                     'tasks':[self._view(r) for r in rows], 'skills':self.registry.describe(),
                     'inference':'disabled unless explicitly connected','state_store':'SQLite WAL'}
-    def submit(self,envelope:dict,public_key:bytes|None=None)->dict:
+    def submit(self,envelope:dict,public_key:bytes|None=None,*,reviewed_intent:dict|None=None)->dict:
         public=public_key if public_key is not None else self.owner_key
         requester=key_id(public);body=verify_envelope(envelope,public,self.crypto)
         fields={'domain','agent_id','request_id','skill','arguments','expires_at'}
@@ -251,6 +252,8 @@ class Engine:
             intent={'agent_id':self.agent,'requester':requester,'skill':skill.name,'arguments':body['arguments'],
                     'asset':quote.asset,'maximum_spend':str(quote.maximum),'policy_version':self.policy.version}
             if delegated:intent['grant_id']=identifier(body['grant_id'])
+            if reviewed_intent is not None and intent!=reviewed_intent:
+                raise Rejected('REVIEWED_INTENT_CHANGED')
             intent_hash=digest(intent)
             previous=db.execute('SELECT * FROM tasks WHERE requester=? AND request_id=?',(requester,request_id)).fetchone()
             if previous:

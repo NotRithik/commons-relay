@@ -17,9 +17,14 @@ public:
     QString configure(QString profile) override;
     QString refresh() override;
     QString refreshPlanner() override;
-    QString startConversation(QString prompt, bool allowActions, QString maximumSpend) override;
+    QString configureInference(QString settingsJson, QString apiKey, QString expectedHash) override;
+    QString startConversation(QString prompt, bool allowActions, QString maximumSpend, QString inferenceHash) override;
     QString cancelConversation() override;
     QString loadConversation() override;
+    QString loadEarlierConversation() override;
+    QString loadConversationGoal(QString goalId) override;
+    QString reviewConversationPermission(QString goalId) override;
+    QString decideConversationPermission(QString goalId, QString permissionHash, bool approve) override;
     QString sendSignedCommand(QString json) override;
     QString pollOwnerChannel() override;
     QString loadOwnerProfiles() override;
@@ -34,6 +39,7 @@ public:
 protected:
     void onContextReady() override;
 private:
+    int conversationOffset_ = 0;
     struct HelperWork { QJsonObject request; int generation; };
     struct DispatchWork { QJsonObject request; QString kind; };
     void receive(const QString& name, const QVariantList& args);

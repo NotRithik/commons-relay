@@ -107,7 +107,11 @@ jobs:
           test -f out/modules/commons_relay_owner_ui/commons_relay_owner_ui_plugin.so
           test -f out/modules/commons_relay_owner_ui/commons_relay_owner_ui_replica_factory.so
           test -f out/modules/commons_relay_owner_ui/commons_relay_owner_ui.py
+          test -f out/modules/commons_relay_owner_ui/qml/ChatTranscript.qml
+          test -f out/modules/commons_relay_module/commons_relay/conversation_permissions.py
+          test -f out/modules/commons_relay_module/commons_relay/inference_settings.py
           test -f out/modules/commons_relay_module/commons_relay/planner.py
           "$RUNNER_TEMP/relay-qt/prefix/bin/qmlformat" native/ui/src/qml/Main.qml >/dev/null
+          "$RUNNER_TEMP/relay-qt/prefix/bin/qmlformat" native/ui/src/qml/ChatTranscript.qml >/dev/null
       - name: State the acceptance boundary
         run: echo 'A compiled module is not live UI or chain acceptance. No wallet, model key, transaction, or test fixture is part of these native packages.'

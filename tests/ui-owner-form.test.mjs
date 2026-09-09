@@ -19,7 +19,7 @@ function fixture(properties = {}, values = {}) {
     skillDetails: { id: 'fixture.skill', input_schema: schema },
     skillPicker: { currentIndex: 0, currentValue: 'fixture.skill' }, fields: [], formValues: values,
     summary: { policy: { approval_ttl: 600 } }, task: {}, reviewed: {}, reviewKind: '', viewError: '',
-    planner: { enabled: true }, modelConsent: true, selectedLabel: 'Storage', reviewedChat: {},
+    planner: { enabled: true, configuration_hash: "a".repeat(64) }, selectedLabel: 'Storage', reviewedChat: {},
     pendingDraft: '', pendingDraftAgent: '', chatInput: { text: 'List my files.', forceActiveFocus() {} },
     allowChatActions: { checked: false }, chatSpend: { text: '0' },
     backend: {
@@ -147,21 +147,21 @@ test('uncertain and approval-required tasks are never labelled completed', () =>
   assert.equal(state.stateLabel('input-required'), 'Needs your approval');
   assert.equal(state.taskColor('unknown'), 'warning');
 });
-test('chat refuses to share data before model consent', () => {
-  const { state, calls } = fixture(); state.modelConsent = false; state.sendChat();
-  assert.equal(calls.length, 0); assert.match(state.viewError, /data-sharing/);
+test('chat requires a known model configuration before Send', () => {
+  const { state, calls } = fixture(); state.planner.configuration_hash = ''; state.sendChat();
+  assert.equal(calls.length, 0); assert.match(state.viewError, /model settings/);
 });
 test('read-only chat cannot inherit a hidden token limit', () => {
   const { state, calls } = fixture(); state.chatSpend.text = '50'; state.sendChat();
-  assert.deepEqual(calls[0], ['chat', 'List my files.', false, '0']);
+  assert.deepEqual(calls[0], ['chat', 'List my files.', false, '0', 'a'.repeat(64)]);
 });
 test('actions use a frozen review rather than later edits', () => {
   const { state, calls } = fixture(); state.allowChatActions.checked = true; state.chatSpend.text = '3';
   state.sendChat(); state.chatInput.text = 'Different request'; state.chatSpend.text = '90'; state.submitReviewedChat();
-  assert.deepEqual(calls, [['chat-review'], ['chat', 'List my files.', true, '3']]);
+  assert.deepEqual(calls, [['chat-review'], ['chat', 'List my files.', true, '3', 'a'.repeat(64)]]);
 });
-test('chat review cannot migrate to another agent or survive consent removal', () => {
-  for (const change of [state => { state.backend.selectedAgent = 'other'; }, state => { state.modelConsent = false; }]) {
+test('chat review cannot migrate to another agent or model', () => {
+  for (const change of [state => { state.backend.selectedAgent = 'other'; }, state => { state.planner.configuration_hash = 'b'.repeat(64); }]) {
     const { state, calls } = fixture(); state.allowChatActions.checked = true; state.sendChat();
     change(state); state.submitReviewedChat(); assert.deepEqual(calls, [['chat-review']]);
   }
@@ -209,10 +209,11 @@ test('assistive text changes update the form, not only keyboard textEdited event
 });
 
 // Accessibility setters emit checkedChanged, not the pointer-only toggled signal.
-test('model consent follows the visible checkbox for keyboard and accessibility actions', () => {
-  assert.ok(qml.includes('onCheckedChanged: if (root.modelConsent !== checked) root.modelConsent = checked'));
-  assert.ok(!qml.includes('onToggled: root.modelConsent = checked'));
-  assert.ok(qml.includes('root.modelConsent = false'));
+test('Send is model-bound without a redundant data-sharing checkbox', () => {
+  assert.ok(!qml.includes('id: consentBox'));
+  assert.ok(qml.includes('inference_hash: root.planner.configuration_hash'));
+  assert.ok(qml.includes('reviewed.inference_hash !== root.planner.configuration_hash'));
+  assert.ok(qml.includes('root.planner.endpoint'));
 });
 
 test('finishing a conversation resets the next message to read-only and zero spend',()=>{
@@ -259,4 +260,76 @@ test('a nonzero paid result missing its transaction hash is not summarized as pa
 test('technical details never hide approval arguments', () => {
   assert.match(qml,/\(root\.task\.state !== "completed" \|\| detailsDialog\.showDetails\) && root\.task\.arguments_complete/);
   assert.match(qml,/onOpened: showDetails = false/);
+});
+
+
+test('offline agents keep the draft editor enabled while sending remains gated', () => {
+  const editor = qml.slice(qml.indexOf('id: chatInput'), qml.indexOf('id: chatInput') + 900);
+  assert.match(editor, /enabled: true/);
+  assert.match(editor, /Write a draft here\. Connect an agent before sending\./);
+  const { state, calls } = fixture(); state.backend.remoteReady = false;
+  state.sendChat(); assert.equal(calls.filter(x => x[0] === 'chat').length, 0);
+});
+test('provider notice follows configured provider instead of assuming OpenAI', () => {
+  assert.match(qml, /root\.providerLabel/);
+  assert.doesNotMatch(qml, /Send this conversation and requested tool results to OpenAI/);
+});
+
+function inferenceFixture() {
+  const f=fixture();const s=f.state;
+  s.planner.configuration_hash='a'.repeat(64);
+  s.inferenceDialog={profileAtOpen:'storage',hashAtOpen:'a'.repeat(64),errorText:'',saveAttempted:false,close:()=>f.calls.push(['close-settings'])};
+  s.inferenceEndpoint={text:'https://api.example.com/v1'};s.inferenceModel={text:'vendor/model'};
+  s.inferenceApi={currentIndex:0};s.inferenceCredential={currentIndex:1};s.inferenceKey={text:'synthetic-fixture-key'};
+  s.inferenceOutput={text:'1536'};s.inferenceInputPrice={text:'0.25'};s.inferenceOutputPrice={text:'1.20'};
+  s.inferenceReview={checked:true};s.backend.configureInference=(...args)=>{f.calls.push(['configure-inference',...args]);return {};};
+  return f;
+}
+test('inference save keeps the editor open for asynchronous results and clears the key',()=>{
+  const {state,calls}=inferenceFixture();state.saveInferenceSettings();
+  assert.equal(calls.length,1);assert.equal(calls[0][0],'configure-inference');
+  assert.equal(state.inferenceDialog.saveAttempted,true);assert.equal(state.inferenceKey.text,'');
+  assert.equal(state.inferenceReview.checked,false);
+  assert.equal(calls.some(x=>x[0]==='close-settings'),false);
+});
+test('stale inference review stays open without signing another setting',()=>{
+  const {state,calls}=inferenceFixture();state.planner.configuration_hash='b'.repeat(64);state.saveInferenceSettings();
+  assert.equal(calls.length,0);assert.match(state.inferenceDialog.errorText,/reload/);
+});
+
+function actionReviewFixture() {
+  const f=fixture();const s=f.state;
+  const request={goal_id:'chat-fixture',skill:'messaging.send',arguments:{recipient:'fixture-peer',message:'Synthetic only'},reason:'Send the requested test message',description:'Send message',maximum_spend:'0',asset:'LEZ-testnet',policy_version:1,expires_at:2000000000,intent_hash:'b'.repeat(64)};
+  s.permissionGoalRequested='chat-fixture';s.permissionProfile='storage';s.permissionAgent='agent-storage';s.permissionReview={};s.pending=false;
+  s.actionRequestReviewed={checked:false};s.modelActionDialog={open:()=>f.calls.push(['action-dialog']),close:()=>f.calls.push(['close-action'])};
+  s.backend.permissionReviewJson=JSON.stringify({id:'chat-fixture',agent_id:'agent-storage',permission:{request,decision:'pending',task_id:null}});
+  s.backend.decideConversationPermission=(...args)=>{f.calls.push(['permission-decision',...args]);return {};};
+  return f;
+}
+test('model action review opens only for the requested agent and goal',()=>{
+  const {state,calls}=actionReviewFixture();state.receivePermissionReview();
+  assert.deepEqual(calls,[['action-dialog']]);assert.equal(state.permissionReview.arguments.recipient,'fixture-peer');
+  assert.equal(state.actionRequestReviewed.checked,false);
+});
+test('unreviewed model action cannot be approved',()=>{
+  const {state,calls}=actionReviewFixture();state.receivePermissionReview();state.confirmRequestedAction(true);
+  assert.equal(calls.filter(x=>x[0]==='permission-decision').length,0);
+});
+test('approval signs only the displayed action hash, not a broader conversation',()=>{
+  const {state,calls}=actionReviewFixture();state.receivePermissionReview();state.actionRequestReviewed.checked=true;state.confirmRequestedAction(true);
+  assert.deepEqual(calls[1],['permission-decision','chat-fixture','b'.repeat(64),true]);
+});
+test('decline needs no approval checkbox and passes no action arguments',()=>{
+  const {state,calls}=actionReviewFixture();state.receivePermissionReview();state.confirmRequestedAction(false);
+  assert.deepEqual(calls[1],['permission-decision','chat-fixture','b'.repeat(64),false]);
+});
+test('switching agents invalidates an open model-action review',()=>{
+  const {state,calls}=actionReviewFixture();state.receivePermissionReview();state.actionRequestReviewed.checked=true;state.backend.selectedProfile='other';state.confirmRequestedAction(true);
+  assert.equal(calls.filter(x=>x[0]==='permission-decision').length,0);
+});
+test('a stale action response cannot open the decision dialog',()=>{
+  const {state,calls}=actionReviewFixture();state.permissionGoalRequested='different-goal';state.receivePermissionReview();assert.equal(calls.length,0);
+});
+test('transfer and message implications are described separately',()=>{
+  const {state}=fixture();assert.match(state.actionImplications('wallet.send'),/Transfers testnet tokens/);assert.match(state.actionImplications('messaging.send'),/recipient/);
 });

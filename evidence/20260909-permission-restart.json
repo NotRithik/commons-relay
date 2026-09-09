@@ -1,0 +1,17 @@
+{
+  "at": 1788950027.514286,
+  "approved_task": {
+    "id": "a9b732309cf34d19b79626d863192757",
+    "skill": "storage.upload",
+    "state": "completed",
+    "amount": "0"
+  },
+  "declined_goal": "chat-981b748e359f7f3f0844b491",
+  "declined_task_count": 0,
+  "ui_after_restart": {
+    "completed_heading_seen": true,
+    "decline_preserved": true
+  },
+  "task_count": 23,
+  "model_replayed": false
+}
