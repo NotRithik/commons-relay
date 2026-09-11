@@ -130,21 +130,32 @@ class Vault:
                 'ciphertext_reference_bytes': str(encrypted)}
 
     def _file(self,address):
-        cid(address)
-        with self.guard:row=self.db.execute('SELECT * FROM files WHERE address=?',(address,)).fetchone()
-        if not row:raise Rejected('FILE_KEY_NOT_AVAILABLE')
-        return row
+        # Humans normally remember the saved label, not a Logos content address.
+        # Keep address-based clients compatible, while allowing a unique label
+        # to resolve locally without exposing keys or reaching outside this vault.
+        if not isinstance(address,str) or not 1<=len(address)<=200:
+            raise Rejected('INVALID_CONTENT_ADDRESS')
+        address_like=re.fullmatch(r'[A-Za-z0-9]{20,180}',address) is not None
+        with self.guard:
+            if address_like:
+                row=self.db.execute('SELECT * FROM files WHERE address=?',(address,)).fetchone()
+                if row:return row
+            matches=self.db.execute('SELECT * FROM files WHERE label=? ORDER BY address LIMIT 2',(address,)).fetchall()
+        if len(matches)==1:return matches[0]
+        if len(matches)>1:raise Rejected('STORED_FILE_LABEL_AMBIGUOUS')
+        if address_like:raise Rejected('FILE_KEY_NOT_AVAILABLE')
+        raise Rejected('STORED_FILE_NOT_FOUND')
     def download(self,address:str,relative:str,store:StorePort,operation:str|None=None)->dict:
-        self.output.parts(relative);row=self._file(address)
+        self.output.parts(relative);row=self._file(address);resolved_address=row['address']
         if operation is not None:
             operation_id(operation)
             with self.tx() as db:
                 db.execute('CREATE TABLE IF NOT EXISTS verified_downloads(operation TEXT PRIMARY KEY,address TEXT NOT NULL,path TEXT NOT NULL,bytes INTEGER NOT NULL,plaintext_sha256 TEXT NOT NULL)')
                 prior=db.execute('SELECT address,path FROM verified_downloads WHERE operation=?',(operation,)).fetchone()
-                if prior and (prior['address']!=address or prior['path']!=relative):raise Rejected('DOWNLOAD_OPERATION_REUSED')
+                if prior and (prior['address']!=resolved_address or prior['path']!=relative):raise Rejected('DOWNLOAD_OPERATION_REUSED')
         temp=self.downloads/(secrets.token_hex(16)+'.bin')
         try:
-            store.download(address,temp,row['ciphertext_bytes'])
+            store.download(resolved_address,temp,row['ciphertext_bytes'])
             if temp.is_symlink() or not temp.is_file() or temp.stat().st_size!=row['ciphertext_bytes']:raise Rejected('DOWNLOADED_FILE_SIZE_MISMATCH')
             with temp.open('rb') as f:
                 if hashlib.file_digest(f,'sha256').hexdigest()!=row['ciphertext_hash']:raise Rejected('DOWNLOADED_CIPHERTEXT_CHANGED')
@@ -157,14 +168,14 @@ class Vault:
                     with self.tx() as db:
                         previous=db.execute('SELECT * FROM verified_downloads WHERE operation=?',(operation,)).fetchone()
                         if previous and previous['plaintext_sha256']!=info['plaintext_sha256']:raise Rejected('DOWNLOAD_CONTENT_CHANGED')
-                        db.execute('INSERT OR IGNORE INTO verified_downloads VALUES (?,?,?,?,?)',(operation,address,relative,row['bytes'],info['plaintext_sha256']))
-            return {'address':address,'path':relative,'bytes':row['bytes'],'authenticated':True}
+                        db.execute('INSERT OR IGNORE INTO verified_downloads VALUES (?,?,?,?,?)',(operation,resolved_address,relative,row['bytes'],info['plaintext_sha256']))
+            return {'address':resolved_address,'path':relative,'bytes':row['bytes'],'authenticated':True}
         finally:
             if temp.exists() and not temp.is_symlink():temp.unlink()
     def make_share(self,address:str,recipient:Peer,lifetime=300)->dict:
         if type(lifetime)is not int or not 1<=lifetime<=3600:raise Rejected('INVALID_SHARE_EXPIRY')
-        row=self._file(address)
-        payload={'address':address,'key':b64(bytes(row['key'])),'ciphertext_hash':row['ciphertext_hash'],'bytes':row['bytes'],'ciphertext_bytes':row['ciphertext_bytes'],'label':row['label'],'version':1}
+        row=self._file(address);resolved_address=row['address']
+        payload={'address':resolved_address,'key':b64(bytes(row['key'])),'ciphertext_hash':row['ciphertext_hash'],'bytes':row['bytes'],'ciphertext_bytes':row['ciphertext_bytes'],'label':row['label'],'version':1}
         body={'domain':'commons/commons_relay/file-share/v1','recipient':key_id(recipient.signing_key),'recipient_box_key':b64(recipient.box_key),
               'share_id':secrets.token_hex(16),'expires_at':int(self.clock())+lifetime,'sealed':b64(self.crypto.seal(recipient.box_key,canonical(payload)))}
         return sign_envelope(body,self.signing_private,self.signer)

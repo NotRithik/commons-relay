@@ -35,6 +35,13 @@ spending ceiling.
 | `meta.status` | none | zero |
 | `meta.configure` | `key`, `value` | zero; owner signature required |
 
+For `storage.download` and `storage.share`, `address` accepts either the exact Logos
+content address returned by `storage.list` or an exact saved-file label when that
+label identifies only one file. The adapter resolves a label to the immutable
+content address during preparation, so a later duplicate label cannot retarget an
+already reviewed action. Ambiguous or missing labels fail without downloading or
+sharing anything.
+
 `program.call` accepts a 64-hex LEZ program ID, a hex string containing the
 little-endian u32 instruction words expected by that program, and
 `params.accounts`, an ordered list of `{account_id, signer}` objects. The special

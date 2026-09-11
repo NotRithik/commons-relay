@@ -18,7 +18,11 @@ class StorageAdapter:
             self.store.initialize()
         if skill=='storage.upload':self.vault.prepare_upload(task_id,arguments['path'],arguments['label'])
         elif skill=='storage.download':
-            self.vault.output.parts(arguments['path']);self.vault._file(arguments['address'])
+            self.vault.output.parts(arguments['path'])
+            selected=self.vault._file(arguments['address'])
+            # Resolve a human-friendly unique label once during preparation so
+            # the recorded effect stays bound to one immutable content address.
+            arguments={**arguments,'address':selected['address']}
         elif skill!='storage.list':raise Rejected('SKILL_ADAPTER_NOT_CONNECTED')
         # Persist before effects, not just an in-memory closure.
         with self.vault.tx() as db:

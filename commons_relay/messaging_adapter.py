@@ -14,7 +14,11 @@ class MessagingAdapter:
         if task['skill'] not in self.SKILLS:raise Rejected('MESSAGE_SKILL_UNAVAILABLE')
         if task['maximum_spend']!='0':raise Rejected('UNEXPECTED_MESSAGING_COST')
         self.runtime.initialize();args=task['arguments'];skill=task['skill']
-        if skill=='storage.share':self.mailbox.vault._file(args['address']);self.mailbox.get_contact(args['recipient'])
+        if skill=='storage.share':
+            selected=self.mailbox.vault._file(args['address']);self.mailbox.get_contact(args['recipient'])
+            # Bind a friendly unique label to its exact content address before
+            # the share is persisted, so later catalogue changes cannot retarget it.
+            args={**args,'address':selected['address']}
         if skill=='messaging.inbox' and args:raise Rejected('INVALID_MESSAGE_INBOX_ARGUMENTS')
         if skill=='messaging.send' and not args['recipient'].startswith('group-'):self.mailbox.get_contact(args['recipient'])
         with self.mailbox.tx() as db:

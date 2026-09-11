@@ -117,6 +117,7 @@ def default_registry()->Registry:
             elif key=='cursor':field={'type':'integer','minimum':0,'maximum':2147483647}
             elif key=='message':field={'type':'string','minLength':1,'maxLength':16000}
             elif key=='instruction':field={'type':'string','pattern':'^[0-9a-f]*$','maxLength':131072,'description':'Hex-encoded little-endian u32 instruction words from the target program ABI.'}
+            elif key=='address':field={'type':'string','minLength':1,'maxLength':200,'description':'A Logos content address or an exact, unambiguous saved-file label returned by storage.list.'}
             elif key in ['path','binary_path']:field={'type':'string','minLength':1,'maxLength':1000,'description':'Relative to the explicitly configured file root.'}
             elif key=='label':field={'type':'string','minLength':1,'maxLength':200}
             else:field={'type':'string','minLength':1,'maxLength':180}
