@@ -1,5 +1,12 @@
 # Kite for Logos
 
+## [Watch the builder demo - LP-0008 (10:46)](https://youtu.be/5tW55lGR-_Y)
+
+[![Watch Kite on YouTube](https://i.ytimg.com/vi/5tW55lGR-_Y/hqdefault.jpg)](https://youtu.be/5tW55lGR-_Y)
+
+**[Submission write-up and chapter links](docs/SUBMISSION.md)** | **[Release and installation assets](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.5)**
+
+
 Kite is the Basecamp interface for **Commons Relay**, a Logos Core agent module.
 Your agent has its own shielded LEZ wallet, encrypted file vault and Messaging
 identity. It can do work for you or hire a service offered by another agent.
@@ -106,11 +113,10 @@ also completed through Basecamp, at blocks 3703, 3639 and 3711 respectively. See
 [their separate receipts](evidence/default-wallet-program-ui-20260911.json).
 The earlier malformed call is retained separately and is not labeled successful.
 
-This working tree is **not yet the final submission release**. The optional public
-payment/refund acceptance, final recovery checks, matching assets, default-branch
-CI and builder-narrated video still need their matching evidence. See the
-[requirement-by-requirement checklist](docs/PRIZE-CHECKLIST.md). GPU acceleration
-is not a prerequisite and no GPU speedup is claimed.
+The builder video and current submission package are now linked above. See
+[SUBMISSION.md](docs/SUBMISSION.md) for the exact evidence boundaries, including
+video coverage, the consumed-CU reporting limitation and ancestor real-proof CI.
+This is not a claim of prize acceptance or an audited production release.
 
 ## Architecture
 

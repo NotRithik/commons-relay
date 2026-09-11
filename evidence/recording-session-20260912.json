@@ -1,0 +1,126 @@
+{
+  "observed_at": "2026-09-11T20:20:27.490096+00:00",
+  "scope": "Read-only observations of existing recording-session tasks; not another execution",
+  "video": {
+    "url": "https://youtu.be/5tW55lGR-_Y",
+    "title": "Lambda Prize LP 0008 - Kite",
+    "duration_seconds": 646,
+    "visibility": "unlisted, viewable by link",
+    "chapters": [
+      {
+        "seconds": 3,
+        "title": "Product and architecture"
+      },
+      {
+        "seconds": 111,
+        "title": "Personal encrypted file vault"
+      },
+      {
+        "seconds": 275,
+        "title": "Service discovery"
+      },
+      {
+        "seconds": 369,
+        "title": "Public paid Exa search"
+      },
+      {
+        "seconds": 544,
+        "title": "Local extension"
+      }
+    ],
+    "caption_review": "The narration describes vault, marketplace and local extension. It does not claim to show private proof generation.",
+    "not_all_three_listed_use_cases_filmed": true
+  },
+  "tasks": [
+    {
+      "id": "6754f73170d64c8c8592cb4a40ea0483",
+      "skill": "agent.task",
+      "state": "completed",
+      "error": null,
+      "created": 1789155553,
+      "updated": 1789155661,
+      "arguments": {
+        "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+        "params": {
+          "num_results": 5,
+          "query": "Logos Network"
+        },
+        "payment_mode": "public",
+        "skill": "exa.search_free"
+      },
+      "result": {
+        "paid_amount": "1",
+        "payment_mode": "public",
+        "payment_transaction": "faa8b509fbb7186ec4ed02c5b8c75baac0d864be4466186842c4312f18527221",
+        "remote_task_id": "b4c26db576094d6271a760854e2603fa"
+      },
+      "payment": {
+        "state": "confirmed",
+        "private": false,
+        "confirmed_block": 4679,
+        "transaction_hash": "faa8b509fbb7186ec4ed02c5b8c75baac0d864be4466186842c4312f18527221",
+        "maximum_spend": "1"
+      },
+      "artifact_sha256": "b1e3ce75a97cf227473cb738cd5a002fe5d6d32fca123f94b8d3a0bbf18b1e0c"
+    },
+    {
+      "id": "e39cd98fc68241fb9bbb3bed60761b7a",
+      "skill": "agent.task",
+      "state": "completed",
+      "error": null,
+      "created": 1789155736,
+      "updated": 1789155842,
+      "arguments": {
+        "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+        "params": {
+          "num_results": 5,
+          "query": "Logos Network"
+        },
+        "payment_mode": "public",
+        "skill": "exa.search_free"
+      },
+      "result": {
+        "paid_amount": "1",
+        "payment_mode": "public",
+        "payment_transaction": "541f54f8f79185658d24fdde77f3c74b9296990f7e35e6350aa7546e7ce4cb5a",
+        "remote_task_id": "d29218a220c85ab8b98e188941f449d8"
+      },
+      "payment": {
+        "state": "confirmed",
+        "private": false,
+        "confirmed_block": 4682,
+        "transaction_hash": "541f54f8f79185658d24fdde77f3c74b9296990f7e35e6350aa7546e7ce4cb5a",
+        "maximum_spend": "1"
+      },
+      "artifact_sha256": "13512752ad9a6ff9309847aabd7f33fe9c2287f8b2c2774ef6fd5c780627f29b"
+    },
+    {
+      "id": "956efb53f2d5465c90ec72532c58d90f",
+      "skill": "example.text_statistics",
+      "state": "completed",
+      "error": null,
+      "created": 1789156260,
+      "updated": 1789156260,
+      "arguments": {
+        "text": "The quick brown fox jumped over the lazy dog."
+      },
+      "result": {
+        "characters": 45,
+        "lines": 1,
+        "utf8_bytes": 45,
+        "words": 9
+      }
+    }
+  ],
+  "runtime_fix": {
+    "cause": "A legacy workstation launcher selected the older wallet executable.",
+    "before_error": "UNSUPPORTED_WALLET_OPERATION",
+    "after": "Same identity restored with the public-payment-capable companion. Exact read-only public-account call succeeded; owner-approved public retry completed at block 4679.",
+    "failed_attempt_ids": [
+      "71ff2aca43714a698e1864b30d07315f",
+      "5d11a3183ca2491b8fd429dbd4abdbed"
+    ],
+    "failed_attempts_created_payments": false
+  },
+  "new_tasks_or_payments_created_by_this_observation": false
+}
