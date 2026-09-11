@@ -44,11 +44,11 @@ test('zero-input skills require the matching authenticated schema', () => {
   const { state } = fixture();
   assert.deepEqual(plain(state.collectForm()), {});
   state.skillDetails.id = 'stale.skill';
-  assert.throws(() => state.collectForm(), /verified fields/);
+  assert.throws(() => state.collectForm(), /tool.s options/);
 });
 test('no task can be formed without a selected registered skill', () => {
   const { state } = fixture(); state.skillPicker.currentIndex = -1;
-  assert.throws(() => state.collectForm(), /verified fields/);
+  assert.throws(() => state.collectForm(), /tool.s options/);
 });
 test('new schemas clear old field values', () => {
   const { state } = fixture({ amount: { type: 'string' } }, { amount: '90' });
@@ -250,13 +250,13 @@ test('large wallet values stay exact and recorded block is explicit', () => {
 test('file receipt wording requires the recorded download authentication', () => {
   const { state } = fixture();
   const base={state:'completed',skill:'storage.download',result_complete:true};
-  assert.match(state.resultSummary({...base,result_preview:'{"authenticated":true,"bytes":49,"path":"restored.txt"}'}),/Retrieved and authenticated: 49 bytes/);
+  assert.match(state.resultSummary({...base,result_preview:'{"authenticated":true,"bytes":49,"path":"restored.txt"}'}),/Downloaded and verified: 49 bytes/);
   assert.doesNotMatch(state.resultSummary({...base,result_preview:'{"authenticated":false,"bytes":49,"path":"restored.txt"}'}),/Retrieved and authenticated/);
 });
 test('a nonzero paid result missing its transaction hash is not summarized as paid', () => {
   const { state } = fixture();
   const text=state.resultSummary({state:'completed',skill:'agent.task',result_complete:true,result_preview:'{"paid_amount":"3","provider":"peer","artifacts":[]}'});
-  assert.doesNotMatch(text,/Paid 3/); assert.match(text,/needs inspection/);
+  assert.doesNotMatch(text,/Paid 3/); assert.match(text,/needs a closer look/);
 });
 test('technical details never hide approval arguments', () => {
   assert.match(qml,/\(root\.task\.state !== "completed" \|\| detailsDialog\.showDetails\) && root\.task\.arguments_complete/);

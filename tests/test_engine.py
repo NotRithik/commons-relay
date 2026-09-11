@@ -100,7 +100,8 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.engine.submit(req,self.peer)['state'],'submitted')
     def test_agent_task_prize_signature(self):
         skill=next(s for s in self.engine.registry.describe() if s['id']=='agent.task')
-        self.assertEqual(skill['argument_names'],['agent_address','skill','params'])
+        self.assertEqual(skill['argument_names'],['agent_address','skill','params','payment_mode'])
+        self.assertEqual(skill['input_schema']['required'],['agent_address','skill','params'])
     def test_agent_subscribe_prize_signature(self):
         skill=next(s for s in self.engine.registry.describe() if s['id']=='agent.subscribe')
         self.assertEqual(skill['argument_names'],['agent_address','task_id'])

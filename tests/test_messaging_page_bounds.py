@@ -10,8 +10,10 @@ class InboxPageBounds(unittest.TestCase):
     def setUp(self):
         self.mailbox=object.__new__(Mailbox)
         self.mailbox.guard=threading.RLock()
-        self.mailbox.db=sqlite3.connect(':memory:')
+        self.mailbox.db=sqlite3.connect(':memory:',isolation_level=None)
         self.mailbox.db.execute('CREATE TABLE inbox(id TEXT PRIMARY KEY, kind TEXT, body TEXT)')
+        self.mailbox.db.execute('CREATE TABLE inbox_archive(seq INTEGER PRIMARY KEY,id TEXT,kind TEXT,body TEXT)')
+        self.mailbox.db.execute('CREATE VIEW inbox_history AS SELECT rowid,id,kind,body FROM inbox UNION ALL SELECT seq AS rowid,id,kind,body FROM inbox_archive')
         for n in range(100):
             body={'id':str(n),'kind':'owner-result','sender':'fixture-agent','payload':{'text':'x'*4096}}
             self.mailbox.db.execute('INSERT INTO inbox VALUES (?,?,?)',(str(n),'owner-result',json.dumps(body)))

@@ -8,7 +8,7 @@ acceptance.
 
 ## Prerequisites and pinned inputs
 
-Install Python 3, git, CMake 3.20+, a C++17 compiler, libarchive's `bsdtar`, curl,
+Install Python 3.12+, git, CMake 3.20+, a C++17 compiler, libarchive's `bsdtar`, curl,
 and the nlohmann JSON C++ headers. The three official Logos checkouts are pinned
 by `scripts/fetch-native-deps.py`. Exact official Qt downloads are pinned by URL,
 size and SHA-256 in `native/qt-archives.json`. Inspect the small fetchers before
@@ -22,8 +22,18 @@ python3 scripts/fetch-native-deps.py "$PWD/.build-deps/logos"
 export QT_PREFIX="$PWD/.build-deps/qt/prefix"
 export LOGOS_DEPS_DIR="$PWD/.build-deps/logos"
 export COMMONS_BUILD_JOBS=2
+if [ "$(uname -s)" = Linux ]; then
+  python3 scripts/fetch-native-runtime.py "$PWD/.build-deps/runtime"
+  export LOGOS_RUNTIME_LIBRARY_DIR="$(python3 -c 'import json;print(json.load(open(".build-deps/runtime/paths.json"))["library_dir"])')"
+fi
 /bin/sh scripts/build-native.sh
 ```
+
+On Linux, install `squashfs-tools` before running the commands above.
+
+The runtime archive is pinned by URL, size and SHA-256. The fetcher extracts it
+without running its AppImage. It supplies linker inputs, not an alternative
+Storage/Messaging implementation; upstream components remain unmodified.
 
 Fetch and compile are separate. `build-native.sh` itself does not need outbound
 network access. `RELAY_NATIVE_BUILD_DIR` and `RELAY_NATIVE_INSTALL_DIR` override

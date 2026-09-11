@@ -24,7 +24,8 @@ class PeerPingTests(unittest.TestCase):
             self.assertEqual(rpc['method'],'GetExtendedAgentCard')
             return self.provider.protocol.handle_request('client',rpc)['result']
         self.client.protocol.await_response=response
-        self.task={'id':'ping-fixture','skill':'agent.ping','arguments':{'agent_address':'provider'},'maximum_spend':'0'}
+        body={'domain':REQUEST_DOMAIN,'agent_id':'client','request_id':'ping-fixture','skill':'agent.ping','arguments':{'agent_address':'provider'},'expires_at':self.client.now+500}
+        self.task=self.client.engine.submit(sign_envelope(body,self.client.owner_key,self.client.engine.crypto))
     def tearDown(self):
         self.client.close();self.provider.close();self.tmp.cleanup()
     def test_live_response_is_verified_without_wallet_or_invoice(self):
@@ -49,12 +50,14 @@ class PeerPingTests(unittest.TestCase):
         self.adapter.prepare(self.task)
         self.assertEqual(self.adapter.lookup(effect).result,original)
         self.assertEqual(len(self.calls),1)
-    def test_old_probe_after_interrupted_prepare_does_not_renew_freshness(self):
-        self.client.protocol.request('provider','GetExtendedAgentCard',{},id='ping-ping-fixture')
+    def test_old_probe_after_interrupted_prepare_requires_a_fresh_response(self):
+        old='preflight-'+self.task['id']+'-'+str(self.client.now//5)
+        self.client.protocol.request('provider','GetExtendedAgentCard',{},id=old)
         self.client.now+=11
         effect=self.adapter.prepare(self.task)
-        self.assertEqual(self.adapter.lookup(effect).result['status'],'stale-probe')
-        self.assertEqual(self.calls,[])
+        self.assertEqual(self.adapter.lookup(effect).result['status'],'responding')
+        self.assertEqual(self.adapter.lookup(effect).result['observed_at'],self.client.now)
+        self.assertEqual(len(self.calls),1);self.assertNotEqual(self.calls[0][0],old)
     def test_ping_cannot_authorize_payment(self):
         task={**self.task,'maximum_spend':'3'}
         with self.assertRaisesRegex(Rejected,'A2A_PING_CANNOT_SPEND'):self.adapter.prepare(task)

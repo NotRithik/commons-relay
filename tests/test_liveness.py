@@ -48,7 +48,7 @@ class LivenessTests(unittest.TestCase):
         item = observe(self.f.service)['tasks'][0]
         self.assertEqual(item['phase_age_seconds'], 120)
         self.assertEqual(item['heartbeat_age_seconds'], 2)
-        self.assertIn('not confirmed', item['detail'])
+        self.assertIn('Nothing has been sent yet', item['detail'])
         self.assertIn('unknown', item['supervision'])
 
     def test_stale_heartbeat_does_not_claim_prover_is_healthy(self):
@@ -108,7 +108,7 @@ class FastStatusTests(unittest.TestCase):
         grant = self.f.grant(goal='?? status?')
         before = self.f.service.engine.db.execute('SELECT count(*) FROM tasks').fetchone()[0]
         goal = self.f.planner.start(grant)['goal']
-        self.assertEqual(goal['state'], 'completed'); self.assertIn('no model call', goal['reply'])
+        self.assertEqual(goal['state'], 'completed'); self.assertIn('The agent is responding right now', goal['reply'])
         self.assertIsNone(self.f.planner.thread)
         self.assertEqual(self.f.service.engine.db.execute('SELECT count(*) FROM tasks').fetchone()[0], before)
         self.assertEqual(self.f.planner.start(grant)['goal']['id'], goal['id'])

@@ -8,10 +8,12 @@ import re
 from .codec import Rejected,canonical
 
 KEYWORDS=frozenset(['type','properties','required','additionalProperties','items','minItems','maxItems',
-                    'uniqueItems','minLength','maxLength','pattern','minimum','maximum','enum','description'])
+                    'uniqueItems','minLength','maxLength','pattern','minimum','maximum','enum','description','title'])
 
 def check_schema(schema:dict,depth=0)->None:
     if depth>16 or not isinstance(schema,dict) or set(schema)-KEYWORDS:raise Rejected('UNSUPPORTED_SKILL_SCHEMA')
+    for name,maximum in [('title',200),('description',4000)]:
+        if name in schema and (not isinstance(schema[name],str) or len(schema[name])>maximum):raise Rejected('INVALID_SCHEMA_ANNOTATION')
     kind=schema.get('type')
     if kind not in [None,'object','array','string','integer','boolean','null']:raise Rejected('UNSUPPORTED_SKILL_SCHEMA_TYPE')
     if 'pattern' in schema:

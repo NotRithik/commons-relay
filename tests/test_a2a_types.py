@@ -5,12 +5,13 @@ import tempfile
 import unittest
 from commons_relay.a2a_types import jcs,sign_card,verify_card,task_document,validate_card,PAYMENT_EXTENSION,BINDING_EXTENSION
 from commons_relay.signing import Ed25519
-from commons_relay.codec import Rejected
+from commons_relay.codec import Rejected,b64
 
 class A2ATypesTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.crypto=Ed25519(Path(self.tmp.name));self.key=Path(self.tmp.name)/'key.pem';self.public=self.crypto.generate(self.key)
         self.card={'name':'Example','description':'A service','version':'0.1.0','supportedInterfaces':[{'url':'logos://example','protocolBinding':'LOGOS-MESSAGING','protocolVersion':'1.0'}],'capabilities':{'streaming':True},'defaultInputModes':['application/json'],'defaultOutputModes':['application/json'],'skills':[]}
+        self.card['capabilities']['extensions']=[{'uri':BINDING_EXTENSION,'params':{'address':'example','signingPublicKey':b64(self.public),'encryptionPublicKey':b64(bytes(32)),'discoveryTopic':'fixture'}}]
     def tearDown(self):self.tmp.cleanup()
     def test_detached_jws_roundtrip(self):
         card=sign_card(self.card,self.key,self.public,self.crypto);self.assertEqual(verify_card(card,self.public,self.crypto),self.card)

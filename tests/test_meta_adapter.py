@@ -31,14 +31,15 @@ class MetaTests(unittest.TestCase):
         body={'domain':DELEGATED_DOMAIN,'agent_id':'fixture-agent','grant_id':'g','request_id':'r','skill':'meta.configure','arguments':{'key':'spending_limit','value':'500'},'expires_at':self.clock.value+300}
         with self.assertRaises(Rejected):self.engine.submit(sign_envelope(body,self.other_key,self.crypto),self.peer)
     def test_unknown_configuration_keys_fail_before_effect(self):
-        task=self.task(skill='meta.configure',args={'key':'api_key','value':'never accepted'})
-        self.assertEqual(self.engine.execute(task['id'],self.adapter())['state'],'failed')
+        with self.assertRaises(Rejected):
+            self.task(skill='meta.configure',args={'key':'api_key','value':'never accepted'})
+        self.assertEqual(self.engine.db.execute('SELECT COUNT(*) FROM tasks').fetchone()[0],0)
     def test_invalid_limit_relationship_rejected(self):
         task=self.task(skill='meta.configure',args={'key':'spending_limit','value':'10001'})
         self.assertEqual(self.engine.execute(task['id'],self.adapter())['state'],'failed')
     def test_meta_skills_returns_real_registry(self):
         task=self.task(skill='meta.skills',args={});result=self.engine.execute(task['id'],self.adapter())
-        self.assertEqual(result['state'],'completed');self.assertEqual(len(result['result']['skills']),22)
+        self.assertEqual(result['state'],'completed');self.assertEqual(result['result']['skills'],self.engine.registry.describe())
         self.assertIn('agent.ping',{item['id'] for item in result['result']['skills']})
     def test_config_cannot_modify_an_in_flight_effect(self):
         old=self.task();self.engine.start(old['id'],'worker');config=self.task(skill='meta.configure',args={'key':'spending_limit','value':'5'})

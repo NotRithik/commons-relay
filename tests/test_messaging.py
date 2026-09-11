@@ -87,6 +87,10 @@ class MailboxTests(unittest.TestCase):
         group=self.alice.create_group(['bob','eve'],group_id='group-test')
         for row in self.alice.outgoing():
             recipient=self.bob if row['recipient']=='bob' else self.eve;recipient.receive(row['wire'],topic(recipient.address));recipient.join_group(group['group_id'])
+        peers={'alice':self.alice,'bob':self.bob,'eve':self.eve}
+        for sender in [self.bob,self.eve]:
+            for row in sender.outgoing():
+                peers[row['recipient']].receive(row['wire'],topic(row['recipient']))
         results=self.bob.send_group('group-test','hello group',message_id='group-chat')
         self.assertEqual(len(results['messages']),2)
         for item in results['messages']:
@@ -96,7 +100,9 @@ class MailboxTests(unittest.TestCase):
         with self.assertRaises(Rejected):self.bob.join_group('group-unknown')
     def test_group_receive_requires_join(self):
         group=self.alice.create_group(['bob'],group_id='group-test');invite=self.alice.outgoing()[0];self.bob.receive(invite['wire'],topic('bob'))
-        sent=self.alice.send_group('group-test','hello')['messages'][0]
+        # Exercise receiver rejection with an authenticated but premature packet.
+        with self.assertRaises(Rejected):self.alice.send_group('group-test','hello')
+        sent=self.alice.enqueue('bob','group-message',{'group_id':'group-test','text':'hello'})
         with self.assertRaises(Rejected):self.bob.receive(self.wire(self.alice,sent['message_id']),topic('bob'))
     def test_nonmember_group_sender_rejected(self):
         self.alice.create_group(['bob'],group_id='group-test');invite=self.alice.outgoing()[0];self.bob.receive(invite['wire'],topic('bob'));self.bob.join_group('group-test')

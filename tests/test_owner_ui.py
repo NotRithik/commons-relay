@@ -239,7 +239,15 @@ class OwnerUiTests(unittest.TestCase):
         detail = owner_views.task_details(self.engine, task_ids[0])['task']
         self.assertTrue(detail['arguments_complete'])
         self.assertFalse(detail['result_complete'])
-        self.assertIn('Preview truncated', detail['result_preview'])
+        self.assertTrue(detail['result_has_more'])
+        pieces=[detail['result_preview']];digest=detail['result_sha256']
+        while detail['result_has_more']:
+            offset=detail['result_next_offset']
+            page=owner_views.task_details(self.engine,task_ids[0],offset,digest)
+            self.assertLessEqual(len(canonical(page)),12000)
+            detail=page['task'];self.assertEqual(detail['result_offset'],offset)
+            self.assertEqual(detail['result_sha256'],digest);pieces.append(detail['result_preview'])
+        self.assertEqual(json.loads(''.join(pieces)),{'large':'x'*20000})
 
     def test_skill_pages_preserve_all_default_skills(self):
         first = owner_views.skills_page(self.engine)

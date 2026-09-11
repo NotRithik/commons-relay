@@ -135,13 +135,13 @@ class ConversationPermissionTests(unittest.TestCase):
         task_id=next(iter(self.scheduler.ids));self.settle_fixture_task(task_id)
         goal=self.planner.view(self.grant['grant_id'])['goal']
         self.assertEqual(goal['state'],'completed');self.assertEqual(goal['permission']['task_state'],'completed')
-        self.assertIn('completed',goal['reply']);self.assertEqual(self.task_count(),1)
+        self.assertIn('finished',goal['reply']);self.assertEqual(self.task_count(),1)
     def test_failed_permission_action_is_not_displayed_as_success(self):
         request=self.propose()['request'];self.planner.permissions.decide(self.decision(request))
         task_id=next(iter(self.scheduler.ids));self.settle_fixture_task(task_id,'failed','FIXTURE_TRANSPORT_FAILED')
         goal=self.planner.view(self.grant['grant_id'])['goal']
         self.assertEqual(goal['state'],'failed');self.assertEqual(goal['error'],'FIXTURE_TRANSPORT_FAILED')
-        self.assertIn('did not complete',goal['reply'])
+        self.assertIn('did not finish',goal['reply'])
     def test_completed_action_and_pending_request_survive_service_restart(self):
         request=self.propose()['request'];self.planner.permissions.decide(self.decision(request))
         task_id=next(iter(self.scheduler.ids));self.settle_fixture_task(task_id)

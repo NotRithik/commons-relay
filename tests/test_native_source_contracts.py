@@ -36,10 +36,13 @@ class NativeContracts(unittest.TestCase):
         branch=text.split('action=="storage.download"',1)[1].split('action=="storage.manifests"',1)[0]
         self.assertIn('QFileInfo(file.absolutePath()).canonicalFilePath()!=allowed',branch)
         self.assertNotIn('file.canonicalPath()!=allowed',branch)
-    def test_delivery_local_mode_is_loopback_only_and_public_mode_is_named_preset(self):
+    def test_delivery_local_mode_is_loopback_and_lan_requires_explicit_private_address(self):
         text=(ROOT/'native/core/commons_relay_module.cpp').read_text().split('void CommonsRelayModule::handleDeliveryBridge')[1]
-        self.assertIn('"listenAddress","127.0.0.1"',text)
-        self.assertIn('"nat","extip:127.0.0.1"',text)
+        self.assertIn('"listenAddress",mode=="lan" ? "0.0.0.0" : "127.0.0.1"',text)
+        self.assertIn('LAN_ADDRESS_REQUIRES_EXPLICIT_LAN_MODE',text)
+        self.assertIn('PRIVATE_LAN_ADDRESS_REQUIRED',text)
+        self.assertIn('PRIVATE_LAN_PEER_REQUIRED',text)
+        self.assertIn('cfg.insert("nat",mode=="lan" ? "extip:"+config.value("advertiseAddress").toString() : "extip:127.0.0.1")',text)
         self.assertIn('mode=="logos.dev"',text)
         self.assertIn('cfg.insert("preset","logos.dev")',text)
         self.assertIn('cfg.insert("discv5UdpPort",port)',text)
