@@ -25,7 +25,8 @@ class PeerPingTests(unittest.TestCase):
             return self.provider.protocol.handle_request('client',rpc)['result']
         self.client.protocol.await_response=response
         body={'domain':REQUEST_DOMAIN,'agent_id':'client','request_id':'ping-fixture','skill':'agent.ping','arguments':{'agent_address':'provider'},'expires_at':self.client.now+500}
-        self.task=self.client.engine.submit(sign_envelope(body,self.client.owner_key,self.client.engine.crypto))
+        submitted=self.client.engine.submit(sign_envelope(body,self.client.owner_key,self.client.engine.crypto))
+        self.task=self.client.engine.get(submitted['id'])
     def tearDown(self):
         self.client.close();self.provider.close();self.tmp.cleanup()
     def test_live_response_is_verified_without_wallet_or_invoice(self):

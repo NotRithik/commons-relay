@@ -64,7 +64,7 @@ class PackageAssemblyTests(unittest.TestCase):
 class ChatUiPackagingTests(unittest.TestCase):
     def fixture(self,root,variant):
         name='commons_relay_owner_ui';ext='.dylib' if variant=='darwin-arm64' else '.so'
-        files=[name+'_plugin'+ext,name+'_replica_factory'+ext,'qml/Main.qml','qml/ChatTranscript.qml','icons/commons_relay.svg','commons_relay_owner_ui.py','commons_relay/__init__.py','commons_relay/conversation_permissions.py','commons_relay/inference_settings.py']
+        files=[name+'_plugin'+ext,name+'_replica_factory'+ext,'qml/Main.qml','qml/ChatTranscript.qml','qml/Services.qml','qml/StableRows.qml','icons/commons_relay.svg','commons_relay_owner_ui.py','commons_relay_agent_setup.py','commons_relay/__init__.py','commons_relay/conversation_permissions.py','commons_relay/inference_settings.py']
         for filename in files:
             path=root/filename;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('explicit packaging fixture')
         (root/'metadata.json').write_text(json.dumps({'name':name,'main':name+'_plugin','type':'ui_qml','version':'0.1.0'}))
@@ -75,6 +75,8 @@ class ChatUiPackagingTests(unittest.TestCase):
                 root=Path(tmp);name=self.fixture(root,variant)
                 files,_=PACK.files_for_variant(root,variant,name)
                 self.assertIn('qml/ChatTranscript.qml',files)
+                self.assertIn('qml/Services.qml',files)
+                self.assertIn('commons_relay_agent_setup.py',files)
                 self.assertIn('commons_relay/conversation_permissions.py',files)
                 self.assertIn('commons_relay/inference_settings.py',files)
     def test_missing_chat_component_fails_instead_of_shipping_broken_ui(self):
