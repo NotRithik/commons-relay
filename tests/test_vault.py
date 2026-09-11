@@ -47,6 +47,16 @@ class VaultTests(unittest.TestCase):
     def test_upload_download_roundtrip(self):
         result=self.upload();out=self.alice.download(result['address'],'returned.txt',self.store)
         self.assertEqual((self.root/'alice-out/returned.txt').read_text(),'private fixture content');self.assertTrue(out['authenticated'])
+    def test_download_by_unique_saved_label_resolves_exact_address(self):
+        result=self.upload();out=self.alice.download('Q3 report','by-label.txt',self.store)
+        self.assertEqual(out['address'],result['address'])
+        self.assertEqual((self.root/'alice-out/by-label.txt').read_text(),'private fixture content')
+    def test_duplicate_saved_label_is_ambiguous(self):
+        self.upload();(self.root/'alice-in'/'other.txt').write_text('other content')
+        self.alice.prepare_upload('task2','other.txt','Q3 report');self.alice.upload('task2',self.store)
+        with self.assertRaisesRegex(Rejected,'STORED_FILE_LABEL_AMBIGUOUS'):
+            self.alice.download('Q3 report','ambiguous.txt',self.store)
+        self.assertFalse((self.root/'alice-out/ambiguous.txt').exists())
     def test_content_and_label_not_on_store(self):
         result=self.upload();data=self.store.files[result['address']]
         self.assertNotIn(b'private fixture content',data);self.assertNotIn(b'Q3 report',data)

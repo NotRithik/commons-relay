@@ -38,6 +38,14 @@ class StorageAdapterTests(unittest.TestCase):
         effect=self.adapter.prepare(self.task());self.adapter.broadcast(effect);cid=self.adapter.lookup(effect).result['address']
         download=self.adapter.prepare(self.task('t2','storage.download',{'address':cid,'path':'retrieved'}));self.adapter.broadcast(download)
         self.assertEqual(self.adapter.lookup(download).state,'confirmed');self.assertEqual((self.root/'out/retrieved').read_text(),'fixture document')
+    def test_download_label_is_bound_to_exact_address_during_prepare(self):
+        effect=self.adapter.prepare(self.task());self.adapter.broadcast(effect);cid=self.adapter.lookup(effect).result['address']
+        download=self.adapter.prepare(self.task('t2','storage.download',{'address':'private label','path':'by-label'}))
+        with self.vault.guard:
+            row=self.vault.db.execute('SELECT args FROM effects WHERE task_id=?',('t2',)).fetchone()
+        self.assertIn(cid,row['args']);self.assertNotIn('private label',row['args'])
+        self.adapter.broadcast(download)
+        self.assertEqual((self.root/'out/by-label').read_text(),'fixture document')
     def test_upload_commit_reconciled_when_effect_receipt_lost(self):
         effect=self.adapter.prepare(self.task());self.vault.upload(effect.opaque_handle,self.store)
         self.assertEqual(self.adapter.lookup(effect).state,'confirmed');self.assertEqual(self.store.uploads,1)
