@@ -37,7 +37,7 @@ The three Storage, Messaging and Blockchain deployments have separate identities
 - **License:** dual MIT / Apache-2.0; both license texts are included.
 - **Successful RC4 default-branch CI:** [run 34581624387](https://github.com/NotRithik/commons-relay/actions/runs/34581624387).
 - **Successful RC4 real standalone proof:** [run 34580449320](https://github.com/NotRithik/commons-relay/actions/runs/34580449320), on the exact RC4 source above.
-- **Newer source's ordinary CI:** [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). Its actual conclusion is reported separately; no additional proof or release pipeline was started for this submission.
+- **Newer source's ordinary CI:** [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). All four jobs passed on code revision `d5d924d`; subsequent changes are documentation-only with CI skipped. No additional proof or release pipeline was started for this submission.
 
 **Version boundary:** the recording machine also had the post-RC4 unique-filename
 resolution fix. RC4 download calls use the exact content address returned by
@@ -156,7 +156,7 @@ The explanations below use the official criteria in their original order. Checkm
 
 - [x] **19. End-to-end integration tests run against a LEZ sequencer (standalone mode) and are included in CI.** Real standalone CI run 34580449320 passed: real proof, confirmed transaction and verified private balance 5; RISC0_DEV_MODE=0.
 
-- [ ] **20. CI must be green on the default branch.** The baseline run 34581624387 passed all four jobs. The newer source check is [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). It was still running during submission preparation; the earlier green baseline is not represented as the latest run.
+- [x] **20. CI must be green on the default branch.** RC4 default-branch run 34581624387 passed. The newer code revision `d5d924dbbeb2a95e0cc24540d60e5627d1823715` also passed all four jobs in [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). Subsequent main-branch changes only update the README/submission text and explicitly skip CI; no executable or test code changed after that green run.
 
 - [x] **21. A README documents end-to-end usage: deployment steps, agent configuration, and step-by-step instructions for deploying and interacting with the agent via CLI and the Logos app owner channel.** README contains headless deployment, role selection, owner CLI/Basecamp interaction, provider discovery, explicit public/private choice, and linked setup guides. Final source/assets publication is tracked separately in #11.
 
