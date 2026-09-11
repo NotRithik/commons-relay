@@ -31,34 +31,43 @@ The three Storage, Messaging and Blockchain deployments have separate identities
 ## Repository and reproducibility
 
 - **Implementation:** https://github.com/NotRithik/commons-relay
-- **Submission release:** [v0.1.0-rc.5](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.5) - includes the filename-resolution hotfix, all default skills, CLI and Basecamp packages.
-- **Exact source:** [the release source tree](https://github.com/NotRithik/commons-relay/tree/v0.1.0-rc.5). The release manifest records its complete commit and asset hashes.
+- **Reviewed binary release:** [v0.1.0-rc.4](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.4), with published packages, source archive and SHA-256 manifests. These existing assets are unchanged.
+- **RC4 source:** [`824ffe91128ac1062f1209c389be3378d0b5fb43`](https://github.com/NotRithik/commons-relay/tree/824ffe91128ac1062f1209c389be3378d0b5fb43).
+- **Post-RC4 filename fix and video documentation:** [`d5d924dbbeb2a95e0cc24540d60e5627d1823715`](https://github.com/NotRithik/commons-relay/tree/d5d924dbbeb2a95e0cc24540d60e5627d1823715). This is separately published source, not an unannounced replacement of the RC4 binaries.
 - **License:** dual MIT / Apache-2.0; both license texts are included.
-- **Latest default-branch CI:** [core, wallet, planner and native builds](https://github.com/NotRithik/commons-relay/actions/workflows/core-tests.yml?query=branch%3Amain).
-- **Real standalone proof:** [successful run 34580449320](https://github.com/NotRithik/commons-relay/actions/runs/34580449320) on `824ffe91128ac1062f1209c389be3378d0b5fb43`. The standalone script, Rust wallet, dependency locks and native C++/QML sources are unchanged by the filename hotfix; this is an explicitly identified ancestor run, not a claim that a new proof ran on the documentation commit.
+- **Successful RC4 default-branch CI:** [run 34581624387](https://github.com/NotRithik/commons-relay/actions/runs/34581624387).
+- **Successful RC4 real standalone proof:** [run 34580449320](https://github.com/NotRithik/commons-relay/actions/runs/34580449320), on the exact RC4 source above.
+- **Newer source's ordinary CI:** [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). Its actual conclusion is reported separately; no additional proof or release pipeline was started for this submission.
 
-For a clean evaluator installation, clone this release and follow
-[DEPLOYMENT.md](https://github.com/NotRithik/commons-relay/blob/v0.1.0-rc.5/docs/DEPLOYMENT.md) and
-[NATIVE-BUILD.md](https://github.com/NotRithik/commons-relay/blob/v0.1.0-rc.5/docs/NATIVE-BUILD.md).
-The packaged wallet bridge and the separate Rust wallet executable are different
-components: set `COMMONS_RELAY_WALLET_EXECUTABLE` to the companion from this release,
-not an older binary merely because its filename matches. Prerequisites are pinned
-and must be installed before the one-command agent deployment.
+**Version boundary:** the recording machine also had the post-RC4 unique-filename
+resolution fix. RC4 download calls use the exact content address returned by
+`storage.list`; build the separately linked source to accept a unique saved label
+as well. The wallet, native C++/QML, standalone demo and proof dependency inputs
+are unchanged between these revisions. Neither the video nor the newer source
+is mislabeled as byte-for-byte identical to the RC4 Python runtime.
 
-The independent local-sequencer reproduction is:
+Start with the release's **INSTALL-AND-VERIFY.md**, verify **SHA256SUMS**, and follow
+[DEPLOYMENT.md](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/docs/DEPLOYMENT.md) and
+[NATIVE-BUILD.md](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/docs/NATIVE-BUILD.md).
+The native wallet bridge and the separate Rust wallet executable are different
+components: use the companion from the selected release, not an older binary
+merely because its filename matches. Install the documented prerequisites before
+the single agent-deployment command.
+
+The independently reproducible RC4 local-sequencer flow is:
 
 ```sh
-git clone --branch v0.1.0-rc.5 --depth 1 https://github.com/NotRithik/commons-relay.git
+git clone --branch v0.1.0-rc.4 --depth 1 https://github.com/NotRithik/commons-relay.git
 cd commons-relay
 /bin/sh scripts/prepare-local.sh fetch
 /bin/sh scripts/prepare-local.sh build
 python3 scripts/demo-local.py --timeout-seconds 18000 --amount 5
 ```
 
-This is a fresh local test environment, not a command to replay a completed public
-payment. It forces `RISC0_DEV_MODE=0`; real proof generation can take a long time.
-The native LGX packages contain only Kite/Commons Relay components, not the
-LP-0002/LP-0003 governance/membership module or any user's wallet or API credentials.
+These are evaluator instructions, not a request to repeat a recorded payment.
+The script forces `RISC0_DEV_MODE=0`; actual proof generation can take a long time.
+The published LGX packages contain only Kite/Commons Relay components, not the
+LP-0002/LP-0003 module, live wallet state or API credentials.
 
 ## Approach
 
@@ -91,7 +100,7 @@ A malformed public program instruction was retained as a separate historical unr
 ### Recording-session fixes and provenance
 
 A download request once passed a filename where the vault expected a content
-address. The filename-resolution hotfix now accepts an exact unique saved label,
+address. The separately published post-RC4 filename-resolution hotfix accepts an exact unique saved label,
 resolves it locally, and persists the chosen content address before effects.
 Duplicate labels are rejected rather than guessed. The core keeps its path,
 authentication, no-overwrite and replay checks.
@@ -129,11 +138,11 @@ The explanations below use the official criteria in their original order. Checkm
 
 - [x] **10. Three separate agents are deployed on LEZ testnet — one per default skill category (Storage, Messaging, and Blockchain) — each with a demonstrated, reproducible deployment and evidence provided.** Separate Storage, Messaging and Blockchain role identities and deployments are recorded. [evidence/three-current-roles-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/three-current-roles-20260911.json)
 
-- [x] **11. Full documentation — including the skill interface spec, deployment guide, and owner interaction guide — and a clean public repository are delivered.** The submission release contains the filename-resolution fix, clean source, loadable packages and explicit asset hashes; RC4 remains an identified historical baseline.
+- [x] **11. Full documentation — including the skill interface spec, deployment guide, and owner interaction guide — and a clean public repository are delivered.** RC4 provides clean pinned source, loadable packages and explicit asset hashes. The later filename fix is published separately with the version boundary above; the RC4 files were not silently replaced.
 
 - [x] **12. Provide a documented skill interface (module/SDK) that can be used to add new skills without modifying the core agent module.** Hash-pinned subprocess skill interface and installation documentation; actual third-party text-statistics service was called and paid. [evidence/paid-public-extension-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/paid-public-extension-20260911.json)
 
-- [x] **13. The owner-facing interface is accessible from the Logos app (Basecamp) via the owner channel — local build instructions and loadable assets are provided.** Live Basecamp owner channel, local setup, public service review and clickable tool summaries observed. Stable result rows and saved-result navigation through all 12,283 characters were verified in Basecamp; matching submission packages are supplied. [evidence/create-agent-recovery-ui-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/create-agent-recovery-ui-20260911.json)
+- [x] **13. The owner-facing interface is accessible from the Logos app (Basecamp) via the owner channel — local build instructions and loadable assets are provided.** Live Basecamp owner channel, local setup, public service review and clickable tool summaries observed. Stable result rows and saved-result navigation through all 12,283 characters were verified in Basecamp; RC4 native packages are published; the separately identified filename fix is available in source. [evidence/create-agent-recovery-ui-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/create-agent-recovery-ui-20260911.json)
 
 - [x] **14. The agent module recovers from transient failures (network interruptions, node restarts) without losing pending task state.** The provider retained the exact pending unpaid task and quote across restart, reconnected, and accepted cancellation. Previous mailbox/identity recovery evidence also remains. This is not a claim of a mid-payment crash replay. [evidence/pending-restart-cancel-ui-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/pending-restart-cancel-ui-20260911.json) [evidence/mailbox-recovery-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/mailbox-recovery-20260911.json)
 
@@ -147,7 +156,7 @@ The explanations below use the official criteria in their original order. Checkm
 
 - [x] **19. End-to-end integration tests run against a LEZ sequencer (standalone mode) and are included in CI.** Real standalone CI run 34580449320 passed: real proof, confirmed transaction and verified private balance 5; RISC0_DEV_MODE=0.
 
-- [ ] **20. CI must be green on the default branch.** The baseline run 34581624387 passed all four jobs. The submission revision is being checked on the default branch; the submitted solution PR will identify its exact run and conclusion.
+- [ ] **20. CI must be green on the default branch.** The baseline run 34581624387 passed all four jobs. The newer source check is [run 34643750363](https://github.com/NotRithik/commons-relay/actions/runs/34643750363). It was still running during submission preparation; the earlier green baseline is not represented as the latest run.
 
 - [x] **21. A README documents end-to-end usage: deployment steps, agent configuration, and step-by-step instructions for deploying and interacting with the agent via CLI and the Logos app owner channel.** README contains headless deployment, role selection, owner CLI/Basecamp interaction, provider discovery, explicit public/private choice, and linked setup guides. Final source/assets publication is tracked separately in #11.
 
@@ -210,7 +219,7 @@ The source repository contains the following evidence and guides:
 - [evidence/local-current-wallet-proof-20260911.json](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/evidence/local-current-wallet-proof-20260911.json): RISC0_DEV_MODE=0 standalone proof and verified private balance.
 - [docs/ARCHITECTURE.md](https://github.com/NotRithik/commons-relay/blob/824ffe91128ac1062f1209c389be3378d0b5fb43/docs/ARCHITECTURE.md), `SKILLS.md`, `DEPLOYMENT.md`, `OWNER.md`, `PROVIDERS.md`, `CLIENTS.md`, `SECURITY.md`, `PERFORMANCE.md`, `a2a-logos-binding-v1.md`, `PUBLIC-PAYMENTS.md`.
 - **[Builder-narrated video - watch first](https://youtu.be/5tW55lGR-_Y)**, with chapter links at the top of this submission.
-- [Recording-session task receipts and public-payment repair](https://github.com/NotRithik/commons-relay/blob/v0.1.0-rc.5/evidence/recording-session-20260912.json): sanitized recorded outcomes; no transactions rerun for submission.
+- [Recording-session task receipts and public-payment repair](https://github.com/NotRithik/commons-relay/blob/d5d924dbbeb2a95e0cc24540d60e5627d1823715/evidence/recording-session-20260912.json): sanitized recorded outcomes; no transactions rerun for submission.
 
 Implementation and debugging were AI-assisted. The linked recording is narrated by the builder. AI-generated narration or a silent screencast is not being substituted for authorship/understanding.
 

@@ -4,7 +4,7 @@
 
 [![Watch Kite on YouTube](https://i.ytimg.com/vi/5tW55lGR-_Y/hqdefault.jpg)](https://youtu.be/5tW55lGR-_Y)
 
-**[Submission write-up and chapter links](docs/SUBMISSION.md)** | **[Release and installation assets](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.5)**
+**[Submission write-up and chapter links](docs/SUBMISSION.md)** | **[Release and installation assets](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.4)**
 
 
 Kite is the Basecamp interface for **Commons Relay**, a Logos Core agent module.
