@@ -1,0 +1,42 @@
+{
+  "checks": [
+    {
+      "check": "POSIX shell syntax",
+      "exit_code": 0
+    },
+    {
+      "check": "Real demo help",
+      "exit_code": 0
+    },
+    {
+      "check": "Invocation outside checkout",
+      "exit_code": 0
+    },
+    {
+      "check": "Invalid amount rejected",
+      "exit_code": 2
+    },
+    {
+      "check": "Invalid timeout rejected",
+      "exit_code": 2
+    },
+    {
+      "check": "Outside output path rejected",
+      "exit_code": 2
+    },
+    {
+      "check": "Path containing spaces",
+      "exit_code": 0
+    }
+  ],
+  "manifest_matches": true,
+  "licenses": [
+    "MIT",
+    "Apache-2.0"
+  ],
+  "demo_sha256": "4ffb6a6313a68afbed4f26a67b51f7022220eaf51e20ae160667e2d01b7bc9c0",
+  "full_proof_rerun": false,
+  "existing_full_proof_ci": 34580449320,
+  "observed_at": "2026-09-11T20:39:33.269288+00:00",
+  "scope": "Manual local launcher checks. The real proof implementation was not rerun."
+}

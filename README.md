@@ -2,7 +2,7 @@
 
 ## [Watch the builder demo - LP-0008 (10:46)](https://youtu.be/5tW55lGR-_Y)
 
-[![Watch Kite on YouTube](https://i.ytimg.com/vi/5tW55lGR-_Y/hqdefault.jpg)](https://youtu.be/5tW55lGR-_Y)
+[![Watch Kite on YouTube](docs/media/kite-demo-preview.jpg)](https://youtu.be/5tW55lGR-_Y)
 
 **[Submission write-up and chapter links](docs/SUBMISSION.md)** | **[Release and installation assets](https://github.com/NotRithik/commons-relay/releases/tag/v0.1.0-rc.4)**
 
@@ -20,6 +20,32 @@ reports completion. Models are replaceable; wallet authority is not.
 Existing module IDs remain `commons_relay_module`, `commons_relay_wallet` and
 `commons_relay_owner_ui`. Renaming the interface does not change wallet identity.
 This is testnet software, not audited production custody.
+
+## Run the standalone demo
+
+`demo.sh` runs the existing local-sequencer demo with real proofs. Prepare its
+pinned dependencies first:
+
+```sh
+/bin/sh scripts/prepare-local.sh fetch
+/bin/sh scripts/prepare-local.sh build
+./demo.sh --timeout-seconds 18000 --amount 5
+```
+
+Run `./demo.sh --help` to inspect the options without starting a node or proof.
+The demo creates a disposable wallet on a loopback-only sequencer, confirms a
+private transaction and checks its resulting balance. It does not use your
+public-testnet wallet. RC4 contains the same implementation at
+`scripts/demo-local.py`; the root launcher was added after RC4.
+
+The Basecamp UI descriptor is [native/ui/module.json](native/ui/module.json).
+It mirrors [native/ui/metadata.json](native/ui/metadata.json), the metadata used
+by the native build. Install the LGX packages as described in
+[the native build guide](docs/NATIVE-BUILD.md).
+
+## License
+
+Dual-licensed under [MIT](LICENSE-MIT) and [Apache-2.0](LICENSE-APACHE).
 
 ## Start here
 
