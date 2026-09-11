@@ -57,8 +57,10 @@ available through `request(peer, method, params, request_id=...)`, including
 
 The owner-authorized `agent.task(agent_address, skill, params)` skill remains the
 payment path. It checks the signed card, binds the quote to the exact request and
-recipient, reserves the spend under the configured limits, makes one private LEZ
-payment, and reconciles that exact transaction. The native Services screen signs
+recipient, reserves the spend under the configured limits, makes one LEZ payment in the explicitly reviewed mode, and reconciles that exact
+transaction. Existing requests default to private; public payments use separate
+public funds, must be advertised by the provider, and require explicit owner
+approval. A client never silently switches modes or converts private funds. The native Services screen signs
 the price reviewed by the owner; a price change is rejected. A planner uses the
 same engine under its signed goal grant and budget.
 

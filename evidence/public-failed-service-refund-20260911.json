@@ -1,0 +1,35 @@
+{
+  "observed_at": 1789114371,
+  "request_initiated_in_basecamp_services": true,
+  "public_payment_explicitly_approved_by_owner": true,
+  "client_task_id": "d641da96d20f4db4aa99b392097ce948",
+  "provider_task_id": "fea6e3d9e92f1c37b80c2d8db1936bc9",
+  "provider_skill_task_id": "8c1336d4922649beac40960679998596",
+  "skill": "example.json_format",
+  "deliberately_invalid_input": {
+    "text": "{\"acceptance_check\":"
+  },
+  "actual_failure_result": {
+    "message": "Invalid JSON at line 1, column 21. No document was formatted.",
+    "reason": "INVALID_JSON"
+  },
+  "client_state": "failed",
+  "payment_mode": "public",
+  "amount": "1",
+  "payment_transaction": "03b35a1880e0de88a8b37c421bd5561142af6ae6c5002ba4778e814d8c9d9670",
+  "refund_transaction": "e1c1dd24f244501914882a5f236777733095b97c17cc490c1c8274f35132acc3",
+  "refund_verified_by_client": true,
+  "client_reservation_released": true,
+  "provider_state": "failed",
+  "provider_payment_state": "refunded",
+  "followup_free_ui_task": {
+    "id": "652af867b4e649ee8cfefe59908c8fda",
+    "skill": "meta.skills",
+    "state": "completed",
+    "created": 1789114277,
+    "updated": 1789114277
+  },
+  "concurrent_skill_overlap_verified": false,
+  "duplicate_payment_or_refund": false,
+  "ui_refund_summary_acceptance": "pending installation"
+}

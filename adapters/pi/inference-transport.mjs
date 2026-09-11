@@ -180,7 +180,9 @@ export function createInferenceStream({ modelId, endpoint, api, apiKey = '', bud
             cost: { input: input * budget.inputPrice / 1e6, output: output * budget.outputPrice / 1e6,
               cacheRead: 0, cacheWrite: 0, total: charged / 1e6 } },
           stopReason: parsed.reason, timestamp: Date.now() };
-        onStatus({ event: 'model_response', model: modelId, endpoint, api, budget: budget.summary() });
+        const publicText = parsed.content.some(part => part.type === 'toolCall')
+          ? parsed.content.filter(part => part.type === 'text').map(part => part.text).join('\n').slice(0, 700) : '';
+        onStatus({ event: 'model_response', model: modelId, endpoint, api, budget: budget.summary(), publicText });
         stream.push({ type: 'start', partial: message }); stream.push({ type: 'done', reason: parsed.reason, message });
       } catch (failure) {
         const code = typeof failure?.message === 'string' && /^[A-Z_0-9]{1,100}$/.test(failure.message)

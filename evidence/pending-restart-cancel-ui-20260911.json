@@ -1,0 +1,61 @@
+{
+  "observed_at": 1789115122,
+  "before_restart": {
+    "request_id": "acceptance-unpaid-recovery-20260911",
+    "remote_task_id": "7800624c33765b5b8e61f148d66cd55c",
+    "peer": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+    "state": "TASK_STATE_INPUT_REQUIRED",
+    "payment_state": "unpaid",
+    "quote": {
+      "amount": "1",
+      "argumentsHash": "f20c738bf86900ee9a905dfb74fee6c86ca8b66b9fe8d0a8dd50ba7f284e2413",
+      "asset": "LEZ-testnet",
+      "client": "relay-71d7c9cfd55618c7deada44bbef1a53e35ef81487351907a1266088ac764e647",
+      "contextId": "381885b346f28c187dda8899889a05e2",
+      "expiresAt": 1789121695,
+      "id": "quote-7800624c33765b5b8e61f148d66cd55c",
+      "network": "https://testnet.lez.logos.co/",
+      "paymentMode": "public",
+      "provider": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+      "recipient": {
+        "account_id": "998dbfa0056a153b92fa5ded2befa32f324cb6d09bd3cf54dd50272a262b81d8",
+        "after_block": 3994,
+        "public": true
+      },
+      "refund": "full before successful fulfillment",
+      "refundAddressHash": "4abda8b6951bb5e7c1accd16c4bf11a51508016e0b2b61a77b6ba6f7445897ce",
+      "skill": "example.json_format",
+      "taskId": "7800624c33765b5b8e61f148d66cd55c"
+    },
+    "payments_submitted": 0,
+    "observed_at": 1789114500
+  },
+  "after_restart": {
+    "observed_at": 1789114756,
+    "remote_task_id": "7800624c33765b5b8e61f148d66cd55c",
+    "provider_restarted_at": 1789114706,
+    "provider_identity_unchanged": true,
+    "state": "TASK_STATE_INPUT_REQUIRED",
+    "payment_state": "unpaid",
+    "same_quote": true,
+    "payment_transaction": null,
+    "payments_submitted": 0,
+    "source_runtime": "/Users/rithikkumars/CodingStuff/Astra Money/logos/cache/kite-failure-runtime-20260911"
+  },
+  "cancellation_requested_and_completed_in_basecamp": true,
+  "cancel_skill_task": {
+    "id": "50cb806175f546e4bd67ce20114255c0",
+    "state": "completed",
+    "args": "{\"agent_address\":\"relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21\",\"task_id\":\"7800624c33765b5b8e61f148d66cd55c\"}",
+    "result": "{\"contextId\":\"381885b346f28c187dda8899889a05e2\",\"id\":\"7800624c33765b5b8e61f148d66cd55c\",\"metadata\":{\"https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-logos-binding-v1.md\":{\"sequence\":\"2\"},\"https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-payment-v1.md\":{\"paymentState\":\"unpaid\",\"quote\":{\"amount\":\"1\",\"argumentsHash\":\"f20c738bf86900ee9a905dfb74fee6c86ca8b66b9fe8d0a8dd50ba7f284e2413\",\"asset\":\"LEZ-testnet\",\"client\":\"relay-71d7c9cfd55618c7deada44bbef1a53e35ef81487351907a1266088ac764e647\",\"contextId\":\"381885b346f28c187dda8899889a05e2\",\"expiresAt\":1789121695,\"id\":\"quote-7800624c33765b5b8e61f148d66cd55c\",\"network\":\"https://testnet.lez.logos.co/\",\"paymentMode\":\"public\",\"provider\":\"relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21\",\"recipient\":{\"account_id\":\"998dbfa0056a153b92fa5ded2befa32f324cb6d09bd3cf54dd50272a262b81d8\",\"after_block\":3994,\"public\":true},\"refund\":\"full before successful fulfillment\",\"refundAddressHash\":\"4abda8b6951bb5e7c1accd16c4bf11a51508016e0b2b61a77b6ba6f7445897ce\",\"skill\":\"example.json_format\",\"taskId\":\"7800624c33765b5b8e61f148d66cd55c\"}}},\"status\":{\"message\":{\"contextId\":\"381885b346f28c187dda8899889a05e2\",\"messageId\":\"status-7800624c33765b5b8e61f148d66cd55c-2\",\"parts\":[{\"text\":\"Task canceled before completion.\"}],\"role\":\"ROLE_AGENT\",\"taskId\":\"7800624c33765b5b8e61f148d66cd55c\"},\"state\":\"TASK_STATE_CANCELED\",\"timestamp\":\"2026-09-11T08:24:13Z\"}}",
+    "created": 1789115051,
+    "updated": 1789115055
+  },
+  "provider_final_state": "canceled",
+  "same_quote": true,
+  "payment_transaction": null,
+  "refund_transaction": null,
+  "provider_skill_started": false,
+  "pending_task_preserved": true,
+  "no_payment_or_wallet_created": true
+}

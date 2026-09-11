@@ -93,7 +93,7 @@ Item {
             payment_mode: "Payment privacy", recipient: "Recipient", amount: "Amount in testnet base units", label: "File label",
             address: "Stored file reference", message: "Message", members: "Group members",
             group_id: "Group", program_id: "Program ID", instruction: "Encoded instruction",
-            params: "Inputs", agent_address: "Other agent", skill: "Service or task", task_id: "Task to follow",
+            params: "Inputs", agent_address: "Other agent", skill: "Service or task", task_id: "Task reference",
             topic: "Discovery topic", key: "Setting", value: "Value" }
         return names[name] || name.replace(/_/g, " ")
     }
@@ -935,6 +935,8 @@ Item {
             loading: root.pending
             describeState: root.chatState
             describeTaskState: root.stateLabel
+            describeTaskTitle: root.skillTitle
+            describeTaskResult: root.resultSummary
             describeProgress: root.progressText
             formatReply: root.chatReply
             describeError: root.taskError
@@ -1023,9 +1025,9 @@ Item {
                                 Caption { text: root.stateLabel(modelData.state); color: root.taskColor(modelData.state) }
                                 Copy { visible: !!root.progressText(root.liveTask(modelData)); text: root.progressText(root.liveTask(modelData)); Layout.fillWidth: true }
                                 Caption { visible: !!root.progressText(root.liveTask(modelData)); text: root.liveTask(modelData).progress ? "Now: " + root.stepLabel(root.liveTask(modelData).progress.stage) + " · updated " + root.elapsedLabel(root.liveTask(modelData).progress_age_seconds !== undefined ? root.liveTask(modelData).progress_age_seconds : Math.max(0, Math.floor(Date.now()/1000) - Number(root.liveTask(modelData).progress.updated || 0))) + " ago" : ""; Layout.fillWidth: true }
-                                Copy { visible: !root.taskIsLive(modelData) && !modelData.error && !!(modelData.result_summary || root.liveTask(modelData).result_summary); text: modelData.result_summary || root.liveTask(modelData).result_summary || ""; Layout.fillWidth: true }
+                                Copy { visible: !root.taskIsLive(modelData) && !!(modelData.result_summary || root.liveTask(modelData).result_summary); text: modelData.result_summary || root.liveTask(modelData).result_summary || ""; Layout.fillWidth: true }
                                 Caption { text: modelData.maximum_spend === "0" ? "No testnet tokens used" : "Up to " + modelData.maximum_spend + " testnet units allowed for this task" }
-                                Caption { visible: !!modelData.error; text: root.taskError(modelData.error); Layout.fillWidth: true }
+                                Caption { visible: !!modelData.error && !(modelData.result_summary || root.liveTask(modelData).result_summary); text: root.taskError(modelData.error); Layout.fillWidth: true }
                             }
                             LogosButton {
                                 text: modelData.state === "input-required" ? "Review approval" : modelData.state === "completed" ? "View result" : (["failed", "rejected", "canceled"].indexOf(modelData.state) >= 0 ? "View details" : "View progress")
@@ -1452,6 +1454,9 @@ Item {
         contentItem: ScrollView {
             id: detailScroll
             contentWidth: availableWidth
+            clip: true
+            ScrollBar.vertical.policy: ScrollBar.AlwaysOn
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ColumnLayout {
                 width: detailScroll.availableWidth
                 spacing: Theme.spacing.medium
@@ -1480,12 +1485,11 @@ Item {
                 }
                 Caption { visible: root.task.state === "completed" && root.task.result_complete === false && !root.resultSummary(root.task); text: "The raw record is long. The summary above is the useful part; full details are optional."; Layout.fillWidth: true }
                 Caption { visible: !!root.task.result_text; text: "Search response returned by the service"; Layout.fillWidth: true }
-                TextArea {
-                    visible: !!root.task.result_text; text: root.task.result_text || ""
-                    readOnly: true; selectByMouse: true; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap
-                    color: Theme.palette.text; background: null
-                    Layout.fillWidth: true; Layout.preferredHeight: Math.min(420, implicitHeight)
-                    Accessible.name: "Returned search response"
+                SavedTextView {
+                    visible: !!root.task.result_text
+                    Layout.fillWidth: true; Layout.preferredHeight: 260
+                    text: root.task.result_text || ""
+                    accessibleName: "Scrollable returned search response"
                 }
                 Caption {
                     visible: detailsDialog.showDetails && !!root.task.result_preview && root.task.result_preview !== "null"
@@ -1507,27 +1511,18 @@ Item {
                     }
                     Caption { text: "Reads the saved response. Does not run or pay again."; Layout.fillWidth: true }
                 }
-                ScrollView {
-                    id: savedResultScroll
+                SavedTextView {
                     visible: detailsDialog.showDetails && !!root.task.result_preview && root.task.result_preview !== "null"
                     Layout.fillWidth: true; Layout.preferredHeight: 260
-                    clip: true; contentWidth: availableWidth
-                    ScrollBar.vertical.policy: ScrollBar.AlwaysOn
-                    TextArea {
-                        readOnly: true; selectByMouse: true
-                        textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap
-                        font.family: "monospace"; font.pixelSize: 12
-                        color: Theme.palette.text; padding: 12
-                        background: Rectangle { color: Theme.palette.backgroundSecondary; radius: 6 }
-                        text: {
-                            const raw = root.task.result_preview || ""
-                            if (root.task.result_complete) {
-                                try { return JSON.stringify(JSON.parse(raw), null, 2) } catch (_) { return raw }
-                            }
-                            return raw
+                    monospace: true
+                    text: {
+                        const raw = root.task.result_preview || ""
+                        if (root.task.result_complete) {
+                            try { return JSON.stringify(JSON.parse(raw), null, 2) } catch (_) { return raw }
                         }
-                        Accessible.name: "Scrollable saved task result JSON"
+                        return raw
                     }
+                    accessibleName: "Scrollable saved task result JSON"
                 }
                 RowLayout {
                     LogosButton { text: "Refresh details"; enabled: !!(root.task.id || root.requestedTaskId) && !root.pending; onClicked: root.call(root.backend.requestTask(root.task.id || root.requestedTaskId)) }

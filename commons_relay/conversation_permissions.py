@@ -128,12 +128,18 @@ class ConversationPermissions:
         if row['attempt']:
             attempt=verify_envelope(json.loads(row['attempt']),self.engine.owner_key,self.engine.crypto)
             task_body=verify_envelope(attempt.get('task_envelope'),self.engine.owner_key,self.engine.crypto)
+            # Engine.approve may narrow the executable deadline. Keep checking
+            # the ORIGINAL signed request; a narrower deadline does not change
+            # the immutable intent and must not break completed-result recovery.
+            request_deadline=request.get('execution_expires_at',attempt.get('expires_at'))
+            if type(request_deadline) is not int or not 0<saved['deadline']<=request_deadline:
+                raise Rejected('PERMISSION_TASK_BINDING_MISMATCH')
             expected_body={'domain':REQUEST_DOMAIN,'agent_id':self.engine.agent,'request_id':'permission-'+goal,
-                           'skill':request['skill'],'arguments':request['arguments'],'expires_at':saved['deadline']}
+                           'skill':request['skill'],'arguments':request['arguments'],'expires_at':request_deadline}
             if (attempt.get('domain')!=DOMAIN or attempt.get('agent_id')!=self.engine.agent
                 or attempt.get('goal_id')!=goal or attempt.get('decision')!='approve'
                 or attempt.get('permission_hash')!=request['intent_hash']
-                or (request.get('execution_expires_at',attempt.get('expires_at'))!=saved['deadline']) or task_body!=expected_body):
+                or task_body!=expected_body):
                 raise Rejected('PERMISSION_TASK_BINDING_MISMATCH')
         # get() applies the normal engine expiry rules. An expired authorization
         # is never revived merely to repair the conversation's metadata.

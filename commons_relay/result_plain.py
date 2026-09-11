@@ -44,6 +44,13 @@ _FAILED = {
 
 def result_plain(skill, result, *, state='completed', error=None) -> str:
     if state in ('failed', 'rejected'):
+        if skill == 'agent.task' and isinstance(result, dict) and result.get('refund_verified') is True:
+            transaction = result.get('refund_transaction')
+            if isinstance(transaction, str) and len(transaction) == 64 and all(c in '0123456789abcdef' for c in transaction):
+                outcome = 'was canceled' if result.get('state') == 'TASK_STATE_CANCELED' else 'did not complete'
+                return 'The service ' + outcome + '. The full service payment was returned and the refund was verified.'
+        if isinstance(result, dict) and _text(result.get('message'), 500) and _text(result.get('reason'), 96):
+            return 'The service reported: ' + result['message']
         if isinstance(error, str) and error in _FAILED:
             return _FAILED[error]
         return 'This action did not finish' + (f' ({error}).' if isinstance(error, str) and error else '.')

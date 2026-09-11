@@ -158,10 +158,11 @@ request returned a shortened response containing two saved linked excerpts; this
 is a service-output limitation, not an additional token charge. See
 `evidence/chat-windows-exa-verified-20260911.json`.
 
-The new public program-call example compiles to **311876 bytes** in the current
-Mac build. Build completion is not deployment or call completion. Its UI
-acceptance must record its own program ID, transaction and block before being
-counted as a successful operation.
+The deployed public program-call example is **344300 bytes** after packing with
+the pinned RISC Zero compatibility kernel. The earlier **311876-byte** raw build
+was not the deployable artifact. The matching image was deployed at block 3639
+and called successfully at block 3711; the separate default-skill receipt below
+binds each action to its own task and transaction. Byte size is not a CU charge.
 
 `program.deploy` and the currently supported `program.call` use public
 transactions at the pinned revision. They are always owner-approved, but do not
@@ -195,3 +196,58 @@ snapshot using the pinned guest executor: 41,855 guest user cycles. That local
 execution is not a zero-knowledge proof or the sequencer's metered fee receipt.
 The deployed image ID is
 `f863b88a398597e3f869d6ea831738c74ad36063c87fce84d6a9e4bf0c8f4829`.
+
+## Public service payment, 11 September 2026
+
+The chat-discovered Exa service completed at block **3914**, transaction
+`4cd55d4c3839417830b92ca62f68e9fc32a5143605faaa10a3d1d1efd32e3aac`,
+for **1 public testnet unit**. The recorded task elapsed time was **121 seconds**,
+including **64 seconds waiting for owner approval**. From owner approval to the
+completed service result was **57 seconds**, including the peer handshake,
+payment preparation, chain confirmation and service request. Public payment
+avoided the private proof; it was not instantaneous. It used existing public
+funds, not automatically unshielded private funds.
+
+See `evidence/public-exa-chat-20260911.json` for the original task events and
+matching client/provider result digest. The earlier 2,670-second Windows Exa
+workflow used private payment, a different request and a different network
+configuration. These are observed workflow durations, not a controlled benchmark.
+
+The latest fresh standalone private-proof run completed with
+`RISC0_DEV_MODE=0`: **1,613,422 ms** of proof time and **1,624,735 ms** for the
+measured operation, followed by a separately checked private balance of **5**.
+See `evidence/local-current-wallet-proof-20260911.json`, including its build input
+hashes. This remains separate from the public-service transaction.
+
+### Reading CU data without inventing it
+
+| Operation | Metered LEZ CU receipt at the pinned revision | Recorded engineering quantity |
+| --- | --- | --- |
+| Private token send / paid A2A | Not exposed by the pinned transaction lookup | Real private-proof duration and exact confirmed transaction |
+| Public token send / paid A2A | Not exposed by the pinned transaction lookup | Confirmed public transaction and task phase timings; no private proof |
+| Public program call | Not exposed by the pinned transaction lookup | 41,855 measured guest user cycles for the documented demo image; exact program/input binding |
+| Program deployment | No per-transaction CU/gas-used field | 344300 deployed bytes, exact image ID, transaction and block |
+| Public-account initialization and testnet faucet | No per-transaction CU/gas-used field | Exact operation kind, prepared transaction and confirmed block |
+
+The public guest limit of 32 Mi-cycles is a ceiling, not a billed price. Wall
+clock time and binary size are explicitly not compute units. The table reports
+the available measurements and the API limitation rather than presenting a
+fabricated metered cost. Future testnet revisions must be measured again.
+
+## Verified upstream cost-reporting boundary
+
+Rechecked against LEZ Git commit `47eba256479f6f785acbd138834340703cd03401`
+on 11 September 2026. The following are upstream source locations, not estimates:
+
+- `lee/state_machine/src/program/mod.rs:13-15`: public execution is capped at
+  33,554,432 RISC0 cycles. The adjacent comment defers variable fees.
+- `lez/wallet/src/config.rs:23-38`: `GasConfig` declares deployment/runtime cost
+  fields. A tracked-source search at this commit finds no consumers of the
+  deployment price fields outside these declarations.
+- `lez/sequencer/service/src/service.rs:157-163`: transaction lookup returns
+  `Option<(LeeTransaction, BlockId)>`, not a metered CU receipt.
+
+Consequently the CU-used field is explicitly unavailable for token transfers,
+deployment and public calls at this pinned network version. It is not zero.
+The operation-specific cycles/bytes/proof time/confirmed-transaction measurements
+above are the available reproducible resource report, not a fabricated CU fee.

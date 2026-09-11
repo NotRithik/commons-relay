@@ -1,8 +1,11 @@
 # Choosing private or public payments
 
-Implementation status: the explicit mode, wallet verification and native UI are
-built. Live public-payment acceptance is tracked in IMPLEMENTATION-PLAN.md; a
-successful build is not evidence that the public flow has completed end to end.
+The live public Exa request completed through Basecamp chat with a one-unit
+payment at block 3914. A separate deliberately invalid JSON-formatting request
+failed, and its full public refund was independently verified by the client.
+See `evidence/public-exa-chat-20260911.json` and
+`evidence/public-failed-service-refund-20260911.json`. These observations do not
+replace final-version cancellation, concurrency and release acceptance.
 
 ## What the choice means
 

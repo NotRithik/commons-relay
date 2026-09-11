@@ -321,7 +321,7 @@ ColumnLayout {
         Body { text: "Topic" }
         Input { text: panel.draft.discovery_topic || "commons"; Accessible.name: "Provider discovery topic"; onTextEdited: panel.edit("discovery_topic", text) }
         Check { text: "Make this listing public"; checked: !!panel.draft["public"]; Accessible.name: "Enable public service listing"; onCheckedChanged: if (!!panel.draft["public"] !== checked) panel.setPublic(checked) }
-        Check { text: "Also accept public payments"; Accessible.name: "Accept public service payments"; checked: !!panel.draft.allow_public_payments; onClicked: panel.edit("allow_public_payments", checked) }
+        Check { text: "Also accept public payments"; Accessible.name: "Accept public service payments"; checked: !!panel.draft.allow_public_payments; onCheckedChanged: if (!!panel.draft.allow_public_payments !== checked) panel.edit("allow_public_payments", checked) }
         Note { text: "Off by default. Public receiving must be enabled first in Skills & tools. Public payments reveal the parties and amount; private payments remain available." }
         Note { visible: !!panel.removedPrivate; text: panel.removedPrivate }
         Body { text: "Services to offer"; font.weight: Font.DemiBold }

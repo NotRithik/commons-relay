@@ -18,7 +18,9 @@ spending ceiling.
 | `messaging.join` | `group_id` | zero |
 | `messaging.create_group` | `members` | zero |
 | `wallet.balance` | none | zero |
-| `wallet.send` | `recipient`, `amount` | exact amount; owner threshold applies |
+| `wallet.send` | `recipient`, `amount`, optional `payment_mode` | exact amount; private defaults to owner threshold, explicit public always requires owner review |
+| `wallet.public_account` | none | zero; public receive address, initialization state and public balance |
+| `wallet.initialize_public` | none | zero transfer; explicit owner approval to enable the public receiving account |
 | `wallet.history` | none | zero |
 | `program.query` | `program_id`, `params` | zero |
 | `program.call` | `program_id`, `instruction`, `params` | zero LEZ transfer ceiling; always owner approval |
@@ -26,7 +28,7 @@ spending ceiling.
 | `agent.card` | none | zero |
 | `agent.discover` | `topic` | zero |
 | `agent.ping` | `agent_address` | zero; authenticated liveness check for a known peer |
-| `agent.task` | `agent_address`, `skill`, `params` | exact price from the verified provider's signed Agent Card |
+| `agent.task` | `agent_address`, `skill`, `params`, optional `payment_mode` | exact advertised price; public requires explicit review and advertised support |
 | `agent.subscribe` | `agent_address`, `task_id` | zero |
 | `agent.cancel` | `agent_address`, `task_id` | zero |
 | `meta.skills` | none | zero |
@@ -163,3 +165,25 @@ are bounded while the process runs, and timeout/error termination applies only
 to that extension task. These safeguards are not a claim that arbitrary hostile
 executables are safe: extensions are trusted, operator-installed programs running
 as the same operating-system user. Use additional OS isolation for untrusted code.
+
+## Payment choice and cancellation
+
+`payment_mode` is either `private` or `public`; leaving it out preserves the
+private behavior of existing clients. The choice is part of the immutable task
+arguments. The signed quote, transaction and refund use that same choice. A
+provider that does not advertise public payment cannot be called in public mode,
+and no failure or delay silently changes the privacy choice.
+
+`agent.cancel` addresses an already accepted remote task using its task ID and
+provider identity. It does not manufacture a new paid task. An unpaid task can
+be canceled without payment. A payment already accepted on-chain cannot be
+revoked; the provider follows the documented refund policy and the client waits
+for a verified refund transaction. Completion or cancellation is reported from
+the recorded peer state and receipt, not from a model's assertion. See
+`a2a-payment-v1.md` and `PUBLIC-PAYMENTS.md` for quote and refund binding.
+
+Public `wallet.send` accepts a lowercase 64-hex public account ID, or a name in
+the owner's public payment address book. Private sending uses the separately
+verified private recipient descriptor; the formats are deliberately not
+interchangeable. Public and private balances are distinct. The optional public
+initialization tool does not fund the account or convert private assets.

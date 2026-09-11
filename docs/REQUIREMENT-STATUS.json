@@ -1,10 +1,10 @@
 {
-  "observed_at": 1789105255,
+  "observed_at": 1789115438,
   "basis": "23 equally weighted official Success Criteria checkboxes; no partial credit",
-  "verified": 14,
-  "open": 9,
-  "verified_percent": 60.87,
-  "open_percent": 39.13,
+  "verified": 19,
+  "open": 4,
+  "verified_percent": 82.61,
+  "open_percent": 17.39,
   "not_an_effort_estimate": true,
   "not_submission_clearance": true,
   "criteria": [
@@ -58,10 +58,12 @@
     {
       "number": 6,
       "criterion": "All default skills listed above are implemented and documented.",
-      "status": "open",
-      "note": "All required skill entrypoints are implemented. wallet.send, program.call and program.deploy now have confirmed UI receipts. Current-version cancellation/refund and failure checks remain open.",
+      "status": "verified",
+      "note": "All 21 required default skills are registered and documented, with completed receipts in the current role journals. Current A2A cancellation, paid failure/refund and restart recovery are separately observed.",
       "evidence": [
-        "default-wallet-program-ui-20260911.json"
+        "required-default-skills-20260911.json",
+        "pending-restart-cancel-ui-20260911.json",
+        "public-failed-service-refund-20260911.json"
       ]
     },
     {
@@ -119,7 +121,7 @@
       "number": 13,
       "criterion": "The owner-facing interface is accessible from the Logos app (Basecamp) via the owner channel \u2014 local build instructions and loadable assets are provided.",
       "status": "verified",
-      "note": "Basecamp owner-channel UI and local setup are working. The newest service-review dialog fix still needs live visual validation and matching release assets.",
+      "note": "Live Basecamp owner channel, local setup, public service review and clickable tool summaries observed. Final stable-row/scrolling patch and matching assets still need verification.",
       "evidence": [
         "create-agent-recovery-ui-20260911.json"
       ]
@@ -127,11 +129,11 @@
     {
       "number": 14,
       "criterion": "The agent module recovers from transient failures (network interruptions, node restarts) without losing pending task state.",
-      "status": "open",
-      "note": "Mailbox recovery and same-identity setup recovery are observed. The old malformed program call remains honestly unresolved; final-version transient-failure validation remains open.",
+      "status": "verified",
+      "note": "The provider retained the exact pending unpaid task and quote across restart, reconnected, and accepted cancellation. Previous mailbox/identity recovery evidence also remains. This is not a claim of a mid-payment crash replay.",
       "evidence": [
-        "mailbox-recovery-20260911.json",
-        "create-agent-recovery-ui-20260911.json"
+        "pending-restart-cancel-ui-20260911.json",
+        "mailbox-recovery-20260911.json"
       ]
     },
     {
@@ -143,14 +145,21 @@
     {
       "number": 16,
       "criterion": "Skill failures are isolated: a failing skill does not crash the module or affect other concurrently running skills.",
-      "status": "open",
-      "note": "New independent I/O scheduling/failure isolation needs live checks."
+      "status": "verified",
+      "note": "Actual independent discovery remained running while an installed JSON-formatting skill failed; event sequence and strictly contained timestamps prove overlap. Discovery completed and the controller remained live.",
+      "evidence": [
+        "concurrent-failure-isolation-20260911.json"
+      ]
     },
     {
       "number": 17,
       "criterion": "Document the compute unit (CU) cost of each on-chain operation the agent performs (token transfers, program calls, deployments) on LEZ devnet/testnet. Note: LEZ's per-transaction compute budget may change during testnet.",
-      "status": "open",
-      "note": "CU notes need final reconciliation with the measured operations."
+      "status": "verified",
+      "note": "Operation-specific resource costs are documented with verified upstream source. This pinned LEZ API has no metered CU-used receipt; unavailable CU is explicitly distinguished from guest cycles, byte length and proof wall time.",
+      "evidence": [
+        "default-wallet-program-ui-20260911.json",
+        "public-exa-chat-20260911.json"
+      ]
     },
     {
       "number": 18,
@@ -177,8 +186,8 @@
     {
       "number": 21,
       "criterion": "A README documents end-to-end usage: deployment steps, agent configuration, and step-by-step instructions for deploying and interacting with the agent via CLI and the Logos app owner channel.",
-      "status": "open",
-      "note": "README exists but needs final current setup/payment instructions."
+      "status": "verified",
+      "note": "README contains headless deployment, role selection, owner CLI/Basecamp interaction, provider discovery, explicit public/private choice, and linked setup guides. Final source/assets publication is tracked separately in #11."
     },
     {
       "number": 22,

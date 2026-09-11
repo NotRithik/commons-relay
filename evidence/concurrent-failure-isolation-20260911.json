@@ -1,0 +1,97 @@
+{
+  "observed_at": 1789115255,
+  "manual_real_core_execution": true,
+  "discovery_task": {
+    "id": "8aea04a2963a4e85b3c25f90348e2e77",
+    "skill": "agent.discover",
+    "state": "completed",
+    "created": 1789115223,
+    "updated": 1789115229,
+    "error": null,
+    "amount": "0"
+  },
+  "failed_task": {
+    "id": "fa78032c93964633a709f041d2af4e4e",
+    "skill": "example.json_format",
+    "state": "failed",
+    "created": 1789115223,
+    "updated": 1789115225,
+    "error": "NETWORK_REJECTED",
+    "amount": "0",
+    "result": {
+      "message": "Invalid JSON at line 1, column 18. No document was formatted.",
+      "reason": "INVALID_JSON"
+    }
+  },
+  "events": {
+    "8aea04a2963a4e85b3c25f90348e2e77": [
+      {
+        "seq": 97,
+        "at": 1789115223,
+        "state": "submitted",
+        "code": "ACCEPTED"
+      },
+      {
+        "seq": 99,
+        "at": 1789115224,
+        "state": "working",
+        "code": "PREPARING"
+      },
+      {
+        "seq": 104,
+        "at": 1789115229,
+        "state": "working",
+        "code": "PREPARED"
+      },
+      {
+        "seq": 105,
+        "at": 1789115229,
+        "state": "working",
+        "code": "BROADCASTING"
+      },
+      {
+        "seq": 106,
+        "at": 1789115229,
+        "state": "completed",
+        "code": "CONFIRMED"
+      }
+    ],
+    "fa78032c93964633a709f041d2af4e4e": [
+      {
+        "seq": 98,
+        "at": 1789115223,
+        "state": "submitted",
+        "code": "ACCEPTED"
+      },
+      {
+        "seq": 100,
+        "at": 1789115225,
+        "state": "working",
+        "code": "PREPARING"
+      },
+      {
+        "seq": 101,
+        "at": 1789115225,
+        "state": "working",
+        "code": "PREPARED"
+      },
+      {
+        "seq": 102,
+        "at": 1789115225,
+        "state": "working",
+        "code": "BROADCASTING"
+      },
+      {
+        "seq": 103,
+        "at": 1789115225,
+        "state": "failed",
+        "code": "NETWORK_REJECTED"
+      }
+    ]
+  },
+  "overlap_verified": true,
+  "overlap_basis": "The entire failure occurred in second 1789115225 strictly inside discovery seconds 1789115224 through 1789115229; monotonic event sequence confirms start/failure/end order. The initial positive-duration calculation was inconclusive because the fast task rounded to zero whole seconds. No task was repeated.",
+  "independent_discovery_completed": true,
+  "wallet_operations": 0,
+  "model_calls": 0
+}

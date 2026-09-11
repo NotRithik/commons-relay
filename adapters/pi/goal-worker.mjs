@@ -102,7 +102,10 @@ try {
     cost: { input: budget.inputPrice, output: budget.outputPrice, cacheRead: budget.inputPrice, cacheWrite: budget.inputPrice } };
   const streamFn = createInferenceStream({ modelId: config.model, endpoint, api, apiKey: key, budget,
     maxOutputTokens: config.max_output_tokens || 1536, maxRequests: Math.min(9, grant.max_steps + 1),
-    onStatus: event => emit({ kind: 'status', event: event.event }) });
+    onStatus: event => {
+      emit({ kind: 'status', event: event.event });
+      if (event.publicText) emit({ kind: 'commentary', text: event.publicText });
+    } });
   const now = Math.floor(Date.now() / 1000);
   const ttl = Math.min(init.maximum_task_ttl, grant.expires_at - now);
   if (!Number.isInteger(ttl) || ttl < 1) throw new Error('REQUEST_EXPIRED');
@@ -115,7 +118,7 @@ try {
     onTask: task => { taskViews.push(task); emit({ kind: 'status', event: 'tool_task' }); } });
   runner.agent.state.systemPrompt += '\nSpeak in plain, helpful English to a person new to Logos. '
     + 'You are this user\'s selected agent, reached through Commons Relay in Basecamp. Explain what you can do. '
-    + 'Do not claim an action happened unless a tool returned a completed result. '
+    + 'Do not claim an action happened unless a tool returned a completed result. Before each tool request, briefly say what you are checking or doing, using ordinary user-facing text rather than private reasoning. '
     + 'Only tools in the signed grant may run. When an action outside that scope is needed, use request_action_permission with its exact inputs and a clear reason, then stop. This only asks for permission; never claim the action ran. Do not ask for broader permissions or invent missing recipients, paths or amounts. '
     + 'Mention testnet resets or unavailable deployments when tools report them. An interrupted proof is not a successful payment. '
     + 'Agent discovery and cached Agent Cards do not prove the peer is online. Use agent.ping for a current connectivity check; it is free. Never use a paid service as a ping. '

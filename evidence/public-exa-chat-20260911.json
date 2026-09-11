@@ -1,0 +1,67 @@
+{
+  "observed_at": 1789112417,
+  "client_task_id": "2679cd5aa50049e4a39a3bdcaa42631a",
+  "remote_task_id": "c53020c8cbd906ea5b0109a5b23a8a81",
+  "provider": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+  "not_in_owner_contacts": true,
+  "request_initiated_through_basecamp_chat": true,
+  "discovery_and_ping_task_ids": [
+    "b69bc744c7f241debcfdcfbafaa5f20f",
+    "ae9bd0a5bf81403e807c9d1399e8665a"
+  ],
+  "arguments": {
+    "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+    "params": {
+      "num_results": 5,
+      "query": "Logos Messaging end-to-end encrypted communication documentation"
+    },
+    "payment_mode": "public",
+    "skill": "exa.search_free"
+  },
+  "state": "completed",
+  "amount": "1",
+  "payment_mode": "public",
+  "transaction_hash": "4cd55d4c3839417830b92ca62f68e9fc32a5143605faaa10a3d1d1efd32e3aac",
+  "confirmed_block": 3914,
+  "task_elapsed_seconds": 121,
+  "not_a_standalone_proof_benchmark": true,
+  "provider_result_matches_client": true,
+  "result_sha256": "aa1648281fae07be1f67215da956c021d28a23d4090bfd9cc6f51b61f168a78f",
+  "provider_truncated": true,
+  "result_provider": "Exa MCP free plan",
+  "events": [
+    {
+      "at": 1789109534,
+      "state": "input-required",
+      "code": "OWNER_APPROVAL_REQUIRED"
+    },
+    {
+      "at": 1789109598,
+      "state": "submitted",
+      "code": "OWNER_APPROVED"
+    },
+    {
+      "at": 1789109598,
+      "state": "working",
+      "code": "PREPARING"
+    },
+    {
+      "at": 1789109616,
+      "state": "working",
+      "code": "PREPARED"
+    },
+    {
+      "at": 1789109616,
+      "state": "working",
+      "code": "BROADCASTING"
+    },
+    {
+      "at": 1789109655,
+      "state": "completed",
+      "code": "CONFIRMED"
+    }
+  ],
+  "approval_deadline_narrowing_recovered": true,
+  "new_search_or_payment_for_recovery": false,
+  "final_ui_recheck": "pending"
+}

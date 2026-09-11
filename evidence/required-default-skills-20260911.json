@@ -1,0 +1,315 @@
+{
+  "observed_at": 1789115438,
+  "official_blob": "ceaa20d8db59e4f6f78850521cd7b39ed7d4ce6a",
+  "required_count": 21,
+  "all_registered_and_documented": true,
+  "completed_records": {
+    "storage.upload": [
+      {
+        "role": "storage",
+        "id": "971b611343b24f1484575e607fb8c032",
+        "skill": "storage.upload",
+        "state": "completed",
+        "created": 1788988199,
+        "updated": 1788988199
+      },
+      {
+        "role": "blockchain",
+        "id": "cef885edbaf7432a9d50e69adf5e6c49",
+        "skill": "storage.upload",
+        "state": "completed",
+        "created": 1789074967,
+        "updated": 1789074968
+      }
+    ],
+    "storage.download": [
+      {
+        "role": "storage",
+        "id": "642b3d6e094344b1b81c546cdf20084e",
+        "skill": "storage.download",
+        "state": "completed",
+        "created": 1788988255,
+        "updated": 1788988255
+      },
+      {
+        "role": "messaging",
+        "id": "b8c15368d0b649b6bc1cf946d54c55ab",
+        "skill": "storage.download",
+        "state": "completed",
+        "created": 1788975667,
+        "updated": 1788976738
+      },
+      {
+        "role": "blockchain",
+        "id": "43ac3d3edd2843ad8a494db18694f489",
+        "skill": "storage.download",
+        "state": "completed",
+        "created": 1789074970,
+        "updated": 1789074970
+      }
+    ],
+    "storage.list": [
+      {
+        "role": "storage",
+        "id": "d947086c02124af68ff000ccf998d934",
+        "skill": "storage.list",
+        "state": "completed",
+        "created": 1789075825,
+        "updated": 1789075825
+      }
+    ],
+    "storage.share": [
+      {
+        "role": "storage",
+        "id": "c2227be94f294bbbb6fbd89eabfec87d",
+        "skill": "storage.share",
+        "state": "completed",
+        "created": 1788988308,
+        "updated": 1788988310
+      }
+    ],
+    "messaging.send": [
+      {
+        "role": "storage",
+        "id": "abdc637ecd7f494095097bb2e3e093b9",
+        "skill": "messaging.send",
+        "state": "completed",
+        "created": 1788987351,
+        "updated": 1788987352
+      }
+    ],
+    "messaging.create_group": [
+      {
+        "role": "storage",
+        "id": "7fcf2d62df7f480d9e6c8217fd987fb2",
+        "skill": "messaging.create_group",
+        "state": "completed",
+        "created": 1788988465,
+        "updated": 1788988465
+      }
+    ],
+    "wallet.balance": [
+      {
+        "role": "storage",
+        "id": "fcb75109e48d42838ab054aba9ac2324",
+        "skill": "wallet.balance",
+        "state": "completed",
+        "created": 1788987405,
+        "updated": 1788987408
+      },
+      {
+        "role": "blockchain",
+        "id": "19a7146dd3f142348e45fb20a7be9ad1",
+        "skill": "wallet.balance",
+        "state": "completed",
+        "created": 1788980963,
+        "updated": 1788980966
+      }
+    ],
+    "wallet.send": [
+      {
+        "role": "storage",
+        "id": "c504979e8a5e47e49fdedd98807d4dd2",
+        "skill": "wallet.send",
+        "state": "completed",
+        "created": 1789094189,
+        "updated": 1789096955
+      }
+    ],
+    "wallet.history": [
+      {
+        "role": "storage",
+        "id": "bbe8e4a5cd664f14a95c038bb06211ca",
+        "skill": "wallet.history",
+        "state": "completed",
+        "created": 1788985732,
+        "updated": 1788985734
+      },
+      {
+        "role": "blockchain",
+        "id": "1f43018935184f38859fc2c08027c43a",
+        "skill": "wallet.history",
+        "state": "completed",
+        "created": 1788981046,
+        "updated": 1788981048
+      }
+    ],
+    "program.query": [
+      {
+        "role": "storage",
+        "id": "17288b6d9f474a04a4051c1a0191afd1",
+        "skill": "program.query",
+        "state": "completed",
+        "created": 1788988423,
+        "updated": 1788988426
+      },
+      {
+        "role": "blockchain",
+        "id": "c25b48882dd84a5396faf9d992072bdd",
+        "skill": "program.query",
+        "state": "completed",
+        "created": 1788981357,
+        "updated": 1788981359
+      }
+    ],
+    "program.call": [
+      {
+        "role": "storage",
+        "id": "815c9cddeb994a82a3860a27893078e2",
+        "skill": "program.call",
+        "state": "completed",
+        "created": 1789097311,
+        "updated": 1789097434
+      }
+    ],
+    "agent.card": [
+      {
+        "role": "storage",
+        "id": "3b4a4c3f87744dcea73833989870fb2a",
+        "skill": "agent.card",
+        "state": "completed",
+        "created": 1788988373,
+        "updated": 1788988373
+      }
+    ],
+    "agent.discover": [
+      {
+        "role": "storage",
+        "id": "b69bc744c7f241debcfdcfbafaa5f20f",
+        "skill": "agent.discover",
+        "state": "completed",
+        "created": 1789109494,
+        "updated": 1789109501
+      },
+      {
+        "role": "messaging",
+        "id": "8aea04a2963a4e85b3c25f90348e2e77",
+        "skill": "agent.discover",
+        "state": "completed",
+        "created": 1789115223,
+        "updated": 1789115229
+      },
+      {
+        "role": "blockchain",
+        "id": "9871ddd5d03d4152a1e6f3df609e97c4",
+        "skill": "agent.discover",
+        "state": "completed",
+        "created": 1789075811,
+        "updated": 1789075817
+      }
+    ],
+    "agent.task": [
+      {
+        "role": "storage",
+        "id": "2679cd5aa50049e4a39a3bdcaa42631a",
+        "skill": "agent.task",
+        "state": "completed",
+        "created": 1789109534,
+        "updated": 1789109655
+      },
+      {
+        "role": "blockchain",
+        "id": "f5523ecf28514031878660708775b287",
+        "skill": "agent.task",
+        "state": "completed",
+        "created": 1789075831,
+        "updated": 1789075844
+      }
+    ],
+    "agent.subscribe": [
+      {
+        "role": "storage",
+        "id": "b9f62b2e33c84eb5aa046803347bdcdd",
+        "skill": "agent.subscribe",
+        "state": "completed",
+        "created": 1788987184,
+        "updated": 1788987190
+      }
+    ],
+    "agent.cancel": [
+      {
+        "role": "storage",
+        "id": "50cb806175f546e4bd67ce20114255c0",
+        "skill": "agent.cancel",
+        "state": "completed",
+        "created": 1789115051,
+        "updated": 1789115055
+      }
+    ],
+    "meta.skills": [
+      {
+        "role": "storage",
+        "id": "0b7f6bc235314e1a95396e7dac2f0464",
+        "skill": "meta.skills",
+        "state": "completed",
+        "created": 1789095195,
+        "updated": 1789095196
+      },
+      {
+        "role": "messaging",
+        "id": "652af867b4e649ee8cfefe59908c8fda",
+        "skill": "meta.skills",
+        "state": "completed",
+        "created": 1789114277,
+        "updated": 1789114277
+      },
+      {
+        "role": "blockchain",
+        "id": "c6d4b676564842ee85ef30f996fddf23",
+        "skill": "meta.skills",
+        "state": "completed",
+        "created": 1789058123,
+        "updated": 1789058123
+      }
+    ],
+    "meta.status": [
+      {
+        "role": "storage",
+        "id": "35b7e95cdc3e41bbb0b8755328e2706a",
+        "skill": "meta.status",
+        "state": "completed",
+        "created": 1788986095,
+        "updated": 1788986098
+      }
+    ],
+    "meta.configure": [
+      {
+        "role": "storage",
+        "id": "3f165d25be104304b94cff646debdb71",
+        "skill": "meta.configure",
+        "state": "completed",
+        "created": 1788987474,
+        "updated": 1788987474
+      }
+    ],
+    "messaging.join": [
+      {
+        "role": "messaging",
+        "id": "11dd4d3f3f96473da0c3a5810c6b14a0",
+        "skill": "messaging.join",
+        "state": "completed",
+        "created": 1788988540,
+        "updated": 1788988540
+      },
+      {
+        "role": "blockchain",
+        "id": "ae59cb712695435da9237b942cdccd20",
+        "skill": "messaging.join",
+        "state": "completed",
+        "created": 1788978508,
+        "updated": 1788978508
+      }
+    ],
+    "program.deploy": [
+      {
+        "role": "blockchain",
+        "id": "5b4cb442fec74f328b737725569e55a1",
+        "skill": "program.deploy",
+        "state": "completed",
+        "created": 1789092988,
+        "updated": 1789093106
+      }
+    ]
+  },
+  "receipt_scope": "Observed historical tasks in the current three role journals, not a claim every skill was replayed today. Current cancellation/recovery/refund acceptance is recorded separately."
+}

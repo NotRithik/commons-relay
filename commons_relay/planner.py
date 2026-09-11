@@ -138,6 +138,7 @@ class Planner:
             created INTEGER NOT NULL, updated INTEGER NOT NULL,
             mode TEXT NOT NULL, task_ids TEXT NOT NULL DEFAULT '[]')''')
         self.db.execute("UPDATE conversations SET state='interrupted', error='PLANNER_RESTARTED', updated=? WHERE state IN ('queued','thinking','working')", (int(clock()),))
+        self.db.execute('CREATE TABLE IF NOT EXISTS conversation_updates(goal_id TEXT NOT NULL,sequence INTEGER NOT NULL,text TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(goal_id,sequence))')
         self.thread = None
         self.process = None
         self.active = None
@@ -202,6 +203,9 @@ class Planner:
             'state': row['state'], 'error': row['error'], 'mode': row['mode'],
             'created': row['created'], 'updated': row['updated'],
             'task_ids': json.loads(row['task_ids']), 'permission': self.permissions.view(goal_id)}
+        with self.lock:
+            updates=list(self.db.execute('SELECT text,created FROM conversation_updates WHERE goal_id=? ORDER BY sequence LIMIT 8',(goal_id,)))
+        if updates:goal['updates']=[{'text':item['text'],'created':item['created']} for item in updates]
         permission = goal['permission']
         if permission and permission['decision'] == 'approve' and permission.get('task_id'):
             task = self.engine.get(permission['task_id'])
@@ -254,6 +258,7 @@ class Planner:
                     goal['reply'] = summary
                     goal['outcome_from_receipts'] = True
         response={'planner_goal': True, 'agent_id': self.engine.agent, 'goal': goal}
+        if len(canonical(response))>12500:goal.pop('updates',None)
         if len(canonical(response))>13200 and permission:
             request=permission['request']
             goal['permission']={**permission,'request':{key:request[key] for key in ['skill','maximum_spend','asset','intent_hash']}}
@@ -477,6 +482,13 @@ class Planner:
                     child.stdin.write(canonical(reply)+b'\n');child.stdin.flush()
                 elif frame.get('kind')=='status':
                     self._set(goal_id,state='working' if frame.get('event')=='tool_task' else 'thinking')
+                elif frame.get('kind')=='commentary' and set(frame)=={'kind','text'}:
+                    text=frame['text']
+                    if not isinstance(text,str) or len(text)>700:raise Rejected('INVALID_PLANNER_COMMENTARY')
+                    with self.lock:
+                        count=self.db.execute('SELECT COUNT(*) FROM conversation_updates WHERE goal_id=?',(goal_id,)).fetchone()[0]
+                        if count<8 and text.strip():
+                            self.db.execute('INSERT INTO conversation_updates VALUES (?,?,?,?)',(goal_id,count,text.strip(),int(self.clock())))
                 elif frame.get('kind')=='done':
                     text=frame.get('text','')
                     if not isinstance(text,str) or len(text)>7000:raise Rejected('INVALID_PLANNER_RESPONSE')

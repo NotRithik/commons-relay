@@ -15,6 +15,8 @@ Item {
     property string restoreId: ""
     property var describeState: function(value) { return value }
     property var describeTaskState: function(value) { return value }
+    property var describeTaskTitle: function(value) { return value || "Saved tool result" }
+    property var describeTaskResult: function(value) { return value.result_summary || "" }
     property var describeProgress: function(value) { return value && value.progress ? value.progress.detail : "" }
     property var formatReply: function(value) { return value }
     property var describeError: function(value) { return value }
@@ -32,7 +34,9 @@ Item {
     }
     function linkedTasks(ids) {
         const wanted = ids || []
-        return transcript.tasks.filter(function(task) { return wanted.indexOf(task.id) >= 0 })
+        return wanted.map(function(id) {
+            return transcript.tasks.find(function(task) { return task.id === id }) || {id: id, state: "recorded", skill: ""}
+        })
     }
     function goToLatest() {
         followTail = true
@@ -53,14 +57,16 @@ Item {
         } else if (transcript.followTail) messages.positionViewAtEnd()
     })
 
+    StableRows { id: conversationRows; items: transcript.entries }
     ListView {
         id: messages
         anchors.fill: parent
         clip: true
         spacing: 22
         boundsBehavior: Flickable.StopAtBounds
-        model: transcript.entries
+        model: conversationRows
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        onMovementStarted: transcript.followTail = false
         onMovementEnded: transcript.followTail = atYEnd
         header: Item {
             width: messages.width
@@ -77,7 +83,8 @@ Item {
         footer: Item { width: messages.width; height: 18 }
         delegate: Item {
             id: turn
-            required property var modelData
+            required property string payloadJson
+            readonly property var modelData: JSON.parse(payloadJson)
             width: messages.width
             implicitHeight: bubbles.implicitHeight
             Column {
@@ -125,42 +132,68 @@ Item {
                             color: turn.modelData.state === "failed" ? Theme.palette.error : Theme.palette.textSecondary
                             font.pixelSize: 12; font.bold: true; textFormat: Text.PlainText
                         }
-                        TextEdit {
-                            width: parent.width
-                            text: {
-                                const _tick = transcript.nowSeconds
-                                return transcript.formatReply(turn.modelData.reply)
-                                    || transcript.describeWait(turn.modelData)
-                                    || (turn.modelData.state === "queued" ? "Your message is signed and waiting to start." : turn.modelData.state === "thinking" ? "Waiting on the model. No tools have been used yet. Press Stop to cancel." : turn.modelData.state === "working" ? "The model asked for a tool. Live progress is attached below." : turn.modelData.permission ? "I need your permission before continuing." : "No reply text was received.")
-                            }
-                            textFormat: TextEdit.PlainText
-                            readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
-                            color: Theme.palette.text; font.pixelSize: 15
-                            font.family: Theme.typography.publicSans
-                            Accessible.name: "Agent reply"
-                            Accessible.description: text
-                        }
                         Label {
                             width: parent.width; visible: !!turn.modelData.error
                             text: transcript.describeError(turn.modelData.error || "")
                             color: Theme.palette.error; wrapMode: Text.WordWrap; textFormat: Text.PlainText
                         }
                         Repeater {
-                            model: transcript.linkedTasks(turn.modelData.task_ids)
-                            delegate: Rectangle {
+                            model: turn.modelData.updates || []
+                            delegate: Label {
                                 required property var modelData
                                 width: answer.width
-                                implicitHeight: taskProgressText.implicitHeight + 20
-                                radius: 9
-                                color: Theme.palette.backgroundSecondary
-                                border.color: Theme.palette.border
-                                Column {
-                                    id: taskProgressText
-                                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
-                                    spacing: 4
-                                    Label { width: parent.width; text: "Tool · " + transcript.describeTaskState(modelData.state); color: modelData.state === "failed" || modelData.state === "rejected" ? Theme.palette.error : Theme.palette.textSecondary; font.pixelSize: 12; font.bold: true; textFormat: Text.PlainText }
-                                    Label { width: parent.width; visible: !!modelData.progress && ["submitted","working","unknown","input-required"].indexOf(modelData.state) >= 0; text: transcript.describeProgress(modelData); color: Theme.palette.text; wrapMode: Text.WordWrap; textFormat: Text.PlainText }
-                                    Label { width: parent.width; visible: !(modelData.progress && ["submitted","working","unknown","input-required"].indexOf(modelData.state) >= 0) && modelData.state !== "completed"; text: modelData.state === "input-required" ? "Waiting for your approval." : modelData.state === "unknown" ? "Checking what happened on the network. Do not send it again." : modelData.state === "submitted" ? "Waiting to start." : modelData.state === "failed" ? (modelData.result_summary || "This tool failed. Open its details for the recorded reason.") : modelData.state === "rejected" ? "This action did not start." : modelData.state === "canceled" ? "This action was canceled." : "Work is in progress."; color: (modelData.state === "failed" || modelData.state === "rejected") ? Theme.palette.error : Theme.palette.textSecondary; wrapMode: Text.WordWrap; textFormat: Text.PlainText }
+                                text: modelData.text || ""
+                                color: Theme.palette.textSecondary; font.pixelSize: 13
+                                wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                                Accessible.name: "Agent update"
+                            }
+                        }
+                        StableRows { id: linkedToolRows; items: transcript.linkedTasks(turn.modelData.task_ids) }
+                        Repeater {
+                            model: linkedToolRows
+                            delegate: Button {
+                                id: taskCard
+                                required property string payloadJson
+                                readonly property var modelData: JSON.parse(payloadJson)
+                                width: answer.width
+                                padding: 12
+                                hoverEnabled: true
+                                focusPolicy: Qt.StrongFocus
+                                Accessible.name: transcript.describeTaskTitle(modelData.skill) + ": " + transcript.describeTaskState(modelData.state)
+                                Accessible.description: modelData.state === "input-required" ? "Review this exact action before it runs" : "Open the saved result; does not run or pay again"
+                                onClicked: transcript.taskRequested(modelData.id)
+                                background: Rectangle {
+                                    radius: 9
+                                    color: taskCard.hovered ? Theme.palette.surfaceRaised : Theme.palette.backgroundSecondary
+                                    border.width: taskCard.activeFocus ? 2 : 1
+                                    border.color: taskCard.activeFocus ? Theme.palette.primary : Theme.palette.border
+                                }
+                                contentItem: Column {
+                                    spacing: 5
+                                    Label {
+                                        width: parent.width
+                                        text: transcript.describeTaskTitle(taskCard.modelData.skill) + "  ·  " + transcript.describeTaskState(taskCard.modelData.state)
+                                        color: ["failed","rejected"].indexOf(taskCard.modelData.state) >= 0 ? Theme.palette.error : Theme.palette.text
+                                        font.pixelSize: 13; font.bold: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                                    }
+                                    Label {
+                                        width: parent.width
+                                        text: {
+                                            const task = taskCard.modelData
+                                            if (task.state === "input-required") return "Review and approve this exact action" + (task.maximum_spend ? " · up to " + task.maximum_spend + " testnet units" : "") + "."
+                                            const summary = transcript.describeTaskResult(task)
+                                            if (summary) return summary
+                                            if (task.progress) return transcript.describeProgress(task)
+                                            if (task.state === "completed") return "Finished. Click to read the saved result."
+                                            if (task.state === "recorded") return "Click to load this saved task. No new request or payment."
+                                            if (task.state === "unknown") return "Checking the original task. Do not submit it again."
+                                            if (task.state === "submitted") return "Queued and waiting to start."
+                                            if (["failed","rejected","canceled"].indexOf(task.state) >= 0) return "Open the recorded outcome and reason."
+                                            return "Work is in progress."
+                                        }
+                                        color: taskCard.modelData.state === "input-required" ? Theme.palette.warning : Theme.palette.textSecondary
+                                        font.pixelSize: 13; wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                                    }
                                 }
                             }
                         }
@@ -178,18 +211,24 @@ Item {
                                 LogosButton { visible: (turn.modelData.permission || {}).decision === "pending"; text: "Review requested action"; Accessible.name: "Review action requested by agent"; enabled: !transcript.loading; onClicked: transcript.permissionRequested(turn.modelData.id) }
                             }
                         }
+                        TextEdit {
+                            width: parent.width
+                            text: {
+                                const _tick = transcript.nowSeconds
+                                return transcript.formatReply(turn.modelData.reply)
+                                    || transcript.describeWait(turn.modelData)
+                                    || (turn.modelData.state === "queued" ? "Your message is signed and waiting to start." : turn.modelData.state === "thinking" ? "Waiting on the model. No tools have been used yet. Press Stop to cancel." : turn.modelData.state === "working" ? "The model asked for a tool. Live progress is attached below." : turn.modelData.permission ? "I need your permission before continuing." : "No reply text was received.")
+                            }
+                            textFormat: TextEdit.PlainText
+                            readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
+                            color: Theme.palette.text; font.pixelSize: 15
+                            font.family: Theme.typography.publicSans
+                            Accessible.name: "Agent reply"
+                            Accessible.description: text
+                        }
                         Flow {
                             width: parent.width; spacing: 8
                             LogosButton { visible: turn.modelData.preview === true; text: "Show full reply"; onClicked: transcript.fullReplyRequested(turn.modelData.id) }
-                            Repeater {
-                                model: turn.modelData.task_ids || []
-                                delegate: LogosButton {
-                                    required property string modelData
-                                    text: "View details"
-                                    Accessible.name: "View details"
-                                    onClicked: transcript.taskRequested(modelData)
-                                }
-                            }
                         }
                     }
                 }

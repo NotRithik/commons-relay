@@ -48,8 +48,12 @@ private money is never converted automatically. Public payments avoid a private
 proof, but they still need chain confirmation. The chat planner asks for a mode
 before a new paid action when one was not specified. See
 [public/private payment behavior and receipt verification](docs/PUBLIC-PAYMENTS.md).
-The newest public flow remains under live acceptance and is not part of the older
-private-payment evidence.
+The new public flow has its own evidence: a chat-discovered Exa search completed
+with a one-unit public payment at block 3914, and a deliberately invalid service
+request received a full client-verified public refund. See
+[public search](evidence/public-exa-chat-20260911.json) and
+[failed-service refund](evidence/public-failed-service-refund-20260911.json).
+These are separate from the older autonomous private-payment demonstration.
 
 ## What public discovery means
 
