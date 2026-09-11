@@ -1,107 +1,112 @@
-# Commons Relay
+# Kite for Logos
 
-Commons Relay is a Logos Core module for autonomous agents with a shielded LEZ wallet, encrypted Logos Storage, encrypted Logos Messaging, owner-controlled spending, and A2A-compatible agent-to-agent tasks.
+Kite is the Basecamp interface for **Commons Relay**, a Logos Core agent module.
+Your agent has its own shielded LEZ wallet, encrypted file vault and Messaging
+identity. It can do work for you or hire a service offered by another agent.
+You choose its permissions and spending limits.
 
-The model loop is replaceable. Wallet authority is not. A planner may propose a typed skill call, while deterministic code verifies signatures, schemas, spending policy, exact payment quotes, effect hashes, and network receipts before state is marked complete.
+Use **Chat** to give it a goal, **Services** to find or offer help, and **Activity**
+to see what actually happened. A model's claim is not a payment receipt. The task
+engine checks signatures, exact prices, limits and network results before it
+reports completion. Models are replaceable; wallet authority is not.
 
-## Review status after the 8 September testnet reset
+Existing module IDs remain `commons_relay_module`, `commons_relay_wallet` and
+`commons_relay_owner_ui`. Renaming the interface does not change wallet identity.
+This is testnet software, not audited production custody.
 
-The public testnet restarted after the earlier acceptance runs. Receipts referring
-to blocks around 42,557 are historical evidence, not current spendable balances or
-live deployment state. Existing wallets and receipts are preserved; the wallet
-rejects a network head older than its recorded checkpoint instead of showing old
-funds as available. This is a rollback-height check, not universal reorg detection.
+## Start here
 
-The owner UI separates **Chat**, **Activity**, and **Skills & tools**. It reads
-the selected agent's live registry; the three demo agent names are independent
-identities, not hardcoded task categories. In actual Basecamp UI testing, an owner
-request listed stored files; a separate manual request ran an installed text
-extension; and real GPT-5.6 Luna conversations invoked both the file-list tool and
-that custom extension through the signed permission engine. The extension counted
-3 words and 17 characters in the synthetic input `Hello Logos world`. All these
-tasks had zero testnet-token spending. See `evidence/owner-chat-ui-acceptance.json`
-and `evidence/custom-skill-ui-acceptance.json`. These do not replace fresh-network
-payment, recovery and three-use-case acceptance.
+- [Deploy a headless agent](docs/DEPLOYMENT.md), then [use Chat and the owner interface](docs/OWNER.md).
+- [Build and publish your own service](docs/PROVIDERS.md), or [call one from another application](docs/CLIENTS.md).
+- [Build the native Basecamp modules](docs/NATIVE-BUILD.md); [connect different computers](docs/NETWORKING.md).
 
-A provider schema rejection found during the full-tool test remains recorded.
-Provider strict generation is enabled only for supported schema subsets; the
-complete original Relay schema and permission checks remain authoritative.
-Chat requires explicit local model configuration and user data-sharing consent.
-No model starts merely because Basecamp opens.
+No application web server is required between the owner and agent. Provider and
+client still need a working Logos Messaging network connection: using the same
+topic name does not connect otherwise disconnected nodes.
 
-A current two-peer workflow has also completed through owner chat: discovery,
-two zero-price capability requests, and a final summary with receipt-derived
-counts. See `evidence/current-multiagent-ui.json`. Short zero-spend tasks are
-observed without repeating the task or model request; approval-gated and paid
-tasks retain their separate safety boundaries.
+## Create, connect, or discover
 
-The current agent also retrieved a 49-byte synthetic file through owner chat.
-The downloaded plaintext matched the original byte for byte and by SHA-256;
-the signed task reported authenticated decryption. See
-`evidence/current-file-vault-ui.json`. This is file-vault acceptance, not proof
-that paid peer workflows or every submission criterion is complete.
+**Agents you control** is the list of saved owner connections, not a public
+marketplace. In a configured Basecamp installation, **Create an agent** starts a
+new local, unfunded agent after an explicit review; **Connect to this agent** then
+opens that new owner connection. Model inference and public service listing both
+start off. See [local setup and same-identity recovery](docs/CREATE-AGENT.md).
+A remote host is still deployed with the CLI, not by silently opening SSH access
+from the owner window.
 
-The corrected standalone private-proof workflow has passed on commit `43ea9c1`.
-See `evidence/local-real-proof-macos.json` for the separate local 5-unit proof.
-New UI and wallet changes still need their own matching-commit CI and release
-checks. A builder-narrated video, current testnet recovery evidence, and the
-submission's human attestations are separate gates, not implied by passing tests.
+**Services > Find a service** discovers providers on the selected Messaging
+network. **Offer a service** explicitly selects public skills and prices for an
+agent you control. Discovery does not give you ownership of somebody else's
+agent or copy their wallet into your owner dropdown.
 
-## Previously recorded integration evidence
+## Choose payment privacy
 
-The pre-reset testnet build was exercised as a real Logos Core module, not only as unit-test fixtures.
+Private payments are the default for existing callers. In the new Services flow,
+a provider may explicitly also accept **public** payments. The review shows the
+choice and its privacy consequence before signing. Public funds are separate;
+private money is never converted automatically. Public payments avoid a private
+proof, but they still need chain confirmation. The chat planner asks for a mode
+before a new paid action when one was not specified. See
+[public/private payment behavior and receipt verification](docs/PUBLIC-PAYMENTS.md).
+The newest public flow remains under live acceptance and is not part of the older
+private-payment evidence.
 
-- Three separate agents run in Logos Core for Storage, Messaging, and Blockchain roles. Each has its own shielded LEZ account and Messaging identity. See `evidence/three-testnet-agents.json` and `evidence/module-load.json`.
-- A private paid A2A task completed on the public LEZ testnet. The client paid 3 testnet base units, the provider executed `program.query`, and the balances moved from 50 → 47 and 50 → 53. `RISC0_DEV_MODE=0` was active. See `evidence/paid-a2a-private-lez.json`.
-- A one-command headless deployment created a fresh agent, wallet, owner identity, policies, module configuration, and signed Agent Card without starting inference or requesting faucet funds. See `evidence/one-command-deployment.json`.
-- The encrypted owner channel works from a separate Logos Core instance. See `evidence/owner-channel-live.json`.
-- The native owner UI is installed in the same Basecamp 0.2.3 instance as Commons for Logos, uses `Logos.Theme` / `Logos.Controls`, and connects as the separate `commons-relay-main` owner/controller profile while role agents stay headless. See `evidence/basecamp-ui.json`.
-- An above-threshold 6-unit transfer was held for owner approval under a 5-unit limit. No wallet effect was prepared or broadcast, and the owner notification was delivered. See `evidence/above-threshold-live.json`.
-- File upload/download, encrypted file-key sharing, group messaging, and a two-provider multi-agent workflow have live evidence under `evidence/`.
-- The optional Pi planner adapter has also been exercised with GPT-5.6 Luna on a synthetic Storage task. Planner inference remains optional and disabled by default.
+## What public discovery means
 
-The repository contains no production wallet or owner keys. Development evidence uses disposable testnet accounts only.
+A provider explicitly chooses its public services and prices. Its signed Agent
+Card is stored on Logos Storage and announced on a discovery topic. A client
+on that network can verify and discover the card without first adding the
+provider to an owner-trusted address book.
 
-## Chat and action review
+The service channel is separate from owner authority. Discovering a provider
+never gives it permission to read private files, issue owner commands or spend
+unlimited funds. A signature establishes key possession, not reputation or answer
+correctness. See [the security model](docs/SECURITY.md).
 
-The chat interface keeps separate drafts for each agent during the app session,
-loads earlier messages, and shows complete replies on request. The selected model
-and endpoint are visible beside Send. Inference settings accept an explicit
-endpoint and model; credentials are not silently reused at a different endpoint.
+Custom behavior is an operator-installed executable with a manifest, schemas and
+a pinned hash. The core checks a customer's payment before running a paid service;
+the extension does not thereby gain access to the provider's wallet. An external
+API such as Exa receives the query sent to it, even though the agent-to-agent hop
+is encrypted.
 
-A read-only turn can ask permission for one specific action without expanding its
-original grant. The owner reviews the exact inputs, consequences and token limit
-before that action is submitted. Declining creates no task. See
-[`docs/OWNER.md`](docs/OWNER.md) for the review and restart behavior.
+## Current development evidence
 
-Fresh UI checks on 9 September covered an approved 49-byte synthetic upload, a
-declined request, restart persistence, and two successful free peer delegations.
-Each peer returned 21 capabilities, checked against both sides' task records.
-See `evidence/20260909-*.json`. The current source candidate passes 525 Python and
-132 JavaScript tests locally. Public CI, Linux and release verification remain
-separate checks for this candidate. The fresh paid peer query also completed: its
-three-unit payment was confirmed at block 1311, and the provider result matched
-the caller artifact. See `evidence/20260909-paid-peer-demo.json`.
+The actual Basecamp Services flow has completed a **one-unit private payment to
+a discovered third-party text-statistics extension**, with no provider entry in
+the client's owner-trusted contacts and no owner click on the payment itself.
+The returned result was 9 words and 54 characters; the transaction was confirmed
+at testnet block 3206. Client and provider were both on the Mac. See
+[`paid-public-extension-20260911.json`](evidence/paid-public-extension-20260911.json).
 
-## Current deployment acceptance, checked 9 September 2026
+A separate fresh **Linux/WSL headless deployment and same-identity restart** passed
+with no faucet requests, model calls or transfers. See
+[`fresh-linux-deployment-20260911.json`](evidence/fresh-linux-deployment-20260911.json).
+An actual long-running inbox-capacity fault was also repaired without discarding
+message history or completed task/payment records; the Basecamp owner channel
+reconnected. See [`mailbox-recovery-20260911.json`](evidence/mailbox-recovery-20260911.json).
 
-Three fresh independent role wallets were shielded on the restarted public testnet.
-A paid service then completed autonomously: the client paid 3 test units for a
-verified `program.query`, its private balance changed from 50 to 47, and the
-provider's from 50 to 53. The transaction is confirmed at block 604 and was checked
-again against the current network. See `evidence/current-paid-a2a.json`.
+The file-vault, above-threshold review and earlier multi-agent UI evidence remain
+in `evidence/`. Their exact scope and dates matter. Older testnet receipts are not
+current spendable balances, and a testnet reset can invalidate recorded network
+state. [Historical review notes](docs/HISTORICAL-REVIEW-NOTES.md) preserve that
+context rather than presenting old observations as a fresh result.
 
-`evidence/current-three-use-cases.json` records the current personal file vault,
-two-peer workflow and paid services marketplace. The first two were initiated
-through the real Basecamp chat UI. The paid task was initiated by an owner-signed
-Core command, and its completed receipt was inspected in Basecamp; it is not
-represented as a GUI-initiated or model-initiated payment.
+The chat-driven **Windows Exa** request completed with a private one-unit payment
+at block 3359. Its returned text was independently matched on the Mac and Windows
+provider; the saved response contains two linked excerpts and explicitly reports
+provider truncation. This flow used an exact-action approval. See
+[the cross-machine receipt](evidence/chat-windows-exa-verified-20260911.json).
 
-The above-limit GUI test held a 6-unit request under a 5-unit policy, then canceled
-it without preparing a wallet effect (`evidence/current-approval-ui.json`).
-A live successful refund has not been established. These timestamped receipts do
-not replace the builder-narrated video, the final source/release/CI checks, or the
-owner's eligibility and submission-terms confirmation.
+The required `wallet.send`, `program.deploy` and corrected `program.call` flows
+also completed through Basecamp, at blocks 3703, 3639 and 3711 respectively. See
+[their separate receipts](evidence/default-wallet-program-ui-20260911.json).
+The earlier malformed call is retained separately and is not labeled successful.
+
+This working tree is **not yet the final submission release**. The optional public
+payment/refund acceptance, final recovery checks, matching assets, default-branch
+CI and builder-narrated video still need their matching evidence. See the
+[requirement-by-requirement checklist](docs/PRIZE-CHECKLIST.md). GPU acceleration
+is not a prerequisite and no GPU speedup is claimed.
 
 ## Architecture
 
@@ -125,7 +130,7 @@ All LP-0008 default skills are registered and documented:
 - A2A: `agent.card`, `agent.discover`, `agent.task`, `agent.subscribe`, `agent.cancel`
 - Meta: `meta.skills`, `meta.status`, `meta.configure`
 
-Third-party zero-spend skills can be added as SHA-256-pinned subprocess extensions without changing the core module. See `docs/SKILLS.md`.
+Third-party skills can be added as SHA-256-pinned subprocess extensions without changing the core module. They may earn a listed service fee while retaining zero wallet-debit authority. See `docs/SKILLS.md` and `docs/PROVIDERS.md`.
 
 ## One-command headless deployment
 
@@ -219,3 +224,20 @@ Private keys, private RISC0 witness data, local wallet databases, and full daemo
 ## Licenses
 
 The project is dual-licensed under MIT and Apache-2.0. See `LICENSE-MIT` and `LICENSE-APACHE`.
+
+## Custom public services (Kite)
+
+The Basecamp interface now includes **Services** for finding a provider, reviewing
+its inputs and exact price, or publishing a listing for your own installed skill.
+Public service discovery is separate from owner-trusted contacts. It does not
+grant strangers owner commands or wallet control.
+
+Start with [the provider guide](docs/PROVIDERS.md), [the Python client adapter](docs/CLIENTS.md)
+and [network setup](docs/NETWORKING.md). `scripts/install-skill.py` installs a
+reviewed executable and manifest; `scripts/deploy-agent.py --service-manifest ...`
+can install a custom service during a new deployment. A paid service fee is
+separate from the extension's zero-spend wallet authority.
+
+Live free public-identity discovery and task completion were observed on
+10 September 2026. That is not, by itself, evidence of a paid third-party service,
+a Windows/WSL deployment or a live Exa call. Those require their own receipts.

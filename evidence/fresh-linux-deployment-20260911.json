@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-09-10T21:04:20.083662+00:00",
+  "workflow": "fresh one-command Linux deployment, followed by same-identity restart",
+  "platform": "Linux x86_64 in Windows WSL2",
+  "messaging_network": "explicit private LAN mesh",
+  "deployment_status": "running",
+  "agent_address": "lez-9c3bb905d07777440ed3ee4c26acb0a7f898e96fbf8cdfaebb9619d3fa960ee6",
+  "wallet_funded": false,
+  "faucet_requests": 0,
+  "model_calls": 0,
+  "risc0_dev_mode": "0",
+  "restart": {
+    "fresh_deployment": true,
+    "restart_succeeded": true,
+    "same_agent_identity": true,
+    "agent_address": "lez-9c3bb905d07777440ed3ee4c26acb0a7f898e96fbf8cdfaebb9619d3fa960ee6",
+    "old_pid": 5092,
+    "new_pid": 5909,
+    "faucet_requests": 0,
+    "model_calls": 0,
+    "transfers": 0,
+    "recovery": {
+      "failed": 0,
+      "reconciliation_required": 0,
+      "resumed": 0,
+      "scheduled": []
+    }
+  },
+  "source_archive_sha256": "bc96f03bbdfc662e01446c298ddf71118597200fe53c1ac589981bc1fb136fcd",
+  "native_module_sha256": "313d01522f2bc9bfb7ca9a2c239c5a5c10a2f747cca000902360edb7879244cd",
+  "wallet_module_sha256": "b9d3f27fec81e7d91d9846cee8347b75cbde8808bc36366c8826e0e2d8a35fd1",
+  "not_claimed": [
+    "payment or proof in this deployment check",
+    "internet-wide peer discovery",
+    "fresh install of the operating system or SDK dependencies",
+    "final CI for the current working tree"
+  ]
+}

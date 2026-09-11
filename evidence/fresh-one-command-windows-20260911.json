@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-09-10T20:46:50.175410+00:00",
+  "kind": "fresh-state one-command deployment",
+  "platform": "Linux x86_64 / Ubuntu 24.04 on Windows WSL2",
+  "result": "running",
+  "new_deployment": true,
+  "role": "messaging",
+  "agent_address": "lez-ac4bfaef0ef6749341b5274f99c929b3414946a2e712cf934b659419424107fe",
+  "native_variant": "linux-amd64",
+  "wallet_funded": false,
+  "faucet_requests": 0,
+  "model_calls": 0,
+  "transactions_submitted": 0,
+  "receipt_written_before_core_start": true,
+  "restart_check_only_passed": true,
+  "verification_agent_stop_requested": true,
+  "existing_exa_provider_changed": false,
+  "deployment_script_sha256": "25053846d07dc995f6ee26dae20b7fbf661a2dbe4d6a04bc8e325dfcfcbb47f2",
+  "note": "Dependencies were already installed. This is fresh application state, not a clean-machine dependency-fetch or proof benchmark."
+}

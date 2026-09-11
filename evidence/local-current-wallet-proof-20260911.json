@@ -1,0 +1,34 @@
+{
+  "observed_at": 1789102205,
+  "prerequisites_reused": true,
+  "clean_dependency_download_build_claimed": false,
+  "covers_later_public_payment_changes": false,
+  "input_hashes": {
+    "observed_at": 1789099067,
+    "wallet_sha256": "9a53eeebe2114a12917fd6689e918276dc6c022b539727da7b5e8802590b3ce5",
+    "node_sha256": "4060ed21bff13b01e43c6a64b822f2e27da9607f153b9601fa9c6b434f66d5ac",
+    "demo_sha256": "6e1a7b36121cd23066aef5528f7a8519f203613341dbac8d7f01b6c772efb8f0",
+    "prerequisites_reused": true,
+    "clean_dependency_build_claimed": false
+  },
+  "result": {
+    "status": "passed",
+    "network": "local-standalone-only",
+    "lez_revision": "47eba256479f6f785acbd138834340703cd03401",
+    "risc0_dev_mode": "0",
+    "prover": "local-ipc",
+    "amount": "5",
+    "genesis_claim": {
+      "tx_hash": "054382d41f6399a7369e8efc4f291cf2b85eab349491128cae5f7e24f2a894f7",
+      "block_id": 2,
+      "verified_payer_balance": "100"
+    },
+    "wallet_account": "6effe4fb5fad32a215a819af90fbad45bf76e88a7e42d18923c2ef70a26a73e6",
+    "tx_hash": "159ca1800403a03a4760bc3639d3dd8a8a5672e051158dd53673ef6cfe905b71",
+    "block_id": 1454,
+    "proof_millis": 1613422,
+    "wall_millis": 1624735,
+    "verified_private_balance": "5"
+  },
+  "no_private_witnesses_included": true
+}

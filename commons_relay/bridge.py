@@ -11,7 +11,7 @@ from typing import BinaryIO
 from .codec import Rejected,canonical,parse
 
 ACTIONS=frozenset(['modules.probe','storage.version','storage.init','storage.start',
-                    'storage.upload','storage.download','storage.manifests','storage.publish-card','storage.connect-local',
+                    'storage.upload','storage.download','storage.manifests','storage.publish-card','storage.connect-local','storage.local-info',
  'delivery.init','delivery.start','delivery.info','delivery.health','delivery.subscribe','delivery.unsubscribe','delivery.send','delivery.events','delivery.publish-card','wallet.init','wallet.invoke'])
 
 class Wire:
@@ -79,8 +79,36 @@ class Wire:
             with self.guard:self.pending.pop(request_id,None)
 
 class LogosStorage:
-    def __init__(self,wire:Wire):
-        self.wire=wire;self.started=False;self.initialize_guard=threading.RLock()
+    def __init__(self,wire:Wire,profile=None):
+        from pathlib import Path
+        self.wire=wire;self.profile=Path(profile) if profile else None
+        self.started=False;self.initialize_guard=threading.RLock();self.connected_local=set()
+    def _local_routes(self):
+        import json, os, re, stat
+        path=self.profile/'local-storage-routes.json' if self.profile else None
+        if not path or not path.exists():return []
+        if path.is_symlink() or not path.is_file() or stat.S_IMODE(path.stat().st_mode)&0o077 or path.stat().st_size>16000:
+            raise Rejected('LOCAL_STORAGE_ROUTES_INVALID')
+        try:value=json.loads(path.read_text())
+        except Exception:raise Rejected('LOCAL_STORAGE_ROUTES_INVALID') from None
+        if not isinstance(value,dict) or set(value)!={'schema','routes'} or value['schema']!=1 or not isinstance(value['routes'],list) or len(value['routes'])>16:
+            raise Rejected('LOCAL_STORAGE_ROUTES_INVALID')
+        result=[]
+        for route in value['routes']:
+            if not isinstance(route,dict) or set(route)!={'peer_id','addresses'} or not isinstance(route['peer_id'],str) or not re.fullmatch(r'[A-Za-z0-9]{20,100}',route['peer_id']):raise Rejected('LOCAL_STORAGE_ROUTES_INVALID')
+            if not isinstance(route['addresses'],list) or not 1<=len(route['addresses'])<=4:raise Rejected('LOCAL_STORAGE_ROUTES_INVALID')
+            for address in route['addresses']:
+                match=re.fullmatch(r'/ip4/127[.]0[.]0[.]1/tcp/([0-9]{4,5})',address) if isinstance(address,str) else None
+                if not match or not 1024<=int(match.group(1))<=65535:raise Rejected('LOCAL_STORAGE_ROUTES_INVALID')
+            result.append(route)
+        return result
+    def refresh_local_routes(self):
+        for route in self._local_routes():
+            key=(route['peer_id'],tuple(route['addresses']))
+            if key in self.connected_local:continue
+            try:self.wire.call('storage.connect-local',route,timeout=15)
+            except Rejected:continue
+            self.connected_local.add(key)
     def initialize(self):
         # Discovery publication and the controller worker can ask for Storage
         # concurrently during startup. Serialise the two-step node bootstrap;
@@ -91,12 +119,13 @@ class LogosStorage:
             self.wire.call('storage.init',{})
             self.wire.call('storage.start',{})
             self.started=True
+            self.refresh_local_routes()
     def upload(self,path,operation_id):
         self.initialize()
         result=self.wire.call('storage.upload',{'path':str(path)})
         if not isinstance(result,dict) or not isinstance(result.get('address'),str):raise Rejected('STORAGE_RECEIPT_MISSING')
         return result['address']
     def download(self,address,path,maximum_bytes):
-        self.initialize()
+        self.initialize();self.refresh_local_routes()
         self.wire.call('storage.download',{'address':address,'path':str(path)})
         if path.stat().st_size>maximum_bytes:raise Rejected('STORAGE_DOWNLOAD_LIMIT')

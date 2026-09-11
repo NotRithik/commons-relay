@@ -111,7 +111,7 @@ class OwnerUiTests(unittest.TestCase):
 
     def test_catalog_does_not_export_paths_keys_or_seeds(self):
         result = self.ui.handle({'action': 'catalog'})
-        self.assertEqual(result['profiles'], [{'name': 'storage', 'label': 'Storage', 'agent_id': self.engine.agent}])
+        self.assertEqual(result['profiles'], [{'name': 'storage', 'label': 'Storage', 'agent_id': self.engine.agent, 'archived': False}])
         text = canonical(result).decode()
         self.assertNotIn(str(self.root), text)
         self.assertNotIn('PRIVATE KEY', text)
@@ -265,6 +265,10 @@ class OwnerUiTests(unittest.TestCase):
         self.assertEqual(value['agent_id'],self.engine.agent)
         command=self.inner(self.compose({'kind':'snapshot','offset':0}))
         self.assertEqual(command['method'],'owner.snapshot')
+
+    def test_archive_labels_are_marked_for_the_quick_picker(self):
+        info=json.loads(self.info.read_text());info['display_name']='Archive - Storage';self.info.write_bytes(canonical(info))
+        self.assertTrue(self.ui.catalog()['profiles'][0]['archived'])
 
     def test_invalid_display_names_fall_back_to_safe_profile_name(self):
         for name in ['x'*81,'bad\nlabel',False,{},'   ']:

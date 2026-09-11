@@ -1,0 +1,31 @@
+{
+  "observed_at": 1789090917,
+  "task_id": "c248909274dc4882a3011cd9978efe04",
+  "remote_task_id": "b5c25fabfd3c097ba4fd49f420c0b766",
+  "provider_task_id": "034a71dd25e941319c330cbf7a307d96",
+  "client_machine": "Mac",
+  "provider_machine": "Windows WSL",
+  "initiated_from": "Basecamp chat, discovery then exact action approval",
+  "state": "completed",
+  "paid_amount": "1",
+  "payment_transaction": "0fab8d18f35aa2771c692dc43dcc9f67deb7aa01ff8f90bc3a563a1720f27ec0",
+  "confirmed_block": 3359,
+  "current_chain_head": 3602,
+  "provider_result_matches_client": true,
+  "result_sha256": "da8ea66d86b520681d4943a3adceea17bd3163ede58837d31e368886df57b416",
+  "requested_results": 3,
+  "upstream_truncated": true,
+  "titles_and_urls": [
+    "Title: Introduction to Logos Messaging | Logos documentation",
+    "URL: https://docs.logos.co/messaging",
+    "Title: What is Logos? | Logos documentation",
+    "URL: https://docs.logos.co/get-started/what-is-logos"
+  ],
+  "workflow_seconds": 2670,
+  "new_search_or_payment_started": false,
+  "ui_summary_complete": true,
+  "ui_display_verified_at": 1789091444,
+  "ui_display": "Actual Basecamp chat shows both saved linked excerpts, exact paid amount, and upstream truncation warning.",
+  "model_generated_summary": false,
+  "full_result_ui_paging_complete": false
+}

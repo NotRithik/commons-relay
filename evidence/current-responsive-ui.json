@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "checked_at_unix": 1788968959,
+  "basecamp_profile": "logos/runtime/basecamp",
+  "window_size_tested": [
+    900,
+    760
+  ],
+  "wide_layout_previously_verified": true,
+  "narrow_layout": {
+    "settings_hidden_from_chat_by_default": true,
+    "open_side_panel_button_visible": true,
+    "side_panel_opened": true,
+    "close_side_panel_button_visible": true,
+    "agent_profile_control_visible": true,
+    "fresh_connection_status_visible": true,
+    "inference_settings_visible": true,
+    "next_message_action_permission_visible": true,
+    "chat_composer_remains_visible": true
+  },
+  "latest_status_flow": {
+    "message": "status?",
+    "completed": true,
+    "model_call_required": false,
+    "new_task_required": false,
+    "bottom_status_after_completion": "Agent connected. Ready for your next message."
+  },
+  "archived_profiles_hidden_from_quick_picker": true,
+  "tested_through_real_basecamp_ui": true
+}

@@ -21,7 +21,7 @@ import tempfile
 import time
 from .codec import Rejected,canonical,identifier
 from .engine import Prepared,Receipt
-from .schema import check_schema
+from .schema import check_schema,check_public_schema,validate
 from .skills import Skill,Quote
 from .signing import protected_directory
 
@@ -38,9 +38,11 @@ class ExtensionSpec:
     timeout_seconds:int
     input_schema:dict
     public:bool=False
+    credentials:tuple[str,...]=()
+    output_schema:dict|None=None
     def skill(self)->Skill:
         properties=self.input_schema['properties'];required=self.input_schema['required']
-        return Skill(self.id,self.description,tuple(required),lambda _:Quote('LEZ-testnet',0),self.public,self.input_schema)
+        return Skill(self.id,self.description,tuple(required),lambda _:Quote('LEZ-testnet',0),self.public,self.input_schema,self.output_schema)
 
 class ExternalSkills:
     def __init__(self,profile:Path):
@@ -48,15 +50,19 @@ class ExternalSkills:
         config=profile/'extensions.json'
         if not config.exists():return
         if config.is_symlink() or not config.is_file() or config.stat().st_size>MAX_MANIFEST or stat.S_IMODE(config.stat().st_mode)&0o077:raise Rejected('EXTENSION_CONFIGURATION_PERMISSIONS')
-        root_raw=os.environ.get('COMMONS_RELAY_EXTENSION_ROOT')
-        if not root_raw:raise Rejected('EXTENSION_ROOT_REQUIRED')
-        root_candidate=Path(root_raw).expanduser().absolute()
-        if root_candidate.is_symlink() or not root_candidate.is_dir():raise Rejected('EXTENSION_ROOT_INVALID')
-        self.root=root_candidate.resolve(strict=True)
         value=json.loads(config.read_text())
         if not isinstance(value,dict) or set(value)!={'manifests'} or not isinstance(value['manifests'],list) or len(value['manifests'])>32:raise Rejected('EXTENSION_CONFIGURATION_INVALID')
         for name in value['manifests']:
             if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,120}[.]json',name):raise Rejected('EXTENSION_MANIFEST_NAME_INVALID')
+        local_root=profile/'extensions'
+        # Creating a staging directory must not redirect a legacy installation.
+        # Switch roots only when every manifest in the committed config is local.
+        local_complete=local_root.is_dir() and all((local_root/name).is_file() for name in value['manifests'])
+        root_raw=str(local_root) if local_complete else (os.environ.get('COMMONS_RELAY_EXTENSION_ROOT') or str(local_root))
+        root_candidate=Path(root_raw).expanduser().absolute()
+        if root_candidate.is_symlink() or not root_candidate.is_dir():raise Rejected('EXTENSION_ROOT_INVALID')
+        self.root=root_candidate.resolve(strict=True)
+        for name in value['manifests']:
             spec=self._manifest(name)
             if spec.id in self.specs:raise Rejected('DUPLICATE_EXTENSION_SKILL')
             self.specs[spec.id]=spec
@@ -65,7 +71,7 @@ class ExternalSkills:
         if path.is_symlink() or not path.is_file() or path.stat().st_size>MAX_MANIFEST:raise Rejected('EXTENSION_MANIFEST_INVALID')
         value=json.loads(path.read_text())
         required={'schema','id','description','executable','executable_sha256','timeout_seconds','input_schema','public'}
-        if not isinstance(value,dict) or set(value)!=required or value['schema']!=1:raise Rejected('EXTENSION_MANIFEST_INVALID')
+        if not isinstance(value,dict) or not required<=set(value) or set(value)-required-{'credentials','output_schema'} or value['schema']!=1:raise Rejected('EXTENSION_MANIFEST_INVALID')
         id=identifier(value['id'])
         if id.startswith(('storage.','messaging.','wallet.','program.','agent.','meta.')):raise Rejected('EXTENSION_RESERVED_NAMESPACE')
         if not isinstance(value['description'],str) or not 1<=len(value['description'])<=500:raise Rejected('EXTENSION_DESCRIPTION_INVALID')
@@ -77,6 +83,7 @@ class ExternalSkills:
         if executable.parent!=self.root:raise Rejected('EXTENSION_EXECUTABLE_OUTSIDE_ROOT')
         expected=value['executable_sha256']
         if not isinstance(expected,str) or not re.fullmatch(r'[0-9a-f]{64}',expected):raise Rejected('EXTENSION_HASH_INVALID')
+        if executable.stat().st_size>64*1024*1024:raise Rejected('EXTENSION_EXECUTABLE_LIMIT')
         actual=hashlib.sha256(executable.read_bytes()).hexdigest()
         if actual!=expected:raise Rejected('EXTENSION_HASH_MISMATCH')
         timeout=value['timeout_seconds']
@@ -84,7 +91,14 @@ class ExternalSkills:
         schema=value['input_schema'];check_schema(schema)
         if schema.get('type')!='object' or schema.get('additionalProperties') is not False or not isinstance(schema.get('properties'),dict) or not isinstance(schema.get('required'),list) or set(schema['required'])!=set(schema['properties']) or len(schema['required'])>32:raise Rejected('EXTENSION_SCHEMA_MUST_REQUIRE_ALL_FIELDS')
         if type(value['public'])is not bool:raise Rejected('EXTENSION_PUBLIC_FLAG_INVALID')
-        return ExtensionSpec(id,value['description'],executable,expected,timeout,schema,value['public'])
+        credentials=value.get('credentials',[])
+        if not isinstance(credentials,list) or len(credentials)>8 or any(not isinstance(k,str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,50}_(API_KEY|TOKEN|SECRET)',k) for k in credentials) or len(set(credentials))!=len(credentials):
+            raise Rejected('INVALID_EXTENSION_CREDENTIAL_NAMES')
+        output=value.get('output_schema',{'type':'object'})
+        check_schema(output)
+        if output.get('type')!='object':raise Rejected('EXTENSION_OUTPUT_MUST_BE_OBJECT')
+        if value['public']:check_public_schema(schema);check_public_schema(output)
+        return ExtensionSpec(id,value['description'],executable,expected,timeout,schema,value['public'],tuple(credentials),output)
     def skills(self)->list[Skill]:return [spec.skill() for spec in self.specs.values()]
     def has(self,name:str)->bool:return name in self.specs
 
@@ -99,6 +113,22 @@ class ExternalAdapter:
     def _invoke(self,spec:ExtensionSpec,request:dict)->dict:
         scratch=protected_directory(self.runtime/spec.id.replace('/','_'))
         env={'PATH':'/opt/homebrew/bin:/usr/bin:/bin','HOME':str(scratch),'TMPDIR':str(scratch),'LANG':'C.UTF-8'}
+        # Only explicitly provisioned credentials for this exact extension are
+        # passed. Nothing is inherited from Relay's or the owner's environment.
+        if spec.credentials:
+            secret_root=protected_directory(self.profile/'extension-secrets')
+            directory=protected_directory(secret_root/hashlib.sha256(spec.id.encode()).hexdigest())
+            for name in spec.credentials:
+                try:
+                    fd=os.open(directory/name,os.O_RDONLY|os.O_NOFOLLOW)
+                    with os.fdopen(fd,'rb') as stream:
+                        info=os.fstat(stream.fileno())
+                        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or stat.S_IMODE(info.st_mode)&0o077 or info.st_size>8192:
+                            raise Rejected('EXTENSION_CREDENTIAL_PERMISSIONS')
+                        value=stream.read(8193).decode('utf8').rstrip('\r\n')
+                except (OSError,UnicodeError):raise Rejected('EXTENSION_CREDENTIAL_REQUIRED') from None
+                if not value or any(c in value for c in ('\x00','\n','\r')):raise Rejected('EXTENSION_CREDENTIAL_INVALID')
+                env[name]=value
         # Validate the pinned executable at every phase, not only at startup.
         if spec.executable.is_symlink() or not spec.executable.is_file():
             raise Rejected('EXTENSION_EXECUTABLE_INVALID')
@@ -171,14 +201,16 @@ class ExternalAdapter:
         row=self._row(effect.opaque_handle);spec=self.extensions.specs[row['skill']]
         if row['state'] in ['confirmed','rejected']:return
         if not row['effect_id']:raise Rejected('EXTENSION_NOT_PREPARED')
+        with self.engine.tx() as db:db.execute("UPDATE extension_effects SET state='pending' WHERE task_id=?",(row['task_id'],))
         result=self._invoke(spec,{'protocol':'commons-relay-extension/v1','phase':'execute','task_id':row['task_id'],'effect_id':row['effect_id'],'arguments':json.loads(row['args'])})
         self._record(row,result)
     def _record(self,row,result):
         if set(result)!={'state','result'} or result['state'] not in ['confirmed','pending','rejected'] or result['result'] is not None and not isinstance(result['result'],dict):raise Rejected('EXTENSION_EFFECT_RESPONSE_INVALID')
+        if result['state']=='confirmed':validate(result['result'],self.extensions.specs[row['skill']].output_schema or {'type':'object'})
         with self.engine.tx() as db:db.execute('UPDATE extension_effects SET state=?,result=? WHERE task_id=?',(result['state'],canonical(result['result']).decode() if result['result'] is not None else None,row['task_id']))
     def lookup(self,effect):
         row=self._row(effect.opaque_handle);spec=self.extensions.specs[row['skill']]
-        if row['state']=='pending':
+        if row['state'] in ['pending','prepared']:
             result=self._invoke(spec,{'protocol':'commons-relay-extension/v1','phase':'lookup','task_id':row['task_id'],'effect_id':row['effect_id'],'arguments':json.loads(row['args'])});self._record(row,result);row=self._row(effect.opaque_handle)
         if row['state']=='confirmed':return Receipt(effect.reference,'confirmed',0,json.loads(row['result']) if row['result'] else {})
         if row['state']=='rejected':return Receipt(effect.reference,'rejected',0,json.loads(row['result']) if row['result'] else {})

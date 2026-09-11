@@ -79,9 +79,37 @@ async fn open(root:&Path)->Result<WalletCore>{
 }
 async fn run()->Result<()> {
  let mut args=std::env::args().skip(1);let mode=args.next().context("MODE_REQUIRED")?;
- if mode=="--help" {println!("Relay testnet wallet: init|init-local-offline|identity|program-account|receive-address|balance|query|history|abandon-expired PROFILE [ARGS]. No mainnet endpoints.");return Ok(());}
+ if mode=="--help" {println!("Relay testnet wallet: init|init-local-offline|identity|program-account|receive-address|balance|query|history|abandon-expired|recover-interrupted PROFILE [ARGS]. No mainnet endpoints.\nrecover-interrupted PROFILE OPERATION_ID inspects only. Add --apply REVIEWED_RECORD_SHA256 to record an eligible expired interruption as rejected; no transaction is created or submitted.");return Ok(());}
+ if mode=="pack-program" {
+  let source=PathBuf::from(args.next().context("RAW_ELF_REQUIRED")?);
+  let destination=PathBuf::from(args.next().context("OUTPUT_FILE_REQUIRED")?);
+  ensure!(args.next().is_none(),"UNEXPECTED_ARGUMENT");
+  let meta=fs::symlink_metadata(&source)?;
+  ensure!(meta.is_file()&&!meta.file_type().is_symlink()&&meta.len()>0&&meta.len()<=64*1024*1024,"PROGRAM_BINARY_DENIED");
+  let raw=fs::read(source)?;
+  ensure!(raw.starts_with(b"\x7fELF"),"RAW_ELF_REQUIRED");
+  let packed=risc0_binfmt::ProgramBinary::new(&raw,risc0_zkos_v1compat::V1COMPAT_ELF).encode();
+  let program=lee::program::Program::new(packed.clone().into()).context("PROGRAM_BINARY_INVALID")?;
+  let mut output_file=fs::OpenOptions::new().write(true).create_new(true).mode(0o600).custom_flags(libc::O_NOFOLLOW).open(destination).context("PROGRAM_OUTPUT_ALREADY_EXISTS_OR_UNWRITABLE")?;
+  output_file.write_all(&packed)?;output_file.sync_all()?;
+  output(json!({"program_id":hex::encode(program.id().iter().flat_map(|x|x.to_le_bytes()).collect::<Vec<_>>()),
+   "binary_sha256":hex::encode(Sha256::digest(&packed)),"bytes":packed.len(),"network_requests":0,"transaction_submitted":false}));
+  return Ok(());
+ }
+ if mode=="inspect-program" {
+  let path=PathBuf::from(args.next().context("PROGRAM_BINARY_PATH_REQUIRED")?);
+  ensure!(args.next().is_none(),"UNEXPECTED_ARGUMENT");
+  let meta=fs::symlink_metadata(&path)?;
+  ensure!(meta.is_file()&&!meta.file_type().is_symlink()&&meta.len()>0&&meta.len()<=64*1024*1024,"PROGRAM_BINARY_DENIED");
+  let bytes=fs::read(&path)?;
+  let program=lee::program::Program::new(bytes.clone().into()).context("PROGRAM_BINARY_INVALID")?;
+  let id=hex::encode(program.id().iter().flat_map(|x|x.to_le_bytes()).collect::<Vec<_>>());
+  output(json!({"program_id":id,"binary_sha256":hex::encode(Sha256::digest(&bytes)),"bytes":bytes.len(),"network_requests":0,"transaction_submitted":false}));
+  return Ok(());
+ }
  let root=PathBuf::from(args.next().context("PROFILE_REQUIRED")?);
  ensure!(root.is_absolute(),"ABSOLUTE_PROFILE_REQUIRED");
+ if mode=="recover-interrupted" {ensure!(root.is_dir(),"EXISTING_WALLET_PROFILE_REQUIRED");}
  if !root.exists(){fs::create_dir_all(&root)?;fs::set_permissions(&root,fs::Permissions::from_mode(0o700))?;}
  ensure!(!fs::symlink_metadata(&root)?.file_type().is_symlink(),"SYMLINK_PROFILE");
  let _lock=Lock::take(&root)?;
@@ -126,6 +154,15 @@ async fn run()->Result<()> {
  if mode=="abandon-expired" {
   let id=args.next().context("OPERATION_ID_REQUIRED")?;output(transactions::abandon_expired(&root,&id)?);return Ok(());
  }
+ if mode=="recover-interrupted" {
+  let id=args.next().context("OPERATION_ID_REQUIRED")?;
+  let reviewed=match args.next(){
+   None=>None,
+   Some(flag)=>{ensure!(flag=="--apply","RECOVERY_REQUIRES_APPLY_FLAG");Some(args.next().context("REVIEWED_RECORD_HASH_REQUIRED")?)},
+  };
+  ensure!(args.next().is_none(),"UNEXPECTED_RECOVERY_ARGUMENT");
+  output(transactions::recover_interrupted(&root,&id,reviewed.as_deref())?);return Ok(());
+ }
  let mut w=open(&root).await?;
  match mode.as_str(){
   "prepare"=>{let id=args.next().context("OPERATION_ID_REQUIRED")?;let file=PathBuf::from(args.next().context("INTENT_FILE_REQUIRED")?);ensure!(file.canonicalize()?.starts_with(root.canonicalize()?),"INTENT_OUTSIDE_WALLET");output(transactions::prepare(&mut w,&root,&id,read_json(&file,32768)?).await?);},
@@ -168,6 +205,51 @@ async fn run()->Result<()> {
      ensure!(private.message.commitments().contains(&commitment),"TRANSACTION_DOES_NOT_CREATE_RECEIVER_NOTE");
      ensure!(note.program_owner==programs::authenticated_transfer().id()&&note.balance==expected,"PAYMENT_AMOUNT_OR_PROGRAM_MISMATCH");
      output(json!({"confirmed":true,"transaction_hash":hash.to_string(),"block_id":block,"amount":expected.to_string(),"receiver_account":hex::encode(id.as_ref()),"private":true}));
+    }
+   }
+  },
+  "public-account"=>{
+   let marker=read_json(&root.join("relay-wallet.json"),8192)?;
+   let id=account(marker["payer"].as_str().context("PAYER_ACCOUNT_MISSING")?)?;
+   ensure!(w.get_account_public_signing_key(id).is_some(),"PAYER_SIGNING_KEY_MISSING");
+   let observed=w.get_account_public(id).await?;
+   output(json!({"account_id":hex::encode(id.as_ref()),"wallet_owned":true,"public":true,
+    "initialized":observed.program_owner==programs::authenticated_transfer().id(),"balance":observed.balance.to_string(),"block_id":w.helm_owned().get_last_block_id().await?}));
+  },
+  "public-payment-proof"=>{
+   let id=args.next().context("OPERATION_ID_REQUIRED")?;let quote=args.next().context("QUOTE_HASH_REQUIRED")?;
+   let purpose=args.next().context("PUBLIC_CLAIM_PURPOSE_REQUIRED")?;
+   ensure!(args.next().is_none(),"UNEXPECTED_ARGUMENT");
+   output(transactions::public_payment_claim(&w,&root,&id,&quote,&purpose)?);
+  },
+  "check-public-payment"=>{
+   let receiver=account(&args.next().context("RECIPIENT_ACCOUNT_REQUIRED")?)?;
+   let hash=args.next().context("TRANSACTION_HASH_REQUIRED")?;
+   let expected:u128=args.next().context("EXPECTED_AMOUNT_REQUIRED")?.parse()?;
+   let sender=account(&args.next().context("EXPECTED_SENDER_REQUIRED")?)?;
+   let minimum:u64=args.next().context("QUOTE_BLOCK_REQUIRED")?.parse()?;
+   let quote=args.next().context("QUOTE_HASH_REQUIRED")?;let purpose=args.next().context("PUBLIC_CLAIM_PURPOSE_REQUIRED")?;
+   let encoded=args.next().context("PUBLIC_CLAIM_REQUIRED")?;ensure!(encoded.len()<=4096,"PUBLIC_CLAIM_TOO_LARGE");
+   let claim:Value=serde_json::from_str(&encoded)?;ensure!(args.next().is_none(),"UNEXPECTED_ARGUMENT");
+   transactions::verify_public_claim(&claim,w.helm_url().as_str(),&quote,&hash,&purpose,sender)?;
+   ensure!(expected>0 && sender!=receiver,"INVALID_PUBLIC_PAYMENT");
+   ensure!(w.get_account_public_signing_key(receiver).is_some(),"PAYMENT_ACCOUNT_NOT_OWNED");
+   let hash=common::HashType(hex::decode(hash)?.try_into().map_err(|_|anyhow::anyhow!("INVALID_TRANSACTION_HASH"))?);
+   match w.helm_owned().get_transaction(hash).await? {
+    None=>output(json!({"confirmed":false,"reason":"TRANSACTION_NOT_CONFIRMED"})),
+    Some((tx,block))=>{
+     ensure!(tx.hash()==hash,"TRANSACTION_HASH_MISMATCH");
+     ensure!(block>minimum,"PUBLIC_PAYMENT_PREDATES_QUOTE");
+     let common::transaction::LeeTransaction::Public(ref public)=tx else{bail!("PAYMENT_MUST_BE_PUBLIC");};
+     let message=public.message();
+     ensure!(message.program_id==programs::authenticated_transfer().id(),"PAYMENT_PROGRAM_MISMATCH");
+     ensure!(message.account_ids==vec![sender,receiver],"PUBLIC_PAYMENT_ACCOUNTS_MISMATCH");
+     let instruction:authenticated_transfer_core::Instruction=risc0_zkvm::serde::from_slice(&message.instruction_data)
+      .map_err(|_|anyhow::anyhow!("PUBLIC_PAYMENT_INSTRUCTION_INVALID"))?;
+     ensure!(matches!(instruction,authenticated_transfer_core::Instruction::Transfer{amount} if amount==expected),"PAYMENT_AMOUNT_MISMATCH");
+     output(json!({"confirmed":true,"transaction_hash":hash.to_string(),"block_id":block,
+      "amount":expected.to_string(),"receiver_account":hex::encode(receiver.as_ref()),
+      "sender_account":hex::encode(sender.as_ref()),"private":false}));
     }
    }
   },

@@ -1,0 +1,55 @@
+{
+  "observed_at": 1789098562,
+  "source": "actual role journals and current read-only testnet RPC",
+  "new_transaction_started": false,
+  "tasks": [
+    {
+      "id": "c504979e8a5e47e49fdedd98807d4dd2",
+      "skill": "wallet.send",
+      "state": "completed",
+      "amount": "1",
+      "created": 1789094189,
+      "updated": 1789096955,
+      "role": "storage",
+      "result": {
+        "block_id": 3703,
+        "private": true,
+        "transaction_hash": "371440d652cfdaec321f5674e9ecb6aef1d469a8ced7889551076238e403de40"
+      },
+      "present_on_current_chain": true
+    },
+    {
+      "id": "815c9cddeb994a82a3860a27893078e2",
+      "skill": "program.call",
+      "state": "completed",
+      "amount": "0",
+      "created": 1789097311,
+      "updated": 1789097434,
+      "role": "storage",
+      "result": {
+        "block_id": 3711,
+        "program_id": "f863b88a398597e3f869d6ea831738c74ad36063c87fce84d6a9e4bf0c8f4829",
+        "testnet": true,
+        "transaction_hash": "edbb6ce9db4a8d9e115c9445b0faec9c9e9d8b9d8957201f9b3dfdb80aef7b02"
+      },
+      "present_on_current_chain": true
+    },
+    {
+      "id": "5b4cb442fec74f328b737725569e55a1",
+      "skill": "program.deploy",
+      "state": "completed",
+      "amount": "0",
+      "created": 1789092988,
+      "updated": 1789093106,
+      "role": "blockchain",
+      "result": {
+        "block_id": 3639,
+        "program_id": "f863b88a398597e3f869d6ea831738c74ad36063c87fce84d6a9e4bf0c8f4829",
+        "testnet": true,
+        "transaction_hash": "e32cd689b2695d7d3902f309cb8e1a3f829d967b0b7100aaf3b528017d404772"
+      },
+      "present_on_current_chain": true
+    }
+  ],
+  "chain_head": 3729
+}

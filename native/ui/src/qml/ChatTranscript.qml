@@ -7,13 +7,19 @@ import Logos.Controls
 Item {
     id: transcript
     property var entries: []
+    property var tasks: []
     property string agentLabel: "Agent"
     property bool hasEarlier: false
     property bool loading: false
     property bool followTail: true
     property string restoreId: ""
     property var describeState: function(value) { return value }
+    property var describeTaskState: function(value) { return value }
+    property var describeProgress: function(value) { return value && value.progress ? value.progress.detail : "" }
+    property var formatReply: function(value) { return value }
     property var describeError: function(value) { return value }
+    property var describeWait: function(value) { return "" }
+    property int nowSeconds: 0
     signal earlierRequested()
     signal fullReplyRequested(string goalId)
     signal taskRequested(string taskId)
@@ -23,6 +29,10 @@ Item {
     function timeLabel(value) {
         const date = new Date(Number(value || 0) * 1000)
         return value ? Qt.formatDateTime(date, "ddd d MMM, hh:mm") : ""
+    }
+    function linkedTasks(ids) {
+        const wanted = ids || []
+        return transcript.tasks.filter(function(task) { return wanted.indexOf(task.id) >= 0 })
     }
     function goToLatest() {
         followTail = true
@@ -117,7 +127,12 @@ Item {
                         }
                         TextEdit {
                             width: parent.width
-                            text: turn.modelData.reply || (turn.modelData.state === "queued" ? "Message queued..." : turn.modelData.state === "thinking" ? "Thinking..." : turn.modelData.state === "working" ? "Using the requested tools..." : turn.modelData.permission ? "I need your permission before continuing." : "No reply text was received.")
+                            text: {
+                                const _tick = transcript.nowSeconds
+                                return transcript.formatReply(turn.modelData.reply)
+                                    || transcript.describeWait(turn.modelData)
+                                    || (turn.modelData.state === "queued" ? "Your message is signed and waiting to start." : turn.modelData.state === "thinking" ? "Waiting on the model. No tools have been used yet. Press Stop to cancel." : turn.modelData.state === "working" ? "The model asked for a tool. Live progress is attached below." : turn.modelData.permission ? "I need your permission before continuing." : "No reply text was received.")
+                            }
                             textFormat: TextEdit.PlainText
                             readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
                             color: Theme.palette.text; font.pixelSize: 15
@@ -129,6 +144,25 @@ Item {
                             width: parent.width; visible: !!turn.modelData.error
                             text: transcript.describeError(turn.modelData.error || "")
                             color: Theme.palette.error; wrapMode: Text.WordWrap; textFormat: Text.PlainText
+                        }
+                        Repeater {
+                            model: transcript.linkedTasks(turn.modelData.task_ids)
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: answer.width
+                                implicitHeight: taskProgressText.implicitHeight + 20
+                                radius: 9
+                                color: Theme.palette.backgroundSecondary
+                                border.color: Theme.palette.border
+                                Column {
+                                    id: taskProgressText
+                                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
+                                    spacing: 4
+                                    Label { width: parent.width; text: "Tool · " + transcript.describeTaskState(modelData.state); color: modelData.state === "failed" || modelData.state === "rejected" ? Theme.palette.error : Theme.palette.textSecondary; font.pixelSize: 12; font.bold: true; textFormat: Text.PlainText }
+                                    Label { width: parent.width; visible: !!modelData.progress && ["submitted","working","unknown","input-required"].indexOf(modelData.state) >= 0; text: transcript.describeProgress(modelData); color: Theme.palette.text; wrapMode: Text.WordWrap; textFormat: Text.PlainText }
+                                    Label { width: parent.width; visible: !(modelData.progress && ["submitted","working","unknown","input-required"].indexOf(modelData.state) >= 0) && modelData.state !== "completed"; text: modelData.state === "input-required" ? "Waiting for your approval." : modelData.state === "unknown" ? "Checking what happened on the network. Do not send it again." : modelData.state === "submitted" ? "Waiting to start." : modelData.state === "failed" ? (modelData.result_summary || "This tool failed. Open its details for the recorded reason.") : modelData.state === "rejected" ? "This action did not start." : modelData.state === "canceled" ? "This action was canceled." : "Work is in progress."; color: (modelData.state === "failed" || modelData.state === "rejected") ? Theme.palette.error : Theme.palette.textSecondary; wrapMode: Text.WordWrap; textFormat: Text.PlainText }
+                                }
+                            }
                         }
                         Rectangle {
                             width: parent.width
@@ -151,8 +185,8 @@ Item {
                                 model: turn.modelData.task_ids || []
                                 delegate: LogosButton {
                                     required property string modelData
-                                    text: "View tool result"
-                                    Accessible.name: "View linked tool result " + modelData
+                                    text: "View details"
+                                    Accessible.name: "View details"
                                     onClicked: transcript.taskRequested(modelData)
                                 }
                             }

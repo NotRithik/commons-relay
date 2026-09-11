@@ -19,11 +19,12 @@ function fixture(properties = {}, values = {}) {
     skillDetails: { id: 'fixture.skill', input_schema: schema },
     skillPicker: { currentIndex: 0, currentValue: 'fixture.skill' }, fields: [], formValues: values,
     summary: { policy: { approval_ttl: 600 } }, task: {}, reviewed: {}, reviewKind: '', viewError: '',
-    planner: { enabled: true, configuration_hash: "a".repeat(64) }, selectedLabel: 'Storage', reviewedChat: {},
+    planner: { enabled: true, configuration_hash: "a".repeat(64), model: 'gpt-5.6-luna' }, selectedLabel: 'Storage', reviewedChat: {},
     pendingDraft: '', pendingDraftAgent: '', chatInput: { text: 'List my files.', forceActiveFocus() {} },
     allowChatActions: { checked: false }, chatSpend: { text: '0' },
+    conversation: [], nowSeconds: 1_700_000_000, remoteHealth: { connection_state: 'online', last_reply_age_ms: 1000, round_trip_ms: 2000 },
     backend: {
-      selectedProfile: 'storage', selectedAgent: 'agent-storage', remoteReady: true, chatBusy: false,
+      selectedProfile: 'storage', selectedAgent: 'agent-storage', remoteReady: true, chatBusy: false, activeGoalId: '',
       submitTask: (...args) => { calls.push(['submit', ...args]); return {}; },
       approveTask: (...args) => { calls.push(['approve', ...args]); return {}; },
       cancelTask: (...args) => { calls.push(['cancel', ...args]); return {}; },
@@ -264,11 +265,31 @@ test('technical details never hide approval arguments', () => {
 
 
 test('offline agents keep the draft editor enabled while sending remains gated', () => {
-  const editor = qml.slice(qml.indexOf('id: chatInput'), qml.indexOf('id: chatInput') + 900);
+  const editor = qml.slice(qml.indexOf('id: chatInput'), qml.indexOf('id: chatInput') + 1600);
   assert.match(editor, /enabled: true/);
-  assert.match(editor, /Write a draft here\. Connect an agent before sending\./);
+  assert.match(qml, /Write a draft here\. Connect an agent before sending\./);
   const { state, calls } = fixture(); state.backend.remoteReady = false;
   state.sendChat(); assert.equal(calls.filter(x => x[0] === 'chat').length, 0);
+});
+test('an in-flight model turn is not labeled as a dropped agent', () => {
+  assert.match(qml, /This reply is still running\. Press Stop to cancel it/);
+  assert.match(qml, /Busy — waiting on the model/);
+  assert.match(qml, /Health ping is stale because this message still has the agent/);
+  const { state } = fixture();
+  state.backend.chatBusy = true;
+  state.backend.remoteReady = false;
+  state.remoteHealth = { connection_state: 'unresponsive', last_reply_age_ms: 126000, round_trip_ms: 2000 };
+  state.conversation = [{ id: 'goal-1', state: 'thinking', created: 1_699_999_880, updated: 1_699_999_880 }];
+  state.backend.activeGoalId = 'goal-1';
+  state.nowSeconds = 1_700_000_000;
+  assert.equal(state.agentHealthTitle(), 'Busy — waiting on the model');
+  assert.match(state.agentHealthDetail(), /Health ping is stale/);
+  assert.match(state.composerPlaceholder(), /still running/);
+  assert.equal(state.sendButtonLabel(), 'Waiting on model');
+  assert.match(state.footerStatus(), /Waiting on gpt-5\.6-luna/);
+  assert.match(state.chatWaitBody(state.conversation[0]), /No tools have been used yet/);
+  assert.doesNotMatch(state.agentHealthTitle(), /Agent not responding/);
+  assert.doesNotMatch(state.composerPlaceholder(), /Connect an agent before sending/);
 });
 test('provider notice follows configured provider instead of assuming OpenAI', () => {
   assert.match(qml, /root\.providerLabel/);

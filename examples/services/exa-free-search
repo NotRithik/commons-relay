@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+"""Free-plan Exa MCP service with a durable at-most-once upstream journal.
+
+Only execute contacts the documented hosted MCP endpoint. No API key is needed.
+Rate limits are not bypassed. The upstream receives the search query; agent-to-
+agent encryption does not hide it from Exa. A lost response is not retried.
+Documentation: https://exa.ai/docs/reference/exa-mcp
+"""
+from __future__ import annotations
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sqlite3
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+ENDPOINT = 'https://mcp.exa.ai/mcp'
+MAX_RESPONSE = 1024 * 1024
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, newurl):
+        raise ValueError('UPSTREAM_REDIRECT_REFUSED')
+
+
+def request_shape():
+    raw = sys.stdin.buffer.read(65537)
+    if len(raw) > 65536: raise ValueError('REQUEST_LIMIT')
+    value = json.loads(raw)
+    phase = value.get('phase') if isinstance(value, dict) else None
+    fields = {'protocol', 'phase', 'task_id', 'arguments'} | ({'effect_id'} if phase in ('execute', 'lookup') else set())
+    if not isinstance(value, dict) or set(value) != fields or value['protocol'] != 'commons-relay-extension/v1' or phase not in ('prepare', 'execute', 'lookup'):
+        raise ValueError('INVALID_REQUEST')
+    if not isinstance(value['task_id'], str) or not re.fullmatch('[A-Za-z0-9_-]{1,80}', value['task_id']):
+        raise ValueError('INVALID_TASK')
+    args = value['arguments']
+    if not isinstance(args, dict) or set(args) != {'query', 'num_results'}:
+        raise ValueError('INVALID_ARGUMENTS')
+    if not isinstance(args['query'], str) or not 1 <= len(args['query'].strip()) <= 400:
+        raise ValueError('INVALID_QUERY')
+    if type(args['num_results']) is not int or not 1 <= args['num_results'] <= 5:
+        raise ValueError('INVALID_RESULT_LIMIT')
+    fingerprint = hashlib.sha256(encode({'task_id': value['task_id'], 'arguments': args}).encode()).hexdigest()
+    effect = 'exa-free-' + fingerprint
+    if phase != 'prepare' and value['effect_id'] != effect:
+        raise ValueError('EFFECT_CHANGED')
+    return value, fingerprint, effect
+
+
+def search(args):
+    rpc_id = 'search-' + hashlib.sha256(encode(args).encode()).hexdigest()
+    payload = {'jsonrpc': '2.0', 'id': rpc_id, 'method': 'tools/call',
+               'params': {'name': 'web_search_exa',
+                          'arguments': {'query': args['query'], 'numResults': args['num_results']}}}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+                                        urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    request = urllib.request.Request(ENDPOINT, data=encode(payload).encode(), method='POST',
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream',
+                 'MCP-Protocol-Version': '2025-03-26', 'User-Agent': 'Kite-ExaFreeService/1'})
+    started = time.monotonic()
+    with opener.open(request, timeout=20) as response:
+        if response.status != 200: raise ValueError('UPSTREAM_SEARCH_FAILED')
+        content_type = response.headers.get_content_type()
+        if content_type == 'application/json':
+            raw = response.read(MAX_RESPONSE + 1)
+            if len(raw) > MAX_RESPONSE: raise ValueError('UPSTREAM_RESPONSE_TOO_LARGE')
+            value = json.loads(raw)
+        elif content_type == 'text/event-stream':
+            value = None; data = []; count = 0
+            for _ in range(1024):
+                if time.monotonic() - started > 20: raise ValueError('UPSTREAM_TIMEOUT')
+                raw = response.readline(MAX_RESPONSE + 1 - count)
+                count += len(raw)
+                if count > MAX_RESPONSE: raise ValueError('UPSTREAM_RESPONSE_TOO_LARGE')
+                if not raw or not raw.strip():
+                    if data:
+                        candidate = json.loads('\n'.join(data)); data = []
+                        if isinstance(candidate, dict) and candidate.get('id') == rpc_id:
+                            value = candidate; break
+                    if not raw: break
+                elif raw.startswith(b'data:'):
+                    data.append(raw[5:].decode('utf8').lstrip().rstrip('\r\n'))
+            if value is None: raise ValueError('UPSTREAM_RPC_RESPONSE_MISSING')
+        else:
+            raise ValueError('UPSTREAM_CONTENT_TYPE_INVALID')
+    if not isinstance(value, dict) or value.get('id') != rpc_id or 'error' in value:
+        raise ValueError('UPSTREAM_RPC_FAILED')
+    result = value.get('result', {})
+    if not isinstance(result, dict) or result.get('isError') is True or not isinstance(result.get('content'), list):
+        raise ValueError('UPSTREAM_TOOL_FAILED')
+    parts = [item['text'] for item in result['content']
+             if isinstance(item, dict) and item.get('type') == 'text' and isinstance(item.get('text'), str)]
+    text = '\n\n'.join(parts)
+    if not text.strip(): raise ValueError('UPSTREAM_EMPTY_SEARCH')
+    return format_response(text, args)
+
+def format_response(text, args):
+    """Keep source titles and links before allocating room to long excerpts."""
+    from urllib.parse import urlsplit
+    markers=list(re.finditer(r'(?m)^Title:[ \t]*([^\r\n]*)\r?\nURL:[ \t]*([^\r\n]+)',text))
+    items=[]
+    for index,match in enumerate(markers):
+        title,url=match.group(1).strip(),match.group(2).strip()
+        parsed=urlsplit(url)
+        if parsed.scheme not in ('https','http') or not parsed.hostname or parsed.username or parsed.password or any(c.isspace() for c in url):continue
+        if len(url)>1500:continue
+        end=markers[index+1].start() if index+1<len(markers) else len(text)
+        body=text[match.end():end].strip().strip('-').strip()
+        items.append((title[:160],url,body))
+        if len(items)==args['num_results']:break
+    output={'query':args['query'],'text':'','truncated':False,
+            'requested_results':args['num_results'],'provider':'Exa MCP free plan','retrieved_at':int(time.time())}
+    if not items:
+        output['text']=text[:8000];output['truncated']=len(text)>8000
+        while len(encode(output).encode())>8500:
+            output['text']=output['text'][:-200];output['truncated']=True
+        return output
+    prefix='Document links retained: '+str(len(items))+'. Requested: '+str(args['num_results'])+'.\n\n'
+    def render(limit):
+        return prefix+'\n\n'.join('Title: '+title+'\nURL: '+url+('\nExcerpt:\n'+body[:limit] if limit else '') for title,url,body in items)
+    # Reject an unrepresentable reference set instead of cutting a URL in half.
+    output['text']=render(0)
+    if len(encode(output).encode())>8500:raise ValueError('UPSTREAM_REFERENCE_SET_TOO_LARGE')
+    excerpt=700
+    while excerpt:
+        candidate=render(excerpt)
+        if len(candidate)<=8000 and len(encode({**output,'text':candidate,'truncated':True}).encode())<=8500:
+            output['text']=candidate;break
+        excerpt=max(0,excerpt-100)
+    output['truncated']=any(len(body)>excerpt or len(title)>160 for title,url,body in items) or len(markers)>len(items)
+    return output
+
+
+
+def main():
+    os.umask(0o077)
+    request, fingerprint, effect = request_shape()
+    path = Path('exa-free-requests.sqlite')
+    if path.is_symlink(): raise ValueError('JOURNAL_SYMLINK')
+    if not path.exists():
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600); os.close(fd)
+    if path.stat().st_mode & 0o077: raise ValueError('JOURNAL_PERMISSIONS')
+    with sqlite3.connect(path, timeout=5, isolation_level=None) as db:
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA journal_mode=WAL'); db.execute('PRAGMA synchronous=FULL')
+        db.execute('CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,state TEXT NOT NULL,result TEXT,updated INTEGER NOT NULL)')
+        db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT * FROM requests WHERE id=?', (request['task_id'],)).fetchone()
+        if row and row['fingerprint'] != fingerprint: raise ValueError('TASK_REUSED')
+        if request['phase'] == 'prepare':
+            if not row:
+                if db.execute('SELECT COUNT(*) FROM requests').fetchone()[0] >= 10000: raise ValueError('JOURNAL_LIMIT')
+                db.execute("INSERT INTO requests VALUES (?,?,'prepared',NULL,?)", (request['task_id'], fingerprint, int(time.time())))
+            db.commit(); print(encode({'effect_id': effect})); return
+        if not row: raise ValueError('EFFECT_NOT_PREPARED')
+        if row['state'] in ('confirmed', 'rejected'):
+            db.commit(); print(encode({'state': row['state'], 'result': json.loads(row['result']) if row['result'] else None})); return
+        if request['phase'] == 'lookup' or row['state'] == 'started':
+            # A process may die after Exa handled its POST. Never issue it again.
+            if row['state'] == 'prepared' or int(time.time()) - row['updated'] > 30:
+                reason = {'error': 'No saved search result is available. The upstream request will not be repeated automatically.'}
+                db.execute("UPDATE requests SET state='rejected',result=?,updated=? WHERE id=?", (encode(reason), int(time.time()), request['task_id']))
+                db.commit(); print(encode({'state': 'rejected', 'result': reason})); return
+            db.commit(); print(encode({'state': 'pending', 'result': None})); return
+        db.execute("UPDATE requests SET state='started',updated=? WHERE id=?", (int(time.time()), request['task_id']))
+        db.commit()
+        try:
+            result = search(request['arguments']); state = 'confirmed'
+        except (ValueError, OSError, urllib.error.URLError):
+            result = {'error': 'Exa free search was unavailable, rate-limited, or did not return a usable response. No automatic retry was made.'}
+            state = 'rejected'
+        db.execute('BEGIN IMMEDIATE')
+        db.execute('UPDATE requests SET state=?,result=?,updated=? WHERE id=?', (state, encode(result), int(time.time()), request['task_id']))
+        db.commit(); print(encode({'state': state, 'result': result}))
+
+
+if __name__ == '__main__':
+    try: main()
+    except (ValueError, OSError, sqlite3.Error, TypeError, KeyError):
+        # Never echo an upstream response, header, key, or arbitrary traceback.
+        raise SystemExit(2)

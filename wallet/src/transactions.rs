@@ -51,7 +51,7 @@ fn program_binary(value:&Value)->Result<(Vec<u8>,lee::ProgramId)>{
  let root=PathBuf::from(std::env::var("COMMONS_RELAY_PROGRAM_ROOT").map_err(|_|anyhow::anyhow!("PROGRAM_ROOT_REQUIRED"))?);
  let canonical_root=root.canonicalize()?;let canonical=path.canonicalize()?;let meta=fs::symlink_metadata(&path)?;
  ensure!(meta.is_file()&&!meta.file_type().is_symlink()&&canonical.starts_with(&canonical_root)&&meta.len()>0&&meta.len()<=64*1024*1024,"PROGRAM_BINARY_DENIED");
- let bytes=fs::read(canonical)?;let program=Program::new(bytes.clone().into())?;Ok((bytes,program.id()))
+ let bytes=fs::read(canonical)?;let program=Program::new(bytes.clone().into()).context("PROGRAM_BINARY_INVALID")?;Ok((bytes,program.id()))
 }
 fn recipient(value:&Value)->Result<Identity>{
  exact(value,&["account_id","npk","vpk_borsh","identifier"])?;
@@ -67,6 +67,75 @@ fn selected_input(w:&WalletCore,amount:u128)->Result<AccountId>{
   .map(|e|(e.account.balance,AccountId::for_private_account(&e.key_chain.nullifier_public_key,&e.key_chain.viewing_public_key,e.kind))).collect();
  candidates.sort_by_key(|x|x.0);candidates.first().map(|x|x.1).context("NO_SINGLE_NOTE_WITH_SUFFICIENT_FUNDS")
 }
+/// Operator-only maintenance. The normal payment pending-operation guard stays
+/// unchanged. Inspection is the default; mutation requires the exact inspected
+/// record hash. The CLI holds the exclusive wallet lock throughout this call.
+pub fn recover_interrupted(root:&Path,id:&str,reviewed_hash:Option<&str>)->Result<Value>{
+ let mut op=load(root,id)?;
+ ensure!(op.state=="preparing","ONLY_INTERRUPTED_PREPARATION_CAN_BE_RECOVERED");
+ ensure!(op.transaction_hash.is_none()&&op.transaction_file.is_none()&&op.confirmed_block.is_none(),"PREPARATION_HAS_TRANSACTION_EVIDENCE");
+ ensure!(op.intent_sha256==hash(&op.intent)?,"OPERATION_INTENT_HASH_MISMATCH");
+ let expires=op.intent["expires_at"].as_u64().context("OPERATION_EXPIRY_MISSING")?;
+ ensure!(expires<=now(),"OPERATION_AUTHORIZATION_STILL_ACTIVE");
+ let marker=read_json(&root.join("relay-wallet.json"),8192)?;
+ ensure!(marker["schema"]==1&&marker["endpoint"].as_str()==Some(op.network.as_str()),"OPERATION_NETWORK_MISMATCH");
+ let _=endpoint(&op.network)?;
+ let operations=dir(root)?;
+ match fs::symlink_metadata(operations.join(format!("{id}.borsh"))){
+  Err(error) if error.kind()==std::io::ErrorKind::NotFound=>{},
+  Err(error)=>return Err(error.into()),
+  Ok(_)=>bail!("PREPARATION_HAS_TRANSACTION_ARTIFACT"),
+ }
+ // Atomic writes can leave a transaction or journal temporary file. Either
+ // needs examination; absence of a finalized filename alone is insufficient.
+ let prefix=format!("{id}.tmp-");
+ for entry in fs::read_dir(&operations)?{
+  ensure!(!entry?.file_name().to_string_lossy().starts_with(&prefix),"PREPARATION_HAS_TEMPORARY_ARTIFACT");
+ }
+ let record_hash=hex::encode(Sha256::digest(fs::read(record_path(root,id)?)?));
+ if let Some(expected)=reviewed_hash{
+  ensure!(expected==record_hash,"RECOVERY_RECORD_CHANGED_REVIEW_AGAIN");
+  op.state="rejected".into();op.error=Some("EXPIRED_INTERRUPTED_PREPARATION".into());store(root,&op)?;
+ }
+ let mut result=view(&op);
+ result["record_sha256"]=json!(record_hash);result["dry_run"]=json!(reviewed_hash.is_none());
+ result["network_requests"]=json!(0);result["transaction_submitted"]=json!(false);
+ Ok(result)
+}
+fn public_claim_hash(network:&str,quote:&str,transaction:&str,purpose:&str)->Result<[u8;32]>{
+ ensure!(matches!(purpose,"payment"|"refund"),"INVALID_PUBLIC_CLAIM_PURPOSE");
+ let decode=|s:&str|->Result<Vec<u8>>{ensure!(s.len()==64&&s.bytes().all(|b|b.is_ascii_hexdigit()&&!b.is_ascii_uppercase()),"INVALID_PUBLIC_CLAIM_HASH");Ok(hex::decode(s)?)};
+ let mut h=Sha256::new();h.update(b"commons/relay/public-payment-claim/v1\0");
+ h.update(network.as_bytes());h.update([0]);h.update(purpose.as_bytes());h.update([0]);
+ h.update(decode(quote)?);h.update(decode(transaction)?);Ok(h.finalize().into())
+}
+pub fn verify_public_claim(value:&Value,network:&str,quote:&str,transaction:&str,purpose:&str,sender:AccountId)->Result<()>{
+ exact(value,&["schema","quote_hash","transaction_hash","purpose","sender_account","public_key","signature"])?;
+ ensure!(value["schema"]==1&&value["quote_hash"]==quote&&value["transaction_hash"]==transaction&&value["purpose"]==purpose,"PUBLIC_CLAIM_BINDING_MISMATCH");
+ ensure!(account(field(value,"sender_account")?)?==sender,"PUBLIC_CLAIM_SENDER_MISMATCH");
+ let pk:lee::PublicKey=field(value,"public_key")?.parse()?;
+ let sig:lee::Signature=field(value,"signature")?.parse()?;
+ ensure!(AccountId::from(&pk)==sender&&sig.is_valid_for(&public_claim_hash(network,quote,transaction,purpose)?,&pk),"PUBLIC_CLAIM_SIGNATURE_INVALID");
+ Ok(())
+}
+pub fn public_payment_claim(w:&WalletCore,root:&Path,id:&str,quote:&str,purpose:&str)->Result<Value>{
+ let op=load(root,id)?;
+ ensure!(op.state=="confirmed"&&op.intent["kind"]=="transfer-public"&&op.network==w.helm_url().as_str(),"PUBLIC_PAYMENT_NOT_CONFIRMED");
+ let transaction=op.transaction_hash.as_deref().context("TRANSACTION_HASH_MISSING")?;
+ let marker=read_json(&root.join("relay-wallet.json"),8192)?;let payer=account(field(&marker,"payer")?)?;
+ let directory=root.join("public-claims");
+ if !directory.exists(){fs::create_dir(&directory)?;fs::set_permissions(&directory,fs::Permissions::from_mode(0o700))?;}
+ let meta=fs::symlink_metadata(&directory)?;ensure!(meta.is_dir()&&!meta.file_type().is_symlink(),"PUBLIC_CLAIM_DIRECTORY_INVALID");
+ let destination=directory.join(format!("{id}.json"));
+ if destination.exists(){let old=read_json(&destination,4096)?;verify_public_claim(&old,&op.network,quote,transaction,purpose,payer)?;return Ok(old);}
+ let digest=public_claim_hash(&op.network,quote,transaction,purpose)?;
+ let key=w.get_account_public_signing_key(payer).context("PAYER_SIGNING_KEY_MISSING")?;
+ let pk=lee::PublicKey::new_from_private_key(key);let sig=lee::Signature::new(key,&digest);
+ let value=json!({"schema":1,"quote_hash":quote,"transaction_hash":transaction,"purpose":purpose,
+  "sender_account":hex::encode(payer.as_ref()),"public_key":pk.to_string(),"signature":sig.to_string()});
+ verify_public_claim(&value,&op.network,quote,transaction,purpose,payer)?;
+ save(&destination,&value)?;Ok(value)
+}
 fn ensure_no_pending(root:&Path,current:&str)->Result<()>{
  for entry in fs::read_dir(dir(root)?)?.take(2000){let p=entry?.path();if p.extension().and_then(|s|s.to_str())!=Some("json"){continue;}
   let op:Operation=serde_json::from_value(read_json(&p,65536)?)?;
@@ -74,6 +143,48 @@ fn ensure_no_pending(root:&Path,current:&str)->Result<()>{
  }
  Ok(())
 }
+// Public calls are executed against the fetched account snapshot before broadcast.
+// Only an exact image-ID match is accepted; never substitute unknown bytecode.
+fn public_call_program(root:&Path,pid:ProgramId)->Result<Program>{
+ for p in [programs::authenticated_transfer(),programs::vault(),programs::pinata()] {
+  if p.id()==pid {return Ok(p);}
+ }
+ let wanted=hex::encode(pid.iter().flat_map(|n|n.to_le_bytes()).collect::<Vec<_>>());
+ for entry in fs::read_dir(dir(root)?)?.take(2000) {
+  let path=entry?.path();
+  if path.extension().and_then(|s|s.to_str())!=Some("json"){continue;}
+  let op:Operation=serde_json::from_value(read_json(&path,65536)?)?;
+  if op.program_id.as_deref()==Some(wanted.as_str()) && op.intent["kind"]=="program-deploy" && op.state=="confirmed" {
+   let(bytes,actual)=program_binary(&op.intent["arguments"])?;
+   ensure!(actual==pid,"PREFLIGHT_PROGRAM_IMAGE_CHANGED");
+   return Ok(Program::new(bytes.into())?);
+  }
+ }
+ let base=PathBuf::from(std::env::var("COMMONS_RELAY_PROGRAM_ROOT").map_err(|_|anyhow::anyhow!("PROGRAM_ROOT_REQUIRED"))?);
+ let path=base.join(format!("{wanted}.bin"));
+ ensure!(path.is_file(),"PREFLIGHT_PROGRAM_BINARY_REQUIRED");
+ let(bytes,actual)=program_binary(&json!({"binary_path":path.to_string_lossy()}))?;
+ ensure!(actual==pid,"PREFLIGHT_PROGRAM_IMAGE_CHANGED");
+ Ok(Program::new(bytes.into())?)
+}
+fn validate_public_call(am:&AccountManager,tx:&LeeTransaction,program:Program,block:u64)->Result<()> {
+ let LeeTransaction::Public(tx)=tx else {bail!("PUBLIC_CALL_REQUIRED")};
+ let pre=am.pre_states();
+ let snapshot=lee::V03State::new()
+  .with_public_accounts(pre.iter().map(|a|(a.account_id,a.account.clone())))
+  .with_programs([program,programs::authenticated_transfer(),programs::vault(),programs::pinata()]);
+ let validated=lee::ValidatedStateDiff::from_public_transaction(tx,&snapshot,block,now())
+  .map_err(|_|anyhow::anyhow!("PUBLIC_PROGRAM_PREFLIGHT_FAILED"))?;
+ let diff=validated.public_diff();
+ for account in pre {
+  if let Some(after)=diff.get(&account.account_id) {
+   ensure!(after.balance>=account.account.balance,"PUBLIC_PROGRAM_EXCEEDS_ZERO_SPEND");
+  }
+ }
+ eprintln!("Relay wallet: public program validated locally; no transaction submitted by preflight");
+ Ok(())
+}
+
 fn transaction_from_public(am:&AccountManager,program:ProgramId,instruction:Vec<u32>)->Result<LeeTransaction>{
  let message=lee::public_transaction::Message::new_preserialized(program,am.public_account_ids(),am.public_account_nonces(),instruction);
  let signatures=am.sign_message(message.hash())?;
@@ -84,6 +195,12 @@ fn transaction_from_private(am:&AccountManager,program:ProgramWithDependencies,i
  ensure!(std::env::var("RISC0_PROVER").as_deref()==Ok("ipc"),"LOCAL_PROVER_REQUIRED");
  let(output,proof)=lee::privacy_preserving_transaction::circuit::execute_and_prove_with_padded_inputs(
   am.pre_states(),instruction,am.account_identities(),am.dummy_inputs_default(),&program)?;
+ // Verify the returned private-payment receipt locally before signing.
+ // The remote worker must still be trusted with confidential proving inputs.
+ let inner:risc0_zkvm::InnerReceipt=borsh::from_slice(&proof.clone().into_inner())?;
+ risc0_zkvm::Receipt::new(inner,output.to_bytes()).verify(PROTOCOL)
+  .map_err(|_|anyhow::anyhow!("PRIVATE_PROOF_VERIFICATION_FAILED"))?;
+ eprintln!("Relay wallet: private proof verified locally before transaction signing");
  let message=lee::privacy_preserving_transaction::message::Message::from_circuit_output(am.public_account_nonces(),output);
  let sigs=am.sign_message(message.hash())?;
  Ok(LeeTransaction::PrivacyPreserving(lee::PrivacyPreservingTransaction::new(message,
@@ -113,7 +230,8 @@ pub async fn prepare(w:&mut WalletCore,root:&Path,id:&str,intent:Value)->Result<
  if kind=="program-call-public" {
   let(pid,instruction,accounts)=public_call_arguments(arguments)?;
   let mut op=Operation{version:1,id:id.into(),intent:intent.clone(),intent_sha256:ih,network:w.helm_url().to_string(),state:"preparing".into(),private:false,maximum_spend:"0".into(),transaction_hash:None,transaction_file:None,program_id:Some(hex::encode(pid.iter().flat_map(|x|x.to_le_bytes()).collect::<Vec<_>>())),confirmed_block:None,proof_seconds:None,error:None};
-  store(root,&op)?;let start=std::time::Instant::now();let am=AccountManager::new(w,accounts).await?;let tx=transaction_from_public(&am,pid,instruction)?;
+  let start=std::time::Instant::now();let program=public_call_program(root,pid)?;let am=AccountManager::new(w,accounts).await?;let tx=transaction_from_public(&am,pid,instruction)?;
+  let block=w.helm_owned().get_last_block_id().await?;validate_public_call(&am,&tx,program,block)?;store(root,&op)?;
   let raw=borsh::to_vec(&tx)?;ensure!(raw.len()<=64*1024*1024,"TRANSACTION_TOO_LARGE");let txhash=tx.hash().to_string();let filename=format!("{id}.borsh");write_private(&dir(root)?.join(&filename),&raw)?;op.transaction_hash=Some(txhash);op.transaction_file=Some(filename);op.proof_seconds=Some(start.elapsed().as_secs_f64());op.state="prepared".into();store(root,&op)?;return Ok(view(&op));
  }
  let(accounts,instruction,program,private,spend)=match kind {

@@ -1,0 +1,50 @@
+{
+  "observed_at": 1789072686,
+  "message_history_preserved": {
+    "owner": {
+      "hot": 3,
+      "archive": 9360,
+      "history": 9363,
+      "unique_sequences": 9363,
+      "unique_messages": 9363
+    },
+    "storage": {
+      "hot": 1,
+      "archive": 10110,
+      "history": 10111,
+      "unique_sequences": 10111,
+      "unique_messages": 10111
+    },
+    "messaging": {
+      "hot": 10,
+      "archive": 8119,
+      "history": 8129,
+      "unique_sequences": 8129,
+      "unique_messages": 8129
+    },
+    "blockchain": {
+      "hot": 4,
+      "archive": 7412,
+      "history": 7416,
+      "unique_sequences": 7416,
+      "unique_messages": 7416
+    }
+  },
+  "task_states": {
+    "23e9207a2c8d44be99a5e94ba1e45dbe": [
+      "completed",
+      "settled",
+      "0"
+    ],
+    "ee383a53a13e43258e878116055365dd": [
+      "completed",
+      "settled",
+      "1"
+    ]
+  },
+  "scope": "active inbox capacity recovery; archived history and task state retained",
+  "not_claimed": [
+    "archive disk capacity is unlimited",
+    "all adversarial retention patterns are solved"
+  ]
+}

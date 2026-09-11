@@ -115,3 +115,11 @@ jobs:
           "$RUNNER_TEMP/relay-qt/prefix/bin/qmlformat" native/ui/src/qml/ChatTranscript.qml >/dev/null
       - name: State the acceptance boundary
         run: echo 'A compiled module is not live UI or chain acceptance. No wallet, model key, transaction, or test fixture is part of these native packages.'
+
+      - name: Upload native module files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: relay-native-linux-x86_64-${{ github.sha }}
+          path: out/modules/
+          if-no-files-found: error
+          retention-days: 7

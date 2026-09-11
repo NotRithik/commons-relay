@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "checked": "2026-09-10",
+  "network": "LEZ public testnet",
+  "file_vault": {
+    "upload_task": "971b611343b24f1484575e607fb8c032",
+    "download_task": "642b3d6e094344b1b81c546cdf20084e",
+    "share_task": "c2227be94f294bbbb6fbd89eabfec87d",
+    "bytes": 128,
+    "byte_identical_download": true,
+    "initiated_from": "Basecamp Skills"
+  },
+  "paid_marketplace": {
+    "amount": "3",
+    "block": 1311,
+    "transaction": "d52c09ba97c0e0cec56268b14ad5ba452a811372ee99ecceadf5bd38a9062a59",
+    "initiated_from": "owner-signed Core command, not chat"
+  },
+  "multi_agent": {
+    "zero_lez_chat": "discover + ping + agent.task meta.skills + agent.cancel",
+    "group_id": "group-7fcf2d62df7f480d9e6c8217fd987fb2",
+    "create_task": "7fcf2d62df7f480d9e6c8217fd987fb2",
+    "join_task": "11dd4d3f3f96473da0c3a5810c6b14a0"
+  },
+  "local_program_query": {
+    "task": "17288b6d9f474a04a4051c1a0191afd1",
+    "block": 1898,
+    "value": 43,
+    "members": 3,
+    "threshold": 2,
+    "spend": "0"
+  }
+}

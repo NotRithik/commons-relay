@@ -112,6 +112,8 @@ class Engine:
         CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,task_id TEXT NOT NULL,
           body TEXT NOT NULL,next_try INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,
           delivered INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS task_progress(task_id TEXT PRIMARY KEY REFERENCES tasks(id),
+          stage TEXT NOT NULL,detail TEXT NOT NULL,updated INTEGER NOT NULL);
         ''')
         expected={'schema':'1','agent':self.agent,'owner':self.owner,'policy':canonical(asdict(self.policy)).decode()}
         with self.tx() as db:
@@ -140,6 +142,18 @@ class Engine:
         return now
     def _event(self,db,task,state,code,now):
         db.execute('INSERT INTO events(task_id,at,state,code) VALUES (?,?,?,?)',(task,now,state,code))
+    def set_progress(self,task_id:str,stage:str,detail:str):
+        identifier(task_id)
+        if not isinstance(stage,str) or not 1<=len(stage)<=64 or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-.' for c in stage):raise Rejected('INVALID_PROGRESS_STAGE')
+        if not isinstance(detail,str) or not 1<=len(detail)<=500 or any(ord(c)<32 and c not in '\n\t' for c in detail):raise Rejected('INVALID_PROGRESS_DETAIL')
+        with self.tx() as db:
+            now=self.now(db);self._fetch(db,task_id)
+            db.execute('INSERT INTO task_progress(task_id,stage,detail,updated) VALUES (?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET stage=excluded.stage,detail=excluded.detail,updated=excluded.updated',(task_id,stage,detail,now))
+    def progress(self,task_id:str):
+        identifier(task_id)
+        with self.guard:
+            row=self.db.execute('SELECT stage,detail,updated FROM task_progress WHERE task_id=?',(task_id,)).fetchone()
+        return dict(row) if row else None
     def _fetch(self,db,task):
         row=db.execute('SELECT * FROM tasks WHERE id=?',(task,)).fetchone()
         if not row:raise Rejected('TASK_NOT_FOUND')
@@ -232,6 +246,7 @@ class Engine:
         fields={'domain','agent_id','request_id','skill','arguments','expires_at'}
         delegated = body.get('domain') == DELEGATED_DOMAIN
         if delegated:fields=fields|{'grant_id'}
+        if 'reviewed_price' in body:fields=fields|{'reviewed_price'}
         if set(body)!=fields or body['domain'] not in [REQUEST_DOMAIN,DELEGATED_DOMAIN] or body['agent_id']!=self.agent:
             raise Rejected('INVALID_REQUEST_BINDING')
         request_id=identifier(body['request_id']);skill=self.registry.get(body['skill'])
@@ -244,6 +259,7 @@ class Engine:
         # for signed peer services, but it must return the same validated type.
         from .skills import Quote
         if not isinstance(quote,Quote):raise Rejected('INVALID_DYNAMIC_QUOTE')
+        if 'reviewed_price' in body and amount(body['reviewed_price'])!=quote.maximum:raise Rejected('REVIEWED_SERVICE_PRICE_CHANGED')
         if quote.maximum>self.policy.hard_maximum:raise Rejected('HARD_LIMIT_EXCEEDED')
         if type(body['expires_at']) is not int:raise Rejected('INVALID_EXPIRY')
         with self.tx() as db:
@@ -371,12 +387,13 @@ class Engine:
             self._check_task_grant(db,task,now)
             db.execute("UPDATE tasks SET phase='broadcasting',heartbeat=?,updated=? WHERE id=?",(now,now,task))
             self._event(db,task,'working','BROADCASTING',now)
-    def fail_before_broadcast(self,task:str,lease:str):
+    def fail_before_broadcast(self,task:str,lease:str,code='PREPARATION_FAILED'):
+        if not isinstance(code,str) or not 1<=len(code)<=96 or any(c not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in code):code='PREPARATION_FAILED'
         with self.tx() as db:
             now=self.now(db);row=self._leased(db,task,lease)
             if row['phase'] not in ['preparing','prepared']:raise Rejected('BROADCAST_MAY_HAVE_OCCURRED')
-            db.execute("UPDATE tasks SET state='failed',phase='preparation-failed',error='PREPARATION_FAILED',updated=? WHERE id=?",(now,task))
-            db.execute('DELETE FROM reservations WHERE task_id=?',(task,));self._event(db,task,'failed','PREPARATION_FAILED',now)
+            db.execute("UPDATE tasks SET state='failed',phase='preparation-failed',error=?,updated=? WHERE id=?",(code,now,task))
+            db.execute('DELETE FROM reservations WHERE task_id=?',(task,));self._event(db,task,'failed',code,now)
     def uncertain(self,task:str,lease:str):
         with self.tx() as db:
             now=self.now(db);row=self._leased(db,task,lease)
@@ -400,22 +417,53 @@ class Engine:
                 else:
                     if receipt.actual_spend!=0:raise Rejected('REJECTED_RECEIPT_HAS_SPENDING')
                     state='failed';code='NETWORK_REJECTED'
+                    if isinstance(receipt.result,dict):
+                        candidate=receipt.result.get('error')
+                        if isinstance(candidate,str) and 1<=len(candidate)<=96 and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in candidate):code=candidate
                 db.execute('DELETE FROM reservations WHERE task_id=?',(task,))
                 db.execute('UPDATE tasks SET state=?,phase=?,result=?,updated=?,error=? WHERE id=?',
                            (state,'settled',canonical(receipt.result).decode(),now,None if state=='completed' else code,task))
                 self._event(db,task,state,code,now)
             return self._view(self._fetch(db,task))
+    def resume_prepared(self,task_id:str,adapter:Adapter,worker='local-worker')->dict:
+        identifier(worker)
+        with self.tx() as db:
+            now=self.now(db);self._expire(db,now);row=self._fetch(db,task_id)
+            if row['state']!='submitted' or row['phase']!='prepared' or not row['prepared']:raise Rejected('TASK_NOT_PREPARED_FOR_RESUME')
+            self._check_task_grant(db,task_id,now)
+            if not db.execute('SELECT 1 FROM reservations WHERE task_id=?',(task_id,)).fetchone():raise Rejected('RESERVATION_MISSING')
+            try:effect=Prepared(**json.loads(row['prepared']))
+            except Exception:raise Rejected('PREPARED_EFFECT_CORRUPT') from None
+            if effect.opaque_handle!=task_id or effect.maximum_spend>int(row['amount']):raise Rejected('PREPARED_EFFECT_BINDING_MISMATCH')
+            lease=uuid.uuid4().hex
+            db.execute("UPDATE tasks SET state='working',worker=?,lease=?,heartbeat=?,updated=? WHERE id=?",(worker,lease,now,now,task_id))
+            self._event(db,task_id,'working','RESUMING_PREPARED',now)
+        try:self.mark_broadcasting(task_id,lease)
+        except Rejected:
+            self.fail_before_broadcast(task_id,lease);return self.get(task_id)
+        try:
+            adapter.broadcast(effect)
+            return self.settle(task_id,adapter.lookup(effect))
+        except Exception:
+            self.uncertain(task_id,lease);return self.get(task_id)
     def execute(self,task_id:str,adapter:Adapter,worker='local-worker')->dict:
         task,lease=self.start(task_id,worker)
         try:
             effect=adapter.prepare(task)
+            if self.get(task_id)['state']=='canceled':
+                return self.get(task_id)
             self.record_prepared(task_id,lease,effect)
-        except Exception:
-            self.fail_before_broadcast(task_id,lease)
+        except Exception as error:
+            if self.get(task_id)['state']=='canceled':
+                return self.get(task_id)
+            code=str(error) if isinstance(error,Rejected) else 'PREPARATION_FAILED'
+            self.fail_before_broadcast(task_id,lease,code)
             return self.get(task_id)
         try:
             self.mark_broadcasting(task_id,lease)
         except Rejected:
+            if self.get(task_id)['state']=='canceled':
+                return self.get(task_id)
             self.fail_before_broadcast(task_id,lease)
             return self.get(task_id)
         try:
@@ -429,24 +477,65 @@ class Engine:
             row=self._fetch(db,task_id)
             if row['state']!='unknown' or not row['prepared']:raise Rejected('TASK_NOT_RECONCILABLE')
             effect=Prepared(**json.loads(row['prepared']))
-        return self.settle(task_id,adapter.lookup(effect))
+        receipt=adapter.lookup(effect)
+        if receipt.state=='pending' and hasattr(adapter,'recover_unknown'):
+            receipt=adapter.recover_unknown(effect)
+        return self.settle(task_id,receipt)
     def cancel(self,task_id:str,requester:str)->dict:
         with self.tx() as db:
             now=self.now(db);row=self._fetch(db,task_id)
             if requester not in [self.owner,row['requester']]:raise Rejected('TASK_NOT_AUTHORIZED')
             if row['state']=='canceled':return self._view(row)
-            if row['state'] not in ['submitted','input-required']:raise Rejected('TASK_NOT_CANCELABLE')
-            db.execute("UPDATE tasks SET state='canceled',phase='canceled',updated=? WHERE id=?",(now,task_id))
+            queued = row['state'] in ['submitted','input-required']
+            unsent = row['state']=='working' and row['phase'] in ['queued','preparing','prepared']
+            if not queued and not unsent:raise Rejected('TASK_NOT_CANCELABLE')
+            db.execute("UPDATE tasks SET state='canceled',phase='canceled',updated=?,error='OWNER_OR_REQUESTER_CANCELED' WHERE id=?",(now,task_id))
             db.execute('DELETE FROM reservations WHERE task_id=?',(task_id,));db.execute('UPDATE notifications SET delivered=1 WHERE task_id=?',(task_id,))
             self._event(db,task_id,'canceled','OWNER_OR_REQUESTER_CANCELED',now);return self._view(self._fetch(db,task_id))
+    def _recover_workers(self,db,now,rows,reason):
+        """Classify abandoned workers without ever replaying a possible broadcast."""
+        resumed=[];reconcile=[];failed=[]
+        for row in rows:
+            task=row['id'];phase=row['phase']
+            if phase in ['preparing','prepared']:
+                if now>=row['deadline']:
+                    db.execute("UPDATE tasks SET state='rejected',phase='expired',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error='AUTHORIZATION_EXPIRED' WHERE id=?",(now,task))
+                    db.execute('DELETE FROM reservations WHERE task_id=?',(task,));self._event(db,task,'rejected','AUTHORIZATION_EXPIRED',now);failed.append(task)
+                elif phase=='prepared' and row['prepared']:
+                    # The signed/prepared effect is already durable and the
+                    # engine has not crossed its broadcasting boundary. Keep it
+                    # instead of repeating an expensive proof on restart.
+                    db.execute("UPDATE tasks SET state='submitted',phase='prepared',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error=NULL WHERE id=?",(now,task))
+                    self._event(db,task,'submitted',reason+'_PREPARED',now);resumed.append(task)
+                else:
+                    # A crash during prepare can safely re-run prepare only
+                    # because adapters bind preparation to the stable task ID.
+                    db.execute("UPDATE tasks SET state='submitted',phase='queued',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error=NULL WHERE id=?",(now,task))
+                    self._event(db,task,'submitted',reason+'_REQUEUED',now);resumed.append(task)
+            elif phase=='broadcasting':
+                db.execute("UPDATE tasks SET state='unknown',phase='needs-reconciliation',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error=? WHERE id=?",(now,reason+'_DURING_BROADCAST',task))
+                self._event(db,task,'unknown',reason+'_DURING_BROADCAST',now);reconcile.append(task)
+            else:
+                # An unrecognised working phase cannot be safely replayed. If an
+                # effect exists, reconciliation is the only safe next action.
+                if row['prepared']:
+                    db.execute("UPDATE tasks SET state='unknown',phase='needs-reconciliation',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error=? WHERE id=?",(now,reason+'_UNKNOWN_PHASE',task))
+                    self._event(db,task,'unknown',reason+'_UNKNOWN_PHASE',now);reconcile.append(task)
+                else:
+                    db.execute("UPDATE tasks SET state='failed',phase='recovery-failed',worker=NULL,lease=NULL,heartbeat=NULL,updated=?,error='RECOVERY_STATE_INVALID' WHERE id=?",(now,task))
+                    db.execute('DELETE FROM reservations WHERE task_id=?',(task,));self._event(db,task,'failed','RECOVERY_STATE_INVALID',now);failed.append(task)
+        return {'resumed':resumed,'reconcile':reconcile,'failed':failed}
+    def recover_process_restart(self)->dict:
+        """Recover workers from a previous process after an exclusive profile lock."""
+        with self.tx() as db:
+            now=self.now(db);rows=db.execute("SELECT id,phase,prepared,deadline FROM tasks WHERE state='working' ORDER BY created").fetchall()
+            return self._recover_workers(db,now,rows,'PROCESS_RESTART')
     def recover_stale(self,maximum_silence=600)->int:
         if type(maximum_silence) is not int or maximum_silence<1:raise Rejected('INVALID_RECOVERY_WINDOW')
         with self.tx() as db:
-            now=self.now(db);rows=db.execute("SELECT id FROM tasks WHERE state='working' AND heartbeat<?",(now-maximum_silence,)).fetchall()
-            for row in rows:
-                db.execute("UPDATE tasks SET state='unknown',phase='needs-reconciliation',updated=?,error='STALE_WORKER' WHERE id=?",(now,row['id']))
-                self._event(db,row['id'],'unknown','STALE_WORKER',now)
-            return len(rows)
+            now=self.now(db);rows=db.execute("SELECT id,phase,prepared,deadline FROM tasks WHERE state='working' AND heartbeat<? ORDER BY created",(now-maximum_silence,)).fetchall()
+            result=self._recover_workers(db,now,rows,'STALE_WORKER')
+            return sum(len(result[key]) for key in result)
     def update_policy_from_task(self,task_id:str,policy:Policy,config:dict)->dict:
         with self.tx() as db:
             now=self.now(db);task=db.execute('SELECT * FROM tasks WHERE id=?',(task_id,)).fetchone()

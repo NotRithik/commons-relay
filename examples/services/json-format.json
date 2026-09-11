@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "id": "example.json_format",
+  "description": "Validate and format a JSON document; invalid documents are refused",
+  "executable": "json-format",
+  "executable_sha256": "e070d57aff97b63bd0c89eebdc29bcc6aadb2f831c01733568ca51fb5b866030",
+  "timeout_seconds": 5,
+  "public": true,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 5000,
+        "description": "The JSON document to format. Invalid JSON is refused; no document is created."
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "formatted": {
+        "type": "string",
+        "maxLength": 16000
+      },
+      "top_level_type": {
+        "type": "string",
+        "enum": [
+          "null",
+          "boolean",
+          "number",
+          "string",
+          "array",
+          "object"
+        ]
+      },
+      "input_bytes": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "formatted",
+      "top_level_type",
+      "input_bytes"
+    ],
+    "additionalProperties": false
+  }
+}

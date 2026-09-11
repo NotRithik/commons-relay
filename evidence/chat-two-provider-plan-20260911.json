@@ -1,0 +1,1238 @@
+{
+  "observed_at": 1789076148,
+  "ui_driven": true,
+  "chat_led": true,
+  "goal": {
+    "id": "chat-ccf6cf8f888315cffed04168",
+    "prompt": "Run a fresh, zero-token two-agent plan. Discover commons, ask My agent (the Storage peer) for its free storage.list result, and ask Text statistics for its free meta.skills result. Both remote services must actually run, not just ping or read their cards. Then combine the returned file names with the supported text-analysis operation into a short useful plan. Do not pay, run a word count, or create another task for any request that is still pending. The previous free task finished, but the previous overall plan was incomplete because the second service never ran.",
+    "state": "completed",
+    "reply": "Fresh zero-token two-agent plan completed.\n\n- Discovery: Found the Commons agents, including My agent (Storage peer) and Text statistics.\n- My agent\u2019s free `storage.list` ran successfully. Available files:\n  - `Overnight vault note` \u2014 128 bytes\n  - `demo-note.txt` \u2014 49 bytes\n  - `LP-0008 vault demo` \u2014 79 bytes\n  - `permission-ui-demo` \u2014 49 bytes\n- Text statistics\u2019 free `meta.skills` ran successfully. It supports `example.text_statistics`, which can analyze supplied text for word count, character count, line count, and UTF-8 byte count.\n\nUseful plan: select one of the listed stored files, download it if authorized, and submit its text to `example.text_statistics` for those four measurements. No tokens were spent, and no word-count operation was run.",
+    "error": null,
+    "created": 1789075809,
+    "updated": 1789075848,
+    "task_ids": "[\"9871ddd5d03d4152a1e6f3df609e97c4\", \"4704808bea4241419f7ca08506bac21f\", \"f5523ecf28514031878660708775b287\"]"
+  },
+  "tasks": [
+    {
+      "id": "9871ddd5d03d4152a1e6f3df609e97c4",
+      "skill": "agent.discover",
+      "state": "completed",
+      "phase": "settled",
+      "amount": "0",
+      "args": {
+        "topic": "commons"
+      },
+      "result": {
+        "agents": [
+          {
+            "address": "relay-2a24be2b5cf9f56dec5207698bb43ee3a6734499f3e7c66628414e2bcf0756c2",
+            "card": {
+              "capabilities": {
+                "extendedAgentCard": true,
+                "extensions": [
+                  {
+                    "description": "Signed, recipient-encrypted Logos Messaging transport.",
+                    "params": {
+                      "address": "relay-2a24be2b5cf9f56dec5207698bb43ee3a6734499f3e7c66628414e2bcf0756c2",
+                      "discoveryTopic": "commons",
+                      "encryptionPublicKey": "Rwgmb0rJjy084_mmfyTFSOQe8Iwcs0XmT52Q05bIB0o",
+                      "rootNpk": "80cb80efc333a949e7a020260dddd4461c90043e52d0d943cd807a20fdd8d044",
+                      "signingPublicKey": "coyniuXIFE3boLMQbakQ-FY6WVdHvvRsdywx88rerNs"
+                    },
+                    "required": true,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-logos-binding-v1.md"
+                  },
+                  {
+                    "description": "Exact task-bound private LEZ payment; refundable before successful fulfillment.",
+                    "params": {
+                      "asset": "LEZ-testnet",
+                      "inputSchemas": {
+                        "exa.search_free": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "num_results": {
+                              "maximum": 5,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "query": {
+                              "description": "This search query is sent to the provider and Exa.",
+                              "maxLength": 400,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "num_results"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "network": "https://testnet.lez.logos.co/",
+                      "outputSchemas": {
+                        "exa.search_free": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "provider": {
+                              "enum": [
+                                "Exa MCP free plan"
+                              ],
+                              "type": "string"
+                            },
+                            "query": {
+                              "maxLength": 400,
+                              "type": "string"
+                            },
+                            "requested_results": {
+                              "maximum": 5,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "retrieved_at": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "text": {
+                              "maxLength": 8000,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "truncated": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "text",
+                            "truncated",
+                            "requested_results",
+                            "provider",
+                            "retrieved_at"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "prices": {
+                        "exa.search_free": "1"
+                      }
+                    },
+                    "required": true,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-payment-v1.md"
+                  }
+                ],
+                "pushNotifications": false,
+                "streaming": true
+              },
+              "defaultInputModes": [
+                "application/json"
+              ],
+              "defaultOutputModes": [
+                "application/json"
+              ],
+              "description": "Search the web using the free Exa MCP endpoint; rate limits apply",
+              "name": "Windows Exa Search",
+              "signatures": [
+                {
+                  "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVkMjU1MTk6ZDY3N2RmMjkzMDU1YjY2NjFmMzk3NDU5ZWJkN2RkMTFmMmY0Njg0ZGJmNjRjMDRlOTZlYzMyNzNlZDI1ZjIzYiJ9",
+                  "signature": "haOpESYpXs3uQf7_IuJt7cNmbo91_R37-bvsshGc67qkD56WYL7DD_gGEzymafd6Y7Z14dbr_AzUzmMSKLifCg"
+                }
+              ],
+              "skills": [
+                {
+                  "description": "Search the web using the free Exa MCP endpoint; rate limits apply",
+                  "id": "exa.search_free",
+                  "inputModes": [
+                    "application/json"
+                  ],
+                  "name": "exa.search_free",
+                  "outputModes": [
+                    "application/json"
+                  ],
+                  "tags": [
+                    "exa"
+                  ]
+                }
+              ],
+              "supportedInterfaces": [
+                {
+                  "protocolBinding": "LOGOS-MESSAGING",
+                  "protocolVersion": "1.0",
+                  "url": "logos://relay-2a24be2b5cf9f56dec5207698bb43ee3a6734499f3e7c66628414e2bcf0756c2"
+                }
+              ],
+              "version": "0.1.0"
+            },
+            "expires": 1789076114,
+            "identityVerified": true,
+            "received": 1789075814,
+            "storageCid": "zDvZRwzm3PgLvJRaoDCKzUji5yZ5HFdBm4PtG27zjbaNLi8vw5uL",
+            "topic": "commons",
+            "trust": "public-service"
+          },
+          {
+            "address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+            "card": {
+              "capabilities": {
+                "extendedAgentCard": true,
+                "extensions": [
+                  {
+                    "description": "Signed, recipient-encrypted Logos Messaging transport.",
+                    "params": {
+                      "address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+                      "discoveryTopic": "commons",
+                      "encryptionPublicKey": "g1VT70dwmR1GYgro5Akgdfm-M05qXserguN0ZQwBJnY",
+                      "rootNpk": "a9a5fa584a25ce62828a8980a8e83b1b0246f395c0a95841686a303a2c4007aa",
+                      "signingPublicKey": "feyOfHSdnm_WjD8wmgnrq6CMW0HMIanayzPXBnrBitQ"
+                    },
+                    "required": true,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-logos-binding-v1.md"
+                  },
+                  {
+                    "description": "Exact task-bound private LEZ payment; refundable before successful fulfillment.",
+                    "params": {
+                      "asset": "LEZ-testnet",
+                      "inputSchemas": {
+                        "example.text_statistics": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "text": {
+                              "maxLength": 10000,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "text"
+                          ],
+                          "type": "object"
+                        },
+                        "meta.skills": {
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": [],
+                          "type": "object"
+                        }
+                      },
+                      "network": "https://testnet.lez.logos.co/",
+                      "outputSchemas": {
+                        "example.text_statistics": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "characters": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "lines": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "utf8_bytes": {
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "words": {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "characters",
+                            "words",
+                            "lines",
+                            "utf8_bytes"
+                          ],
+                          "type": "object"
+                        },
+                        "meta.skills": {
+                          "type": "object"
+                        }
+                      },
+                      "prices": {
+                        "example.text_statistics": "1",
+                        "meta.skills": "0"
+                      }
+                    },
+                    "required": true,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-payment-v1.md"
+                  }
+                ],
+                "pushNotifications": false,
+                "streaming": true
+              },
+              "defaultInputModes": [
+                "application/json"
+              ],
+              "defaultOutputModes": [
+                "application/json"
+              ],
+              "description": "Count words, characters, lines and bytes with an installed custom skill.",
+              "name": "Text statistics",
+              "signatures": [
+                {
+                  "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVkMjU1MTk6YmJhNmRiMjQzODA1ZjBmYjI5NWU0NzI5YjY4NWZkY2NkZDFhZWEzNDFlNDlkNjVkZjEyNTY3YjNmMTFmMmIxOCJ9",
+                  "signature": "g7aumeK9bPfqKnLX1hkmrCKqgROLYVV-XSd2xmCTny6J6mXyYC7YHvjRlGvDLoNso8aec35UxbwqMig-OcvMBw"
+                }
+              ],
+              "skills": [
+                {
+                  "description": "Count words and characters in text",
+                  "id": "example.text_statistics",
+                  "inputModes": [
+                    "application/json"
+                  ],
+                  "name": "example.text_statistics",
+                  "outputModes": [
+                    "application/json"
+                  ],
+                  "tags": [
+                    "example"
+                  ]
+                },
+                {
+                  "description": "Describe messaging capabilities",
+                  "id": "meta.skills",
+                  "inputModes": [
+                    "application/json"
+                  ],
+                  "name": "meta.skills",
+                  "outputModes": [
+                    "application/json"
+                  ],
+                  "tags": [
+                    "meta"
+                  ]
+                }
+              ],
+              "supportedInterfaces": [
+                {
+                  "protocolBinding": "LOGOS-MESSAGING",
+                  "protocolVersion": "1.0",
+                  "url": "logos://relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21"
+                }
+              ],
+              "version": "0.1.0"
+            },
+            "expires": 1789076113,
+            "identityVerified": true,
+            "received": 1789075814,
+            "storageCid": "zDvZRwzkvq8FjYyN13YN838gnDwmgGwRCcY7zfuTjvwvnFwM6UnJ",
+            "topic": "commons",
+            "trust": "public-service"
+          },
+          {
+            "address": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+            "card": {
+              "capabilities": {
+                "extendedAgentCard": true,
+                "extensions": [
+                  {
+                    "description": "Signed, recipient-encrypted Logos Messaging transport.",
+                    "params": {
+                      "address": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+                      "discoveryTopic": "commons",
+                      "encryptionPublicKey": "ukjk0H_GqRj6avYAKlJsEG2f5b-OUeIbZUPodt6OYFM",
+                      "rootNpk": "4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+                      "signingPublicKey": "1Ujlr75GIQhibzgxoUqTwP6VE7SckLoIuUzvd1PnxMw"
+                    },
+                    "required": true,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-logos-binding-v1.md"
+                  },
+                  {
+                    "description": "Exact task-bound private LEZ payment; refundable before successful fulfillment.",
+                    "params": {
+                      "asset": "LEZ-testnet",
+                      "inputSchemas": {
+                        "meta.skills": {
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": [],
+                          "type": "object"
+                        },
+                        "storage.list": {
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": [],
+                          "type": "object"
+                        }
+                      },
+                      "network": "https://testnet.lez.logos.co/",
+                      "outputSchemas": {
+                        "meta.skills": {
+                          "type": "object"
+                        },
+                        "storage.list": {
+                          "type": "object"
+                        }
+                      },
+                      "prices": {
+                        "meta.skills": "0",
+                        "storage.list": "0"
+                      }
+                    },
+                    "required": false,
+                    "uri": "https://github.com/NotRithik/commons-relay/blob/main/docs/a2a-payment-v1.md"
+                  }
+                ],
+                "pushNotifications": false,
+                "streaming": true
+              },
+              "defaultInputModes": [
+                "application/json"
+              ],
+              "defaultOutputModes": [
+                "application/json"
+              ],
+              "description": "Commons Relay storage testnet service",
+              "name": "My agent",
+              "signatures": [
+                {
+                  "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVkMjU1MTk6ZjRmYjZlOWQyNjlhZTkzMjA3NzBjMTRmMzg0ZWQyYzU0NTQ2M2M0NTJjNWFjNWU2MjdmNTMyNmU1ZjNjOGZhNyJ9",
+                  "signature": "KJO9R1ma6kREG_ECZTACi5cHmvCUwKuZFwbinskF1KcBfz8Cm2Ju3tMpofjHET05dUNuh9x-huwl5T0kbmEyAQ"
+                }
+              ],
+              "skills": [
+                {
+                  "description": "List the service public catalogue",
+                  "id": "storage.list",
+                  "inputModes": [
+                    "application/json"
+                  ],
+                  "name": "storage.list",
+                  "outputModes": [
+                    "application/json"
+                  ],
+                  "tags": [
+                    "storage"
+                  ]
+                },
+                {
+                  "description": "Describe installed typed capabilities",
+                  "id": "meta.skills",
+                  "inputModes": [
+                    "application/json"
+                  ],
+                  "name": "meta.skills",
+                  "outputModes": [
+                    "application/json"
+                  ],
+                  "tags": [
+                    "meta"
+                  ]
+                }
+              ],
+              "supportedInterfaces": [
+                {
+                  "protocolBinding": "LOGOS-MESSAGING",
+                  "protocolVersion": "1.0",
+                  "url": "logos://lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c"
+                }
+              ],
+              "version": "0.1.0"
+            },
+            "identityVerified": true,
+            "received": 1789075784,
+            "topic": "commons",
+            "trust": "owner-contact"
+          }
+        ],
+        "more_available": false,
+        "topic": "commons",
+        "total_found": 3
+      },
+      "error": null
+    },
+    {
+      "id": "4704808bea4241419f7ca08506bac21f",
+      "skill": "agent.task",
+      "state": "completed",
+      "phase": "settled",
+      "amount": "0",
+      "args": {
+        "agent_address": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+        "params": {},
+        "skill": "storage.list"
+      },
+      "result": {
+        "artifacts": [
+          {
+            "artifactId": "result",
+            "name": "storage.list result",
+            "parts": [
+              {
+                "data": {
+                  "files": [
+                    {
+                      "address": "zDvZRwzkw83SGnq69SXXoEc56BNfM9WKX37UU8cfGR6NcN8Y1ugG",
+                      "bytes": 128,
+                      "label": "Overnight vault note",
+                      "sender": "ed25519:f4fb6e9d269ae9320770c14f384ed2c545463c452c5ac5e627f5326e5f3c8fa7"
+                    },
+                    {
+                      "address": "zDvZRwzm3Qf1gG7sgLfCJbrWV8FfwW2d2Ywe6ozhMKGhx6gmBojM",
+                      "bytes": 49,
+                      "label": "demo-note.txt",
+                      "sender": "ed25519:f4fb6e9d269ae9320770c14f384ed2c545463c452c5ac5e627f5326e5f3c8fa7"
+                    },
+                    {
+                      "address": "zDvZRwzm9qzdiM3MY2WaJba6o9x12NpS1PGAe3vEFtkNgLYVw7sv",
+                      "bytes": 79,
+                      "label": "LP-0008 vault demo",
+                      "sender": "ed25519:f4fb6e9d269ae9320770c14f384ed2c545463c452c5ac5e627f5326e5f3c8fa7"
+                    },
+                    {
+                      "address": "zDvZRwzmCdBiTRjNXkDamyrhBYVNdk8jK7P6asNLNaudY9DLnZPp",
+                      "bytes": 49,
+                      "label": "permission-ui-demo",
+                      "sender": "ed25519:f4fb6e9d269ae9320770c14f384ed2c545463c452c5ac5e627f5326e5f3c8fa7"
+                    }
+                  ]
+                },
+                "mediaType": "application/json"
+              }
+            ]
+          }
+        ],
+        "paid_amount": "0",
+        "payment_transaction": null,
+        "provider": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+        "remote_task_id": "87be6dc722e803f49c463ef1884ea810"
+      },
+      "error": null
+    },
+    {
+      "id": "f5523ecf28514031878660708775b287",
+      "skill": "agent.task",
+      "state": "completed",
+      "phase": "settled",
+      "amount": "0",
+      "args": {
+        "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+        "params": {},
+        "skill": "meta.skills"
+      },
+      "result": {
+        "artifacts": [
+          {
+            "artifactId": "result",
+            "name": "meta.skills result",
+            "parts": [
+              {
+                "data": {
+                  "skills": [
+                    {
+                      "argument_names": [
+                        "path",
+                        "label"
+                      ],
+                      "description": "Encrypt and store a file",
+                      "id": "storage.upload",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "Relative to the explicitly configured file root.",
+                            "maxLength": 1000,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "address",
+                        "path"
+                      ],
+                      "description": "Download and decrypt a stored file",
+                      "id": "storage.download",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "Relative to the explicitly configured file root.",
+                            "maxLength": 1000,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "path"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "List files this agent has stored",
+                      "id": "storage.list",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "address",
+                        "recipient"
+                      ],
+                      "description": "Share a stored file with someone",
+                      "id": "storage.share",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "recipient": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "recipient"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "recipient",
+                        "message"
+                      ],
+                      "description": "Send an encrypted Logos message",
+                      "id": "messaging.send",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "message": {
+                            "maxLength": 16000,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "recipient": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "recipient",
+                          "message"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "View recent messages from other agents",
+                      "id": "messaging.inbox",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "group_id"
+                      ],
+                      "description": "Join a Logos group",
+                      "id": "messaging.join",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "group_id": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "group_id"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "members"
+                      ],
+                      "description": "Create a Logos group",
+                      "id": "messaging.create_group",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "members": {
+                            "items": {
+                              "maxLength": 160,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 32,
+                            "minItems": 1,
+                            "type": "array",
+                            "uniqueItems": true
+                          }
+                        },
+                        "required": [
+                          "members"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "Check this agent\u2019s balance",
+                      "id": "wallet.balance",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "recipient",
+                        "amount"
+                      ],
+                      "description": "Send testnet tokens within your limits",
+                      "id": "wallet.send",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "amount": {
+                            "description": "Integer token base units as a decimal string.",
+                            "maxLength": 39,
+                            "pattern": "^(0|[1-9][0-9]{0,38})$",
+                            "type": "string"
+                          },
+                          "recipient": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "recipient",
+                          "amount"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "View recent wallet activity",
+                      "id": "wallet.history",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "program_id",
+                        "params"
+                      ],
+                      "description": "Read a program\u2019s current on-chain state",
+                      "id": "program.query",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "params": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "account": {
+                                "maxLength": 64,
+                                "minLength": 64,
+                                "pattern": "^[0-9a-f]{64}$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "account"
+                            ],
+                            "type": "object"
+                          },
+                          "program_id": {
+                            "description": "Actual LEZ program image ID in lowercase hex, never an operation name or placeholder.",
+                            "maxLength": 64,
+                            "minLength": 64,
+                            "pattern": "^[0-9a-f]{64}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "program_id",
+                          "params"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "program_id",
+                        "instruction",
+                        "params"
+                      ],
+                      "description": "Run an approved action on a LEZ program",
+                      "id": "program.call",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "instruction": {
+                            "description": "Hex-encoded little-endian u32 instruction words from the target program ABI.",
+                            "maxLength": 131072,
+                            "pattern": "^[0-9a-f]*$",
+                            "type": "string"
+                          },
+                          "params": {
+                            "type": "object"
+                          },
+                          "program_id": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "program_id",
+                          "instruction",
+                          "params"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "binary_path"
+                      ],
+                      "description": "Publish a compiled program to LEZ testnet",
+                      "id": "program.deploy",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "binary_path": {
+                            "description": "Relative to the explicitly configured file root.",
+                            "maxLength": 1000,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "binary_path"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "View this agent\u2019s public capabilities",
+                      "id": "agent.card",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": true
+                    },
+                    {
+                      "argument_names": [
+                        "topic"
+                      ],
+                      "description": "Find other agents on a named topic",
+                      "id": "agent.discover",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "topic": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "topic"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "agent_address"
+                      ],
+                      "description": "Check whether another agent is online",
+                      "id": "agent.ping",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "agent_address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent_address"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "agent_address",
+                        "skill",
+                        "params"
+                      ],
+                      "description": "Ask another agent to do a task at its listed price",
+                      "id": "agent.task",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "agent_address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "params": {
+                            "type": "object"
+                          },
+                          "skill": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent_address",
+                          "skill",
+                          "params"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "agent_address",
+                        "task_id"
+                      ],
+                      "description": "Follow another agent\u2019s task",
+                      "id": "agent.subscribe",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "agent_address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "description": "The other agent\u2019s task, or the task you started here.",
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent_address",
+                          "task_id"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "agent_address",
+                        "task_id"
+                      ],
+                      "description": "Ask another agent to stop a task",
+                      "id": "agent.cancel",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "agent_address": {
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "description": "The other agent\u2019s task, or the task you started here.",
+                            "maxLength": 180,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent_address",
+                          "task_id"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "View this agent\u2019s tools",
+                      "id": "meta.skills",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": true
+                    },
+                    {
+                      "argument_names": [],
+                      "description": "View this agent\u2019s current status",
+                      "id": "meta.status",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {},
+                        "required": [],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "key",
+                        "value"
+                      ],
+                      "description": "Change an agent setting with owner approval",
+                      "id": "meta.configure",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "key": {
+                            "description": "Which setting to change.",
+                            "enum": [
+                              "name",
+                              "owner_address",
+                              "spending_limit",
+                              "period_limit",
+                              "hard_maximum",
+                              "approval_ttl"
+                            ],
+                            "type": "string"
+                          },
+                          "value": {
+                            "description": "The new setting value.",
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "value"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "type": "object"
+                      },
+                      "public": false
+                    },
+                    {
+                      "argument_names": [
+                        "text"
+                      ],
+                      "description": "Count words and characters in text",
+                      "id": "example.text_statistics",
+                      "input_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "text": {
+                            "maxLength": 10000,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ],
+                        "type": "object"
+                      },
+                      "output_schema": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "characters": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "lines": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "utf8_bytes": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "words": {
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "characters",
+                          "words",
+                          "lines",
+                          "utf8_bytes"
+                        ],
+                        "type": "object"
+                      },
+                      "public": true
+                    }
+                  ]
+                },
+                "mediaType": "application/json"
+              }
+            ]
+          }
+        ],
+        "paid_amount": "0",
+        "payment_transaction": null,
+        "provider": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+        "remote_task_id": "1964e5f956d5e11772266ae9ba3ecca8"
+      },
+      "error": null
+    }
+  ],
+  "a2a_effects": [
+    {
+      "task_id": "9871ddd5d03d4152a1e6f3df609e97c4",
+      "peer": null,
+      "remote_task": null,
+      "payment_hash": null
+    },
+    {
+      "task_id": "4704808bea4241419f7ca08506bac21f",
+      "peer": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+      "remote_task": "87be6dc722e803f49c463ef1884ea810",
+      "payment_hash": null
+    },
+    {
+      "task_id": "f5523ecf28514031878660708775b287",
+      "peer": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+      "remote_task": "1964e5f956d5e11772266ae9ba3ecca8",
+      "payment_hash": null
+    }
+  ],
+  "distinct_provider_tasks": 2,
+  "testnet_spend": 0,
+  "runner_sha256": "9c2c5048449dd7f1116c51d8ffef1715794a955048779cc6f929913d2b2f4080",
+  "previous_incomplete_goal": "chat-e78d7ee7e7a225dbca17ff2a",
+  "paid_exa_task_restarted": false
+}

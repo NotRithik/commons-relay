@@ -33,8 +33,18 @@ public:
     QString selectOwnerProfile(QString name) override;
     QString refreshAgent() override;
     QString loadMoreTasks() override;
+    QString loadServiceDirectory(QString topic, int offset, bool refresh) override;
+    QString loadProviderSettings() override;
+    QString saveProviderSettings(QString settingsJson, QString expectedHash) override;
+    QString submitServiceTask(QString address, QString skill, QString argumentsJson, QString reviewedPrice) override;
+    QString submitServiceTaskWithMode(QString address, QString skill, QString argumentsJson, QString reviewedPrice, QString paymentMode) override;
     QString requestSkill(QString name) override;
+    QString previewAgentSetup(QString name) override;
+    QString startAgentSetup(QString jobId, QString reviewHash) override;
+    QString refreshAgentSetup(QString jobId) override;
+    QString reviewAgentRecovery(QString jobId) override;
     QString requestTask(QString taskId) override;
+    QString requestTaskPage(QString taskId, int offset, QString digest) override;
     QString submitTask(QString skill, QString argumentsJson, int expiresIn) override;
     QString approveTask(QString taskId, QString intentHash, int policyVersion) override;
     QString cancelTask(QString taskId) override;
@@ -70,6 +80,7 @@ private:
     QElapsedTimer monotonic_;
     ConnectionLiveness liveness_;
     bool snapshotSeen_ = false;
+    bool ownerCursorReady_ = false;
     QJsonObject lastHealthSnapshot_;
     QQueue<HelperWork> helperQueue_;
     HelperWork activeHelper_;
@@ -88,6 +99,8 @@ private:
     int nextTaskOffset_ = 0;
     qint64 lastHealthCheck_ = 0;
     qint64 lastGoalPoll_ = 0;
+    QString requestedDirectoryTopic_;
     QString requestedSkill_;
     QString requestedTask_;
+    int requestedResultOffset_ = 0;
 };

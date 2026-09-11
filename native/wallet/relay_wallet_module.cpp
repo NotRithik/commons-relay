@@ -48,13 +48,30 @@ QString RelayWalletModule::request(const QString& raw){
     const auto obj=doc.object();if(obj.size()!=2 || !obj.value("mode").isString() || !obj.value("params").isObject())return "INVALID_WALLET_REQUEST";
     QString mode=obj.value("mode").toString();const auto params=obj.value("params").toObject();QStringList args{mode,profile_};
     const auto validId=[](const QString& id){return QRegularExpression("^[A-Za-z0-9_-]{1,80}$").match(id).hasMatch();};
-    if((mode=="balance" || mode=="identity" || mode=="program-account" || mode=="receive-address" || mode=="history") && params.isEmpty()){}
+    if((mode=="balance" || mode=="identity" || mode=="program-account" || mode=="public-account" || mode=="receive-address" || mode=="history") && params.isEmpty()){}
     else if(mode=="query" && params.size()==1 && params.value("account").isString()){
         const auto id=params.value("account").toString();if(!QRegularExpression("^[A-Za-z0-9]{32,64}$").match(id).hasMatch())return "INVALID_QUERY_ACCOUNT";args.append(id);
     }else if(mode=="check-payment" && params.size()==3 && params.value("account").isString() && params.value("tx_hash").isString() && params.value("amount").isString()){
         const auto account=params.value("account").toString();const auto hash=params.value("tx_hash").toString();const auto amount=params.value("amount").toString();
         if(!QRegularExpression("^[a-f0-9]{64}$").match(account).hasMatch() || !QRegularExpression("^[a-f0-9]{64}$").match(hash).hasMatch() || !QRegularExpression("^[1-9][0-9]{0,38}$").match(amount).hasMatch())return "INVALID_PAYMENT_QUERY";
         args.append(account);args.append(hash);args.append(amount);
+    }else if(mode=="check-public-payment" && params.size()==8 && params.value("account").isString() && params.value("tx_hash").isString() && params.value("amount").isString() && params.value("sender").isString()){
+        for (const auto& field : {QString("account"),QString("tx_hash"),QString("sender")})
+            if(!QRegularExpression("^[a-f0-9]{64}$").match(params.value(field).toString()).hasMatch())return "INVALID_PUBLIC_PAYMENT_QUERY";
+        if(!QRegularExpression("^[1-9][0-9]{0,38}$").match(params.value("amount").toString()).hasMatch())return "INVALID_PUBLIC_PAYMENT_QUERY";
+        args.append(params.value("account").toString());args.append(params.value("tx_hash").toString());
+        args.append(params.value("amount").toString());args.append(params.value("sender").toString());
+        if(!params.value("minimum_block").isString() || !QRegularExpression("^(0|[1-9][0-9]{0,19})$").match(params.value("minimum_block").toString()).hasMatch()
+           || !params.value("quote_hash").isString() || !QRegularExpression("^[a-f0-9]{64}$").match(params.value("quote_hash").toString()).hasMatch()
+           || !params.value("proof").isObject() || (params.value("purpose")!="payment" && params.value("purpose")!="refund"))return "INVALID_PUBLIC_PAYMENT_QUERY";
+        const auto proof=QJsonDocument(params.value("proof").toObject()).toJson(QJsonDocument::Compact);
+        if(proof.size()>4096)return "PUBLIC_CLAIM_TOO_LARGE";
+        args.append(params.value("minimum_block").toString());args.append(params.value("quote_hash").toString());
+        args.append(params.value("purpose").toString());args.append(QString::fromUtf8(proof));
+    }else if(mode=="public-payment-proof" && params.size()==3 && params.value("operation_id").isString() && params.value("quote_hash").isString()){
+        const auto id=params.value("operation_id").toString();const auto purpose=params.value("purpose").toString();
+        if(!validId(id) || !QRegularExpression("^[a-f0-9]{64}$").match(params.value("quote_hash").toString()).hasMatch() || (purpose!="payment" && purpose!="refund"))return "INVALID_PUBLIC_PAYMENT_PROOF_REQUEST";
+        args.append(id);args.append(params.value("quote_hash").toString());args.append(purpose);
     }else if(mode=="prepare-program" && params.size()==2 && params.value("operation_id").isString() && params.value("intent").isObject()){
         const auto id=params.value("operation_id").toString();if(!validId(id))return "INVALID_OPERATION_ID";
         auto intent=params.value("intent").toObject();const auto kind=intent.value("kind").toString();
@@ -79,7 +96,7 @@ QString RelayWalletModule::request(const QString& raw){
     }else if(mode=="prepare" && params.size()==2 && params.value("operation_id").isString() && params.value("intent").isObject()){
         const auto id=params.value("operation_id").toString();if(!validId(id))return "INVALID_OPERATION_ID";
         const auto intent=params.value("intent").toObject();const auto kind=intent.value("kind").toString();
-        const QSet<QString> kinds={"transfer-private","initialize-private"};
+        const QSet<QString> kinds={"transfer-private","initialize-private","transfer-public","initialize-public"};
         if(!kinds.contains(kind))return "WALLET_INTENT_DENIED";
         const auto requestDir=profile_+"/requests";QDir().mkpath(requestDir);QFile::setPermissions(requestDir,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner);
         const auto path=requestDir+"/"+id+".json";QFileInfo existing(path);const auto encoded=QJsonDocument(intent).toJson(QJsonDocument::Compact);

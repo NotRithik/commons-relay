@@ -40,7 +40,9 @@ class MetaAdapter:
         elif row['skill']=='meta.status':
             from .status_views import observed_status
             result=observed_status(self.service)
-        elif row['skill']=='agent.card':result=self.service.get_agent_protocol().card()
+        elif row['skill']=='agent.card':
+            protocol=self.service.get_agent_protocol()
+            result=protocol.card(public=protocol.config.get('public',False))
         else:
             config=self.configuration(args);policy=self.validate_config(config)
             result=self.engine.update_policy_from_task(effect.opaque_handle,policy,config)

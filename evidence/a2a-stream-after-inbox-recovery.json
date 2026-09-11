@@ -1,0 +1,33 @@
+{
+  "observed_at": 1789074842,
+  "client_role": "blockchain",
+  "kind": "manual resume of an existing A2A stream after inbox migration",
+  "request_id": "external-stream-20260910-2305",
+  "resumed_after": 2,
+  "pages": [
+    {
+      "next_after": 3,
+      "waiting_for_gap": false,
+      "events": [
+        {
+          "sequence": 3,
+          "kind": "artifactUpdate"
+        }
+      ]
+    },
+    {
+      "next_after": 4,
+      "waiting_for_gap": false,
+      "events": [
+        {
+          "sequence": 4,
+          "kind": "statusUpdate"
+        }
+      ]
+    }
+  ],
+  "elapsed_seconds": 0.152,
+  "owner_method_denied": "INVALID_A2A_CLIENT_REQUEST",
+  "local_task_count_before": 17,
+  "local_task_count_after": 17
+}

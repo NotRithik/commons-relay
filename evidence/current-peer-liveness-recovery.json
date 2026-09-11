@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "checked_at_unix": 1788968302,
+  "purpose": "LP-0008 reboot and peer reachability recovery through the same task path used by Basecamp",
+  "mock": false,
+  "payment_transactions": 0,
+  "before_mesh_repair": {
+    "id": "49e367d9b79a4278aef6b583323afbeb",
+    "skill": "agent.ping",
+    "state": "completed",
+    "phase": "settled",
+    "amount": "0",
+    "result": {
+      "agent_address": "lez-f66f3fb8aa1bee88c6084f8bafd1f5b3af23be2e6c07599400c8c41922912949",
+      "detail": "No authenticated reply within 8 seconds. This does not prove the peer is offline.",
+      "observed_at": 1788967079,
+      "paid_amount": "0",
+      "reachable": null,
+      "status": "no-reply"
+    },
+    "error": null,
+    "created": 1788967070,
+    "updated": 1788967079
+  },
+  "after_mesh_repair": {
+    "id": "31c0c450aa674477a18fe577160a1b48",
+    "skill": "agent.ping",
+    "state": "completed",
+    "phase": "settled",
+    "amount": "0",
+    "result": {
+      "agent_address": "lez-f66f3fb8aa1bee88c6084f8bafd1f5b3af23be2e6c07599400c8c41922912949",
+      "observed_at": 1788968218,
+      "paid_amount": "0",
+      "reachable": true,
+      "round_trip_ms": 3353,
+      "status": "responding"
+    },
+    "error": null,
+    "created": 1788968215,
+    "updated": 1788968218
+  },
+  "mesh": {
+    "storage_anchor_port": 34410,
+    "messaging_port": 34411,
+    "blockchain_port": 34412,
+    "blockchain_round_trip_ms": 3353
+  },
+  "boundary": "A fresh authenticated A2A reply proves current peer reachability; it does not prove a paid task or chain transaction."
+}

@@ -1,0 +1,66 @@
+{
+  "observed_at": 1789067705,
+  "flow": "UI discovery -> authenticated A2A quote -> private testnet payment -> installed custom skill -> result",
+  "ui_driven": true,
+  "client_machine": "Mac",
+  "provider_machine": "Mac",
+  "provider_in_owner_address_book": false,
+  "owner_payment_approval_clicks": 0,
+  "authorization": "autonomous",
+  "task_id": "ee383a53a13e43258e878116055365dd",
+  "remote_task_id": "46a611b6cdb7c791483c9502aad352d2",
+  "provider": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+  "input": {
+    "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+    "params": {
+      "text": "Kite pays a discovered custom service for useful work."
+    },
+    "skill": "example.text_statistics"
+  },
+  "result": {
+    "characters": 54,
+    "lines": 1,
+    "utf8_bytes": 54,
+    "words": 9
+  },
+  "paid_amount": "1",
+  "transaction_hash": "3bfe42fe846ad713752c0ea804d16f0d968bebbd40720e9262b4e97aa8eecf60",
+  "confirmed_block": 3206,
+  "proof_seconds": 2678.719058792,
+  "total_workflow_seconds": 2844,
+  "compute_units": null,
+  "client_events": [
+    {
+      "state": "submitted",
+      "code": "ACCEPTED",
+      "at": 1789064287
+    },
+    {
+      "state": "working",
+      "code": "PREPARING",
+      "at": 1789064287
+    },
+    {
+      "state": "working",
+      "code": "PREPARED",
+      "at": 1789067032
+    },
+    {
+      "state": "working",
+      "code": "BROADCASTING",
+      "at": 1789067032
+    },
+    {
+      "state": "completed",
+      "code": "CONFIRMED",
+      "at": 1789067131
+    }
+  ],
+  "extension_sha256": "7444eccc3bfaac8be67abccab516097690be222fc3f29863a2c31d2159813b45",
+  "not_claimed": [
+    "GPU proving",
+    "Windows provider",
+    "Exa in this particular task",
+    "Proof of correctness of text statistics"
+  ]
+}

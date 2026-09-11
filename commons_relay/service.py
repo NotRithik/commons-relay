@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 from dataclasses import asdict
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -28,24 +29,43 @@ class Service:
             raise Rejected('INVALID_TESTNET_CONFIGURATION')
         public=unb64(config['owner_public_key'],32)
         if len(public)!=32:raise Rejected('INVALID_OWNER_PUBLIC_KEY')
-        self.crypto=Ed25519(self.root/'crypto')
-        from .skills import default_registry
-        from .external_skills import ExternalSkills
-        self.extensions=ExternalSkills(self.root)
-        registry=default_registry().extended(self.extensions.skills())
-        self.engine=Engine(self.root/'ledger',config['agent_id'],public,self.crypto,policy=Policy(**config['policy']),registry=registry)
-        self.engine.quote_provider=self.quote_for_skill
+        lock_path=self.root/'.relay-process.lock'
+        fd=os.open(lock_path,os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
+        try:
+            if stat.S_IMODE(os.fstat(fd).st_mode)&0o077:raise Rejected('PROFILE_LOCK_NOT_PRIVATE')
+            try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:raise Rejected('AGENT_PROFILE_ALREADY_RUNNING') from None
+            self.profile_lock_fd=fd
+            self.crypto=Ed25519(self.root/'crypto')
+            from .skills import default_registry
+            from .external_skills import ExternalSkills
+            self.extensions=ExternalSkills(self.root)
+            registry=default_registry().extended(self.extensions.skills())
+            self.engine=Engine(self.root/'ledger',config['agent_id'],public,self.crypto,policy=Policy(**config['policy']),registry=registry)
+            self.restart_recovery=self.engine.recover_process_restart()
+            self.engine.quote_provider=self.quote_for_skill
+        except BaseException:
+            engine=getattr(self,'engine',None)
+            if engine is not None:
+                try:engine.close()
+                except Exception:pass
+            try:fcntl.flock(fd,fcntl.LOCK_UN)
+            finally:os.close(fd)
+            if getattr(self,'profile_lock_fd',None)==fd:self.profile_lock_fd=None
+            raise
     def quote_for_skill(self,name,args,base):
         if name!='agent.task':return base
         from .skills import Quote
         from .a2a_types import PAYMENT_EXTENSION
         from .codec import amount
-        if not isinstance(args,dict) or set(args)!={'agent_address','skill','params'}:raise Rejected('INVALID_AGENT_TASK_ARGUMENTS')
+        if not isinstance(args,dict) or set(args) not in ({'agent_address','skill','params'},{'agent_address','skill','params','payment_mode'}):raise Rejected('INVALID_AGENT_TASK_ARGUMENTS')
         card=self.get_agent_protocol().verified_card(args['agent_address'])
         if args['skill'] not in {s['id'] for s in card['skills']}:raise Rejected('REMOTE_SKILL_NOT_ADVERTISED')
         payment=next((x for x in card.get('capabilities',{}).get('extensions',[]) if x.get('uri')==PAYMENT_EXTENSION),None)
         if not isinstance(payment,dict) or not isinstance(payment.get('params'),dict) or not isinstance(payment['params'].get('prices'),dict):raise Rejected('REMOTE_PRICE_NOT_ADVERTISED')
         if args['skill'] not in payment['params']['prices']:raise Rejected('REMOTE_PRICE_NOT_ADVERTISED')
+        mode=args.get('payment_mode','private')
+        if mode not in ('private','public') or mode not in payment['params'].get('paymentModes',['private']):raise Rejected('REMOTE_PAYMENT_MODE_NOT_SUPPORTED')
         from .schema import check_schema, validate
         schema=payment['params'].get('inputSchemas',{}).get(args['skill'])
         if not isinstance(schema,dict):raise Rejected('REMOTE_INPUT_SCHEMA_REQUIRED')
@@ -53,7 +73,7 @@ class Service:
         # An old peer card must not allow paid placeholder queries.
         if args['skill']=='program.query':self.engine.registry.get('program.query').validate(args['params'])
         price=amount(payment['params']['prices'][args['skill']])
-        return Quote('LEZ-testnet',price,True)
+        return Quote('LEZ-testnet',price,mode=='private')
     def close(self):
         if self.planner:self.planner.close()
         if self.controller:self.controller.stop()
@@ -62,6 +82,10 @@ class Service:
         if self.mailbox:self.mailbox.close()
         if self.vault:self.vault.close()
         self.engine.close()
+        fd=getattr(self,'profile_lock_fd',None)
+        if fd is not None:
+            try:fcntl.flock(fd,fcntl.LOCK_UN)
+            finally:os.close(fd);self.profile_lock_fd=None
     def storage_adapter(self):
         with self.adapter_guard:return self._storage_adapter()
     def _storage_adapter(self):
@@ -74,7 +98,7 @@ class Service:
             inputs=protected_directory(self.root/'inputs');outputs=protected_directory(self.root/'outputs')
             library=os.environ.get('COMMONS_RELAY_SODIUM_LIBRARY')
             self.vault=Vault(self.root/'vault',inputs,outputs,Sodium(library))
-            self.store=LogosStorage(self.bridge);self.adapter=StorageAdapter(self.vault,self.store)
+            self.store=LogosStorage(self.bridge,self.root);self.adapter=StorageAdapter(self.vault,self.store)
         return self.adapter
     def get_messaging(self):
         with self.adapter_guard:
@@ -113,7 +137,7 @@ class Service:
                     from .external_skills import ExternalAdapter
                     self.external_adapter=ExternalAdapter(self.root,self.extensions,self.engine)
                 return self.external_adapter
-        if skill in ['agent.discover','agent.task','agent.subscribe','agent.cancel']:
+        if skill in ['agent.discover','agent.ping','agent.task','agent.subscribe','agent.cancel']:
             with self.adapter_guard:
                 if self.agent_adapter is None:
                     from .a2a_adapter import A2AAdapter
@@ -126,10 +150,10 @@ class Service:
                     self.meta_adapter=MetaAdapter(self)
                 return self.meta_adapter
         if skill in ['storage.upload','storage.download','storage.list']:return self.storage_adapter()
-        if skill in ['storage.share','messaging.send','messaging.join','messaging.create_group']:
+        if skill in ['storage.share','messaging.send','messaging.inbox','messaging.join','messaging.create_group']:
             runtime=self.get_messaging();runtime.start()
             return self.message_adapter
-        if skill in ['wallet.balance','wallet.history','wallet.send','program.query']:return self.get_wallet()
+        if skill in ['wallet.balance','wallet.history','wallet.send','wallet.public_account','wallet.initialize_public','program.query']:return self.get_wallet()
         if skill in ['program.call','program.deploy']:
             with self.adapter_guard:
                 if self.program_adapter is None:
@@ -159,19 +183,34 @@ class Service:
         if not isinstance(request['id'],str) or len(request['id'])>80:raise Rejected('INVALID_REQUEST_ID')
         method=request['method'];params=request['params']
         if not isinstance(params,dict):raise Rejected('INVALID_PARAMETERS')
+        if method.startswith('a2a.client.'):
+            from .a2a_client_api import handle
+            return handle(self,method,params)
+        if method == 'provider.status' and not params:
+            from .provider import status
+            return status(self)
+        if method == 'provider.configure' and set(params)=={'envelope'}:
+            from .provider import configure
+            return configure(self,params['envelope'])
+        if method == 'provider.directory' and set(params)=={'topic','offset','refresh'}:
+            if type(params['refresh'])is not bool:raise Rejected('INVALID_DIRECTORY_REFRESH')
+            from .provider import directory
+            return directory(self,params['topic'],params['offset'],params['refresh'])
         if method == 'owner.ping' and set(params) == {'nonce'}:
             from .liveness import pong
             return pong(self, params['nonce'])
         if method in ('owner.snapshot', 'owner.skills') and set(params) == {'offset'}:
             from . import owner_views
-            view = owner_views.snapshot if method == 'owner.snapshot' else owner_views.skills_page
-            return view(self.engine, params['offset'])
+            if method=='owner.snapshot':
+                messages=self.mailbox.recent_user_messages(6) if self.mailbox else []
+                return owner_views.snapshot(self.engine,params['offset'],peer_messages=messages)
+            return owner_views.skills_page(self.engine,params['offset'])
         if method == 'owner.skill' and set(params) == {'name'}:
             from .owner_views import skill_details
             return skill_details(self.engine, params['name'])
-        if method == 'owner.task' and set(params) == {'task_id'}:
+        if method == 'owner.task' and set(params) in ({'task_id'}, {'task_id','result_offset','result_digest'}):
             from .owner_views import task_details
-            return task_details(self.engine, params['task_id'])
+            return task_details(self.engine, params['task_id'], params.get('result_offset',0), params.get('result_digest',''))
         if method == 'planner.permission' and set(params) == {'envelope'}:
             return self.get_planner().permissions.decide(params['envelope'])
         if method == 'planner.configure' and set(params) == {'envelope'}:
@@ -197,10 +236,13 @@ class Service:
             result=self.bridge.call('storage.connect-local',params)
             return {'connected':True,'result':result}
         if method=='agent.start' and not params:
-            protocol=self.get_agent_protocol();controller=self.get_controller();controller.start()
+            protocol=self.get_agent_protocol();controller=self.get_controller()
+            recovery=controller.resume_recovered(self.restart_recovery)
+            self.restart_recovery={'resumed':[],'reconcile':[],'failed':[]}
+            controller.start()
             if (self.root/'planner'/'conversations.sqlite').exists():
                 self.get_planner().permissions.resume_accepted(controller)
-            protocol.discover(protocol.config['discovery_topic']);return {'started':True,'card':protocol.card()}
+            protocol.discover(protocol.config['discovery_topic']);return {'started':True,'card':protocol.card(),'recovery':recovery}
         if method=='agent.cards' and not params:
             return {'agents':self.get_agent_protocol().cards()}
         if method=='controller.start' and not params:
@@ -211,7 +253,14 @@ class Service:
             controller=self.get_controller();controller.start();return controller.schedule(params['task_id'])
         if method=='owner.send' and set(params)=={'recipient','envelope'}:
             runtime=self.get_messaging();runtime.start()
-            return runtime.mailbox.enqueue(params['recipient'],'owner-command',params['envelope'],ttl=86400)
+            envelope=params['envelope'];body=envelope.get('body',{}) if isinstance(envelope,dict) else {}
+            expires=body.get('expires_at');now=int(self.engine.clock())
+            if type(expires)is not int or expires<=now:raise Rejected('OWNER_COMMAND_EXPIRED')
+            # The receiver still verifies the owner signature. This only bounds
+            # transport retries by the already-signed authorization lifetime.
+            heartbeat=body.get('command',{}).get('method')=='owner.ping'
+            ttl=max(1,min(20 if heartbeat else 86400,expires-now))
+            return runtime.mailbox.enqueue(params['recipient'],'owner-command',envelope,ttl=ttl)
         if method=='cancel' and set(params)=={'envelope'}:
             from .signing import verify_envelope
             body=verify_envelope(params['envelope'],self.engine.owner_key,self.engine.crypto)
@@ -231,6 +280,11 @@ class Service:
         if method=='messaging.start' and not params:
             runtime=self.get_messaging();runtime.start()
             return {'started':True,'address':runtime.mailbox.address,'node':self.bridge.call('delivery.info',{})}
+        if method == 'owner.inbox_cursor' and not params:
+            mailbox=self.get_messaging().mailbox
+            with mailbox.guard:
+                cursor=mailbox.db.execute('SELECT COALESCE(MAX(rowid),0) FROM inbox_history').fetchone()[0]
+            return {'owner_cursor':cursor}
         if method == 'owner.inbox' and set(params) == {'after'}:
             from .owner_views import inbox_page
             return inbox_page(self.get_messaging().mailbox, params['after'])
@@ -297,7 +351,12 @@ def serve_native(profile:Path,source=None,sink=None):
         try:
             try:reply={'id':request_id,'success':True,'result':service.handle(request)}
             except Rejected as e:reply={'id':request_id,'success':False,'error':str(e)}
-            except Exception:reply={'id':request_id,'success':False,'error':'SERVICE_OPERATION_FAILED'}
+            except Exception as error:
+                import traceback
+                frames = traceback.extract_tb(error.__traceback__)[-6:]
+                locations = ','.join(Path(frame.filename).name+':'+str(frame.lineno)+':'+frame.name for frame in frames)
+                print('Kite internal failure '+type(error).__name__+' at '+locations, file=sys.stderr, flush=True)
+                reply={'id':request_id,'success':False,'error':'SERVICE_OPERATION_FAILED'}
             try:
                 canonical(reply)
             except Rejected:

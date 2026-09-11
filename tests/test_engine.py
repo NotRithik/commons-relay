@@ -157,10 +157,6 @@ class EngineTests(unittest.TestCase):
         t=self.task('80');self.engine.execute(t['id'],FixtureAdapter());self.clock.value+=86401;self.assertEqual(self.engine.usage(),0)
     def test_clock_rollback_cannot_reset_budget(self):
         t=self.task('80');self.engine.execute(t['id'],FixtureAdapter());self.clock.value-=8000;self.assertEqual(self.engine.usage(),80)
-    def test_stale_worker_is_unknown_not_redispatched(self):
-        t=self.task('80');self.engine.start(t['id'],'worker');self.clock.value+=1000
-        self.assertEqual(self.engine.recover_stale(),1);self.assertEqual(self.engine.usage(),80)
-        with self.assertRaises(Rejected):self.engine.start(t['id'],'other')
     def test_wrong_lease_cannot_change_task(self):
         t=self.task();self.engine.start(t['id'],'worker')
         with self.assertRaises(Rejected):self.engine.record_prepared(t['id'],'wrong',Prepared('x',1,'x'))

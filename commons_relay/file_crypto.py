@@ -99,7 +99,7 @@ class Sodium:
         if len(header)!=24:raise Rejected('TRUNCATED_FILE_HEADER')
         state=c.create_string_buffer(self.state_size)
         if self.lib.crypto_secretstream_xchacha20poly1305_init_pull(state,header,key)!=0:raise Rejected('INVALID_FILE_HEADER')
-        total=0;metadata=None
+        total=0;metadata=None;plain_digest=hashlib.sha256()
         try:
             while True:
                 frame=source.read(4)
@@ -118,10 +118,10 @@ class Sodium:
                     if not isinstance(metadata,dict):raise Rejected('INVALID_FILE_METADATA')
                 elif tag.value==self.final:
                     if plain or source.read(1):raise Rejected('TRAILING_ENCRYPTED_DATA')
-                    return {'metadata':metadata,'plaintext_bytes':total}
+                    return {'metadata':metadata,'plaintext_bytes':total,'plaintext_sha256':plain_digest.hexdigest()}
                 elif tag.value==0:
                     total+=len(plain)
                     if total>maximum:raise Rejected('FILE_LIMIT_EXCEEDED')
-                    destination.write(plain)
+                    destination.write(plain);plain_digest.update(plain)
                 else:raise Rejected('UNEXPECTED_STREAM_TAG')
         finally:self.lib.sodium_memzero(state,self.state_size)

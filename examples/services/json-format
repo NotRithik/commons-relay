@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Zero-debit JSON formatting service. Invalid documents are explicitly refused."""
+import hashlib
+import json
+import re
+import sys
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('Duplicate JSON object keys are not accepted.')
+        result[key] = value
+    return result
+
+
+def invalid_constant(value):
+    raise ValueError('Non-finite numbers are not valid JSON.')
+
+
+def main():
+    raw = sys.stdin.buffer.read(65537)
+    if len(raw) > 65536:
+        raise ValueError('REQUEST_LIMIT')
+    request = json.loads(raw)
+    phase = request.get('phase') if isinstance(request, dict) else None
+    fields = {'protocol', 'phase', 'task_id', 'arguments'} | ({'effect_id'} if phase in ('execute', 'lookup') else set())
+    if (not isinstance(request, dict) or set(request) != fields or
+            request['protocol'] != 'commons-relay-extension/v1' or
+            phase not in ('prepare', 'execute', 'lookup')):
+        raise ValueError('INVALID_REQUEST')
+    task, args = request['task_id'], request['arguments']
+    if not isinstance(task, str) or not re.fullmatch('[A-Za-z0-9_-]{1,80}', task):
+        raise ValueError('INVALID_TASK')
+    if not isinstance(args, dict) or set(args) != {'text'}:
+        raise ValueError('INVALID_ARGUMENTS')
+    text = args['text']
+    if not isinstance(text, str) or not 1 <= len(text) <= 5000:
+        raise ValueError('INVALID_TEXT')
+    material = json.dumps({'task': task, 'text': text}, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+    effect = 'json-format-' + hashlib.sha256(material).hexdigest()
+    if phase == 'prepare':
+        response = {'effect_id': effect}
+    else:
+        if request['effect_id'] != effect:
+            raise ValueError('EFFECT_CHANGED')
+        try:
+            document = json.loads(text, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+            formatted = json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False)
+            if len(formatted.encode('utf-8')) > 16000:
+                raise ValueError('The formatted document exceeds the service output limit.')
+            kind = ('null' if document is None else 'boolean' if isinstance(document, bool) else
+                    'object' if isinstance(document, dict) else 'array' if isinstance(document, list) else
+                    'string' if isinstance(document, str) else 'number')
+            response = {'state': 'confirmed', 'result': {'formatted': formatted, 'top_level_type': kind,
+                        'input_bytes': len(text.encode('utf-8'))}}
+        except json.JSONDecodeError as error:
+            response = {'state': 'rejected', 'result': {'reason': 'INVALID_JSON',
+                        'message': 'Invalid JSON at line %d, column %d. No document was formatted.' % (error.lineno, error.colno)}}
+        except (ValueError, RecursionError):
+            response = {'state': 'rejected', 'result': {'reason': 'UNSUPPORTED_JSON',
+                        'message': 'The document has duplicate keys, non-finite numbers, excessive nesting or an oversized formatted result.'}}
+    print(json.dumps(response, separators=(',', ':'), allow_nan=False))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, TypeError, KeyError, RecursionError):
+        raise SystemExit(2)

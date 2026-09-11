@@ -37,6 +37,8 @@ class CoreClient:
         if not isinstance(method,str) or not isinstance(params,dict):raise Rejected('INVALID_CONTROL_REQUEST')
         request={'method':method,'params':params}
         request_id=self.invoke('request','str:'+canonical(request).decode())
+        if isinstance(request_id,str) and request_id in {'METHOD_NOT_ALLOWED','RUNTIME_NOT_CONFIGURED','REQUEST_LIMIT','INVALID_REQUEST_JSON'}:
+            raise Rejected(request_id)
         if not isinstance(request_id,str) or not re.fullmatch(r'[a-f0-9-]{36}',request_id):raise Rejected('CORE_REQUEST_NOT_ACCEPTED')
         deadline=time.monotonic()+self.timeout
         while time.monotonic()<deadline:

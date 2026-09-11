@@ -55,7 +55,8 @@ class Lgx:
 
 def files_for_variant(native: Path, variant: str, name: str):
     if name not in MODULES:raise ValueError('Unknown Relay module')
-    if variant not in ['darwin-arm64','linux-x86_64']:raise ValueError('Unsupported native variant')
+    variant={'linux-x86_64':'linux-amd64','linux-aarch64':'linux-arm64'}.get(variant,variant)
+    if variant not in ['darwin-arm64','linux-amd64','linux-arm64']:raise ValueError('Unsupported native variant')
     if native.is_symlink() or not native.is_dir():raise ValueError('Expected a regular staged directory')
     ext='.dylib' if variant=='darwin-arm64' else '.so'
     names=[name+'_plugin'+ext,'metadata.json']
@@ -64,7 +65,14 @@ def files_for_variant(native: Path, variant: str, name: str):
     if metadata.get('name')!=name or metadata.get('type')!=expected_type or metadata.get('main')!=name+'_plugin':
         raise ValueError('Unexpected module metadata')
     if name=='commons_relay_owner_ui':
-        names += [name+'_replica_factory'+ext,'qml/Main.qml','icons/commons_relay.svg','commons_relay_owner_ui.py']
+        names += [name+'_replica_factory'+ext,'icons/commons_relay.svg','commons_relay_owner_ui.py','commons_relay_agent_setup.py']
+        qml=native/'qml'
+        if qml.is_symlink() or not qml.is_dir():raise ValueError('Bundled QML missing')
+        for required in ['Main.qml','ChatTranscript.qml','Services.qml']:
+            if not (qml/required).is_file():raise ValueError('Required UI component missing: '+required)
+        for path in sorted(qml.rglob('*')):
+            if path.is_symlink():raise ValueError('QML symlink denied')
+            if path.is_file() and path.suffix=='.qml':names.append(str(path.relative_to(native)))
     elif name=='commons_relay_module':names += ['commons_relay_worker.py']
     if name!='commons_relay_wallet':
         package=native/'commons_relay'
@@ -87,6 +95,7 @@ def seed_archive(path:Path,manifest:dict,root_files:dict[str,bytes]):
             tar.addfile(info,io.BytesIO(data))
 
 def package(lgx:Lgx,native:Path,variant:str,output:Path,name:str):
+    variant={'linux-x86_64':'linux-amd64','linux-aarch64':'linux-arm64'}.get(variant,variant)
     names,metadata=files_for_variant(native,variant,name)
     if output.exists():raise ValueError('Refusing to replace an existing package')
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -126,7 +135,7 @@ def main():
     p.add_argument('--lgx-lib',type=Path,required=True)
     p.add_argument('--native-dir',type=Path,required=True)
     p.add_argument('--module',choices=sorted(MODULES),required=True)
-    p.add_argument('--variant',choices=['darwin-arm64','linux-x86_64'],required=True)
+    p.add_argument('--variant',choices=['darwin-arm64','linux-amd64','linux-arm64','linux-x86_64','linux-aarch64'],required=True)
     p.add_argument('--output',type=Path,required=True)
     args=p.parse_args()
     report=package(Lgx(args.lgx_lib.resolve()),args.native_dir.resolve(),args.variant,args.output.resolve(),args.module)

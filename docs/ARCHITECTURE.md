@@ -11,7 +11,7 @@ permission state in SQLite and delegates effects to adapters.
 proposals. Pi's `Agent` loop can supply this layer, as can another local or hosted
 model. The planner is not the wallet. It does not hold the owner's signing key,
 choose its own spending ceiling, or bypass validation by writing a reassuring
-explanation. A model connection is optional and disabled in the installed build.
+explanation. A model connection is optional and disabled for each fresh agent until its owner configures it.
 
 **Task and permission engine.** This is ordinary deterministic code. An owner
 signs a goal grant naming the delegate key, permitted skills, maximum number of
@@ -142,3 +142,13 @@ corruption, truncation, constrained filesystem operations, payment binding and
 refund/reconciliation paths. The optional planner is off unless explicitly
 connected; wallet authority remains in the deterministic engine and native wallet
 companion.
+
+## Inference budget bookkeeping
+
+The persistent budget ledger reserves the conservative cost before each model
+request and retains its spend and unconfirmed reservations across restarts. The
+ledger has a separate 10,000-request bookkeeping capacity; this is not a token
+or dollar allowance. Reaching it asks for an explicit history-maintenance step,
+not a silent reset of charges or reservations. Per-goal tool-step and model-turn
+limits are independent and remain bounded. The earlier 100-request prototype
+capacity was too small for an agent used over multiple days.

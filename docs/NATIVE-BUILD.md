@@ -84,3 +84,32 @@ the installed module in a visible Basecamp window, select an agent, wait for an
 authenticated reply, and exercise the desired flow. Record the resulting task ID,
 state and verified result. Loading the UI or seeing a spinning progress label is
 not evidence that a transaction, model reply or private proof completed.
+
+## Linux: use the matching Core runtime libraries
+
+On Linux, also set `LOGOS_RUNTIME_LIBRARY_DIR` to the `usr/lib` directory of the
+same trusted Logos Core/CLI distribution that will load the modules. For the
+extracted official AppImage layout used in the WSL deployment:
+
+```sh
+export LOGOS_RUNTIME_LIBRARY_DIR=/opt/kite/runtime/logosctl/squashfs-root/usr/lib
+/bin/sh scripts/build-native.sh
+```
+
+The plugins link `liblogos_qt_host.so` and `liblogos_protocol.so` explicitly.
+The Linux build rejects unresolved symbols rather than relying on symbols being
+exported from the executable. A successful compilation with unresolved host
+symbols is not a successful module load. Use the matching distribution's launcher
+so its runtime library paths are initialized.
+
+Raw native installation now creates `manifest.json` beside each module. This is
+required for a clean Core installation to discover it; `metadata.json` alone is
+not enough. Canonical package variants are `linux-amd64` and `linux-arm64`.
+The packager accepts the older `linux-x86_64` spelling only as an input alias and
+writes the canonical variant into the manifest.
+
+The observed Windows provider runtime uses Ubuntu 24.04 under WSL2, while native
+compilation and the CUDA prover build use the separate Ubuntu 22.04 distribution.
+Do not assume that building on an older distribution proves that every official
+runtime binary can execute there. Check the actual loader and shared-library
+requirements. Neither the upstream Storage nor Delivery module is modified.

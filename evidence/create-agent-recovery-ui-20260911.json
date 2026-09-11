@@ -1,0 +1,25 @@
+{
+  "observed_at": 1789100174,
+  "setup_id": "agent-5c18b9f4b61922a6",
+  "name": "Research assistant",
+  "state": "ready",
+  "fresh_owner_connection_verified_in_basecamp": true,
+  "native_tools_available_without_model": true,
+  "first_ui_task": {
+    "id": "e62fa0bde9974137b8bc2966ef5c2615",
+    "skill": "meta.skills",
+    "state": "completed",
+    "skill_count": 23
+  },
+  "model_calls_started": 0,
+  "wallet_operations": 0,
+  "public_listing": false,
+  "identity_binding_matches": true,
+  "same_identity_recovery": true,
+  "initial_failure": "Long Unix socket path followed by delayed Core startup",
+  "unused_duplicate_reviews_created_wallets": false,
+  "formatted_json_scroll_verified_in_ui": true,
+  "full_saved_json_characters": 8650,
+  "model_configuration_flow_verified": false,
+  "new_task_repeated_for_result_reading": false
+}

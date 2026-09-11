@@ -15,5 +15,8 @@ int main() {
     h.begin("three", 69000); assert(!h.accept("three", 68999));
     assert(h.accept("three", 70000));
     h.reset(); assert(!h.fresh(70000)); assert(!h.accept("three", 70001));
+    h.begin("absent", 0); h.begin("again", 20000); h.begin("again2", 40000);
+    assert(std::string(h.state(45000)) == "unresponsive");
+    h.reset();
     h.begin("four", 71000); assert(!h.due(86000)); assert(h.due(91000));
 }

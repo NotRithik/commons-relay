@@ -22,7 +22,7 @@ def compose_decision(command, agent, signer, private, now):
     if not isinstance(request,dict) or len(canonical(request))>8000:
         raise Rejected('INVALID_PERMISSION_REVIEW')
     required={'goal_id','skill','arguments','reason','description','maximum_spend','asset','policy_version','expires_at','intent_hash'}
-    if set(request)!=required or request['goal_id']!=goal:
+    if not required<=set(request) or set(request)-required-{'execution_expires_at'} or request['goal_id']!=goal:
         raise Rejected('INVALID_PERMISSION_REVIEW')
     check={key:value for key,value in request.items() if key!='intent_hash'}
     if request['intent_hash']!=digest(check): raise Rejected('PERMISSION_REVIEW_CHANGED')
@@ -30,10 +30,13 @@ def compose_decision(command, agent, signer, private, now):
     if type(request['expires_at']) is not int or not now<request['expires_at']<=now+3600:
         raise Rejected('PERMISSION_REQUEST_EXPIRED')
     expiry=min(now+600,request['expires_at'])
+    execution_expiry=request.get('execution_expires_at',expiry)
+    if type(execution_expiry) is not int or not now<execution_expiry<=now+7200:
+        raise Rejected('INVALID_EXECUTION_WINDOW')
     task=None
     if command['decision']=='approve':
         body={'domain':REQUEST_DOMAIN,'agent_id':agent,'request_id':'permission-'+goal,
-              'skill':request['skill'],'arguments':request['arguments'],'expires_at':expiry}
+              'skill':request['skill'],'arguments':request['arguments'],'expires_at':execution_expiry}
         task=sign_envelope(body,private,signer)
     body={'domain':DOMAIN,'agent_id':agent,'goal_id':goal,'permission_hash':request['intent_hash'],
           'decision':command['decision'],'task_envelope':task,'expires_at':expiry}
@@ -91,6 +94,8 @@ class ConversationPermissions:
             request={'goal_id':goal,'skill':skill,'arguments':params['arguments'],'reason':reason.strip(),
                      'description':item.description,'maximum_spend':str(quote.maximum),'asset':quote.asset,
                      'policy_version':self.engine.policy.version,'expires_at':now+1800}
+            if quote.maximum>0 and skill in ('wallet.send','agent.task'):
+                request['execution_expires_at']=now+min(7200,self.engine.policy.approval_ttl)
             if len(canonical(request)) > 6000: raise Rejected('PERMISSION_REQUEST_TOO_LARGE')
             request['intent_hash']=digest(request)
             self.planner.db.execute('INSERT INTO conversation_permissions(goal_id,request) VALUES (?,?)',(goal,canonical(request).decode()))
@@ -117,7 +122,7 @@ class ConversationPermissions:
         if (json.loads(saved['intent'])!=expected or saved['hash']!=digest(expected)
             or saved['skill']!=request['skill'] or json.loads(saved['args'])!=request['arguments']
             or saved['amount']!=request['maximum_spend'] or saved['asset']!=request['asset']
-            or type(saved['deadline']) is not int or not 0<saved['deadline']<=request['expires_at']
+            or type(saved['deadline']) is not int or not 0<saved['deadline']<=request.get('execution_expires_at',request['expires_at'])
             or (row['task_id'] and row['task_id']!=saved['id'])):
             raise Rejected('PERMISSION_TASK_BINDING_MISMATCH')
         if row['attempt']:
@@ -128,7 +133,7 @@ class ConversationPermissions:
             if (attempt.get('domain')!=DOMAIN or attempt.get('agent_id')!=self.engine.agent
                 or attempt.get('goal_id')!=goal or attempt.get('decision')!='approve'
                 or attempt.get('permission_hash')!=request['intent_hash']
-                or attempt.get('expires_at')!=saved['deadline'] or task_body!=expected_body):
+                or (request.get('execution_expires_at',attempt.get('expires_at'))!=saved['deadline']) or task_body!=expected_body):
                 raise Rejected('PERMISSION_TASK_BINDING_MISMATCH')
         # get() applies the normal engine expiry rules. An expired authorization
         # is never revived merely to repair the conversation's metadata.
@@ -199,7 +204,7 @@ class ConversationPermissions:
             if body['decision']=='approve':
                 task_body=verify_envelope(body['task_envelope'],self.engine.owner_key,self.engine.crypto)
                 expected={'domain':REQUEST_DOMAIN,'agent_id':self.engine.agent,'request_id':'permission-'+goal,
-                          'skill':request['skill'],'arguments':request['arguments'],'expires_at':body['expires_at']}
+                          'skill':request['skill'],'arguments':request['arguments'],'expires_at':request.get('execution_expires_at',body['expires_at'])}
                 if task_body!=expected:raise Rejected('PERMISSION_ACTION_MISMATCH')
             elif body['task_envelope'] is not None:raise Rejected('INVALID_PERMISSION_DECISION')
             existing=self._existing(goal,row,request)

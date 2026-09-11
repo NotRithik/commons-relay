@@ -78,9 +78,9 @@ public testnet using six Rayon proof threads:
 | --- | ---: | ---: | --- |
 | A2A private 3-unit payment | 964.433 s | 42,557 | client 50 → 47, provider 50 → 53 |
 
-The complete sanitized receipt is `evidence/paid-a2a-private-lez.json`. The shorter
-wall time is attributable to the different local thread count and machine load;
-it is not a protocol fee change.
+The complete sanitized receipt is `evidence/paid-a2a-private-lez.json`. Thread count
+and machine load differed between these runs, so they are not a controlled
+speedup experiment. The difference is not evidence of a protocol fee change.
 
 The wallet records the exact transaction hash before network submission and later
 requires that exact hash and exact receiving commitment/amount when confirming an
@@ -136,3 +136,62 @@ wall-clock measurements, not on-chain compute units or fees.
 
 See `evidence/local-real-proof-macos.json`. This proves a clean local flow; it
 does not replace the public-testnet evidence or the submission video.
+
+## Current-network observations, 11 September 2026
+
+Older blocks in the tables above are historical observations. They are not current
+wallet balances after a testnet reset.
+
+The public custom text-statistics service completed for **1 testnet unit** at
+block **3206**. Its recorded private proof wall time was **2678.719 seconds**;
+the entire task took **2844 seconds**. Both figures come from
+`evidence/paid-public-extension-20260911.json`. The executable's result is separate
+from proof of the token transfer: the payment proof does not prove the word count.
+
+The chat-initiated Windows Exa service also completed for **1 testnet unit**, at
+block **3359**, transaction
+`0fab8d18f35aa2771c692dc43dcc9f67deb7aa01ff8f90bc3a563a1720f27ec0`.
+Its engine-recorded complete workflow took **2670 seconds**. That duration includes
+more than proving and must not be labeled as a standalone proof benchmark. The
+provider's result hash matched the client's recorded artifact. The three-result
+request returned a shortened response containing two saved linked excerpts; this
+is a service-output limitation, not an additional token charge. See
+`evidence/chat-windows-exa-verified-20260911.json`.
+
+The new public program-call example compiles to **311876 bytes** in the current
+Mac build. Build completion is not deployment or call completion. Its UI
+acceptance must record its own program ID, transaction and block before being
+counted as a successful operation.
+
+`program.deploy` and the currently supported `program.call` use public
+transactions at the pinned revision. They are always owner-approved, but do not
+require the long private transfer proof. Generic program effects are not inferred
+from a zero direct-token quote; review the program and account list.
+
+No NVIDIA acceleration is claimed. CUDA driver detection and compiling part of a
+prover are not evidence of a GPU-generated, verified proof. The unfinished GTX
+1060 experiment is excluded from the required demonstration.
+
+## Default-skill UI observations, 11 September 2026
+
+These are the engine's elapsed task durations, including approval, queuing,
+network settlement and response handling. They are **not standalone proof times**
+and are **not on-chain metered CU**.
+
+| Default skill | Task elapsed | Confirmed block | Direct token spend |
+| --- | ---: | ---: | ---: |
+| wallet.send | 2,766 s | 3703 | 1 testnet unit |
+| program.deploy | 118 s | 3639 | 0 |
+| program.call (corrected instruction) | 123 s | 3711 | 0 |
+
+The matching task IDs and transaction hashes are in
+`evidence/default-wallet-program-ui-20260911.json`; these were rechecked against
+the current chain without broadcasting again. The public call used instruction
+`4554494b`. The earlier `4544494b` transaction is a separate failed-validation
+case, not part of the success measurement.
+
+The same no-change program was separately executed with a saved public account
+snapshot using the pinned guest executor: 41,855 guest user cycles. That local
+execution is not a zero-knowledge proof or the sequencer's metered fee receipt.
+The deployed image ID is
+`f863b88a398597e3f869d6ea831738c74ad36063c87fce84d6a9e4bf0c8f4829`.

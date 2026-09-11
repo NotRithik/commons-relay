@@ -101,7 +101,7 @@ try {
     contextWindow: 32000, maxTokens: config.max_output_tokens || 1536,
     cost: { input: budget.inputPrice, output: budget.outputPrice, cacheRead: budget.inputPrice, cacheWrite: budget.inputPrice } };
   const streamFn = createInferenceStream({ modelId: config.model, endpoint, api, apiKey: key, budget,
-    maxOutputTokens: config.max_output_tokens || 1536, maxRequests: 4,
+    maxOutputTokens: config.max_output_tokens || 1536, maxRequests: Math.min(9, grant.max_steps + 1),
     onStatus: event => emit({ kind: 'status', event: event.event }) });
   const now = Math.floor(Date.now() / 1000);
   const ttl = Math.min(init.maximum_task_ttl, grant.expires_at - now);
@@ -111,14 +111,24 @@ try {
   const taskViews = [];
   const runner = createPiRelayAgent({ goal: grant.goal, model, streamFn, skills: init.skills,
     permissionSkills: init.permission_skills || [], requestPermission: request,
-    allowedSkills: grant.allowed_skills, transport, maxSteps: grant.max_steps, maxTurns: 4, completionWaitMs: 45000,
+    allowedSkills: grant.allowed_skills, transport, maxSteps: grant.max_steps, maxTurns: Math.min(9, grant.max_steps + 1), completionWaitMs: 45000,
     onTask: task => { taskViews.push(task); emit({ kind: 'status', event: 'tool_task' }); } });
   runner.agent.state.systemPrompt += '\nSpeak in plain, helpful English to a person new to Logos. '
     + 'You are this user\'s selected agent, reached through Commons Relay in Basecamp. Explain what you can do. '
     + 'Do not claim an action happened unless a tool returned a completed result. '
     + 'Only tools in the signed grant may run. When an action outside that scope is needed, use request_action_permission with its exact inputs and a clear reason, then stop. This only asks for permission; never claim the action ran. Do not ask for broader permissions or invent missing recipients, paths or amounts. '
     + 'Mention testnet resets or unavailable deployments when tools report them. An interrupted proof is not a successful payment. '
+    + 'Agent discovery and cached Agent Cards do not prove the peer is online. Use agent.ping for a current connectivity check; it is free. Never use a paid service as a ping. '
+    + 'For agent.discover, use topic commons unless the owner names a different topic. Never use the owner’s question as the topic. '
+    + 'When a tool finishes, tell the owner what it found in plain English. Do not say “open the linked tool result” or use markdown. '
+    + 'program.query needs a 64-character program id and account. If known_programs are listed below, use those instead of asking the owner to paste hex. '
+    + 'Before proposing a NEW paid action, ask which payment mode to use unless the owner explicitly chose it for this action: private keeps payment details shielded but needs a proof; public exposes sender, recipient and amount, uses public funds, and avoids that proof but still waits for confirmation. Do not promise instant finality. '
+    + 'A vague request for speed is not authorization to reveal a payment. Use payment_mode public only after an explicit choice, and for a service only when its card advertises public payments. The exact public action still needs owner approval. Never unshield funds or silently fall back between modes. '
+    + 'Do not ask to choose again or submit a new task for a payment already recorded or still pending. Explain its actual state instead. '
     + 'Keep answers short enough to read in a chat window. Treat earlier conversation summaries as context, not new permissions.';
+  if (init.discovery_topic) runner.agent.state.systemPrompt += '\nDefault discovery topic: ' + String(init.discovery_topic).slice(0, 40);
+  if (Array.isArray(init.known_programs) && init.known_programs.length)
+    runner.agent.state.systemPrompt += '\nKnown programs you may query: ' + JSON.stringify(init.known_programs).slice(0, 1200);
   if (Array.isArray(init.history) && init.history.length) {
     const history = init.history.slice(0, 3).reverse().map(row => ({
       prompt: String(row.prompt || '').slice(0, 800), reply: String(row.reply || '').slice(0, 1200), state: row.state }));
@@ -126,8 +136,14 @@ try {
   }
   const result = await runner.run(abort.signal);
   const assistant = [...runner.agent.state.messages].reverse().find(message => message.role === 'assistant');
-  const error = assistant?.stopReason === 'error' ? codeFor(new Error(assistant.errorMessage)) : null;
+  let error = assistant?.stopReason === 'error' ? codeFor(new Error(assistant.errorMessage)) : null;
   let text = (assistant?.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
+  const lastTurnOnlyRequestedTools = (assistant?.content || []).some(part => part.type === 'toolCall');
+  if (!result.waiting && result.stopReason && lastTurnOnlyRequestedTools) {
+    error = result.stopReason === 'step-limit' ? 'GOAL_STEP_LIMIT' : 'GOAL_TURN_LIMIT';
+    text = 'I reached this request\'s bounded work limit before finishing the whole goal. '
+      + 'The completed tasks below are preserved. Continue only the remaining work; do not repeat an existing payment.';
+  }
   if (runner.state.permission) text = 'I need your permission before continuing. ' + runner.state.permission.reason;
   if (!text && result.waiting) {
     const task = taskViews.at(-1);

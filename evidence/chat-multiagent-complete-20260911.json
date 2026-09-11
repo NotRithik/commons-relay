@@ -1,0 +1,125 @@
+{
+  "observed_at": 1789075931,
+  "workflow": "observed actual Basecamp chat, fresh two-provider workflow",
+  "client_role": "blockchain",
+  "goal": {
+    "id": "chat-ccf6cf8f888315cffed04168",
+    "prompt": "Run a fresh, zero-token two-agent plan. Discover commons, ask My agent (the Storage peer) for its free storage.list result, and ask Text statistics for its free meta.skills result. Both remote services must actually run, not just ping or read their cards. Then combine the returned file names with the supported text-analysis operation into a short useful plan. Do not pay, run a word count, or create another task for any request that is still pending. The previous free task finished, but the previous overall plan was incomplete because the second service never ran.",
+    "state": "completed",
+    "reply": "Fresh zero-token two-agent plan completed.\n\n- Discovery: Found the Commons agents, including My agent (Storage peer) and Text statistics.\n- My agent\u2019s free `storage.list` ran successfully. Available files:\n  - `Overnight vault note` \u2014 128 bytes\n  - `demo-note.txt` \u2014 49 bytes\n  - `LP-0008 vault demo` \u2014 79 bytes\n  - `permission-ui-demo` \u2014 49 bytes\n- Text statistics\u2019 free `meta.skills` ran successfully. It supports `example.text_statistics`, which can analyze supplied text for word count, character count, line count, and UTF-8 byte count.\n\nUseful plan: select one of the listed stored files, download it if authorized, and submit its text to `example.text_statistics` for those four measurements. No tokens were spent, and no word-count operation was run.",
+    "error": null,
+    "created": 1789075809,
+    "updated": 1789075848
+  },
+  "tasks": [
+    {
+      "id": "9871ddd5d03d4152a1e6f3df609e97c4",
+      "skill": "agent.discover",
+      "state": "completed",
+      "amount": "0",
+      "arguments": {
+        "topic": "commons"
+      }
+    },
+    {
+      "id": "4704808bea4241419f7ca08506bac21f",
+      "skill": "agent.task",
+      "state": "completed",
+      "amount": "0",
+      "arguments": {
+        "agent_address": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+        "params": {},
+        "skill": "storage.list"
+      },
+      "peer": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+      "remote_task": "87be6dc722e803f49c463ef1884ea810",
+      "provider_role": "storage",
+      "provider_task": {
+        "id": "87be6dc722e803f49c463ef1884ea810",
+        "state": "completed",
+        "skill": "storage.list",
+        "payment_state": "not-required",
+        "local_task": "d947086c02124af68ff000ccf998d934"
+      },
+      "result_matches_provider": true,
+      "result_summary": {
+        "files": [
+          {
+            "label": "Overnight vault note",
+            "bytes": 128,
+            "address": "zDvZRwzkw83SGnq69SXXoEc56BNfM9WKX37UU8cfGR6NcN8Y1ugG"
+          },
+          {
+            "label": "demo-note.txt",
+            "bytes": 49,
+            "address": "zDvZRwzm3Qf1gG7sgLfCJbrWV8FfwW2d2Ywe6ozhMKGhx6gmBojM"
+          },
+          {
+            "label": "LP-0008 vault demo",
+            "bytes": 79,
+            "address": "zDvZRwzm9qzdiM3MY2WaJba6o9x12NpS1PGAe3vEFtkNgLYVw7sv"
+          },
+          {
+            "label": "permission-ui-demo",
+            "bytes": 49,
+            "address": "zDvZRwzmCdBiTRjNXkDamyrhBYVNdk8jK7P6asNLNaudY9DLnZPp"
+          }
+        ]
+      },
+      "result_sha256": "e7e315c8263af10880302136a8b2d8966a9870b9dfca6ba87a3ce82f6a81702b"
+    },
+    {
+      "id": "f5523ecf28514031878660708775b287",
+      "skill": "agent.task",
+      "state": "completed",
+      "amount": "0",
+      "arguments": {
+        "agent_address": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+        "params": {},
+        "skill": "meta.skills"
+      },
+      "peer": "relay-f584632ba0173bfcdc4cf74dfaa710348b4558e23a209b6c2c9d8ff7c0ca0e21",
+      "remote_task": "1964e5f956d5e11772266ae9ba3ecca8",
+      "provider_role": "messaging",
+      "provider_task": {
+        "id": "1964e5f956d5e11772266ae9ba3ecca8",
+        "state": "completed",
+        "skill": "meta.skills",
+        "payment_state": "not-required",
+        "local_task": "2be8152adcbb4d858010487f1cdd5661"
+      },
+      "result_matches_provider": true,
+      "result_summary": {
+        "skills": [
+          "storage.upload",
+          "storage.download",
+          "storage.list",
+          "storage.share",
+          "messaging.send",
+          "messaging.inbox",
+          "messaging.join",
+          "messaging.create_group",
+          "wallet.balance",
+          "wallet.send",
+          "wallet.history",
+          "program.query",
+          "program.call",
+          "program.deploy",
+          "agent.card",
+          "agent.discover",
+          "agent.ping",
+          "agent.task",
+          "agent.subscribe",
+          "agent.cancel",
+          "meta.skills",
+          "meta.status",
+          "meta.configure",
+          "example.text_statistics"
+        ]
+      },
+      "result_sha256": "ccb92abd73b3ac431d095e88a8f3e177fe478cbb1e8a18e03ec647f4b1b56917"
+    }
+  ],
+  "total_testnet_spend": "0",
+  "two_provider_results_verified": true
+}

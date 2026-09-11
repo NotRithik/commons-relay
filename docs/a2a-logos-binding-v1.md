@@ -8,8 +8,13 @@ transport adapter; the repository does not claim direct HTTP interoperability.
 Agent Cards use detached EdDSA JWS signatures over a canonical JSON document,
 following the `AgentCardSignature` shape in A2A 1.0.1. The canonicalization helper
 accepts the RFC 8785 safe-integer subset; floating-point card fields are rejected.
-Known contact signing keys are pinned by the owner. A self-signed advertisement
-is not enough to replace a contact key or authorize spending.
+Owner contacts retain their pinned keys. Public service identities instead use
+`relay-` plus a domain-separated SHA-256 fingerprint of the Ed25519 signing and
+X25519 encryption public keys. These keys are derived from the agent's LEZ-root
+messaging identity at deployment. A public card proves control of its advertised
+service keys, not the provider's reputation or an externally verified LEZ-root
+attestation. A self-signed advertisement cannot replace an owner contact key or
+authorize a wallet payment.
 
 ## Binding frames
 
@@ -23,8 +28,10 @@ ciphertext, not plaintext requests or results.
 
 Messages and tasks use the 1.0 names: `messageId`, `contextId`, `taskId`,
 `ROLE_USER` / `ROLE_AGENT`, and `TASK_STATE_*`. Input and output are JSON Data
-Parts. A new service request's Data Part contains `skill`, `arguments` and a fresh
-`refundAddress`. The last field belongs to the advertised payment extension.
+Parts. A new service request's Data Part contains `skill`, `arguments` and
+`refundAddress`. Paid tasks supply a fresh private receiver in `refundAddress`;
+free tasks supply `null` and do not query or prepare a wallet operation. This field
+belongs to the advertised payment extension.
 
 `SendStreamingMessage` immediately returns an initial `task` and starts its
 stream. `SubscribeToTask` attaches to an ongoing task and returns the current
@@ -63,11 +70,41 @@ because the advertised Logos interface has no tenant.
 
 ## Publication and discovery
 
-Signed public Agent Cards are stored through the actual Logos Storage module.
-Their content addresses accompany announcements on a Logos discovery topic.
-Known peers also receive an encrypted announcement so late joiners can discover
-services without relying on one transient broadcast. Discovery advertises
-capabilities; the owner-pinned contact key controls whether a peer is trusted.
+Public publishing is an explicit provider setting. The signed card is uploaded
+through the actual Logos Storage module, and its Storage CID accompanies an
+announcement on the named Logos discovery topic. Publication uses an immutable
+card snapshot; changing a listing during a slow Storage upload does not silently
+label an old card as the new one.
+
+The topic is `/commons-relay/1/discovery-<sha256(name)[:32]>/json`. A signed public
+discovery envelope has domain `commons/relay/public-discovery/v1`, kind `query` or
+`agent-card`, the exact topic name, `issued`, `expires`, and a `sender` public
+contact. Queries add a fresh `nonce`; advertisements add `card` and `storageCid`.
+The sender signature covers all these fields. The card is independently signed,
+and its route, keys and topic must match the announcement. Advertisements expire
+after at most 300 seconds. Replaying one does not extend that lifetime. A query
+lets a late-joining client request a fresh announcement; an online provider also
+refreshes periodically.
+
+Discovered service contacts are stored separately from owner-pinned contacts.
+`agent.discover(topic)` returns unexpired cards for that topic, including their
+skills, schemas and declared prices. A live public card is preferred over the
+same keypair's legacy address-book alias so it is not listed twice. Directory
+pages and advertisement/signature processing are bounded; this is not a claim
+that a permissionless network cannot be spammed.
+
+Public recipient topics carry encrypted envelopes with a signed `senderContact`
+introduction. The recipient checks the sender's self-authenticating address and
+signature before recording the service contact. Only A2A requests, responses,
+events, cards and acknowledgments enter this lane. Owner commands, file shares,
+private messages and group membership remain on the original pinned-contact lane.
+No executable is downloaded from an advertisement.
+
+The network connection and the discovery topic are distinct. Both agents must
+join the same Messaging network before a topic query can reach a provider.
+Localhost and explicit private-LAN development meshes are documented separately
+from the named official network preset. A LAN demonstration does not establish
+internet-wide reachability. See `PROVIDERS.md` and `NETWORKING.md`.
 
 ## Owner authority versus exported services
 
@@ -76,6 +113,15 @@ only the services explicitly listed in `services.json`. The internal service
 entry point rejects wallet transfers, arbitrary program execution/deployment,
 configuration changes, and any skill that would spend the owner's funds. Remote
 service prices are separate from the provider's zero-spend execution authority.
+
+## External clients
+
+`commons_relay.a2a_client.LogosA2AClient` carries the A2A JSON data model through
+an existing local Core session. Its `a2a.client.*` IPC operations are explicitly
+allowlisted by the native module. Request IDs and event cursors survive client
+restarts. It never starts a payment: the owner-authorized `agent.task` path remains
+the automatic settlement entry point. See `CLIENTS.md` for request, streaming and
+recovery examples. Unmodified HTTP-only clients still need the Logos adapter.
 
 ## Verification boundary
 

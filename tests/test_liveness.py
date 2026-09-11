@@ -30,6 +30,12 @@ class LivenessTests(unittest.TestCase):
         self.assertLess(len(canonical(result)), 7000)
         self.assertEqual(self.f.engine.db.execute('SELECT count(*) FROM tasks').fetchone()[0], 0)
 
+    def test_running_controller_health_uses_integer_wire_values(self):
+        self.f.controller.last_tick=time.monotonic()-1.4
+        result=pong(self.f.service,'a'*32)
+        self.assertIs(type(result['controller_tick_age_seconds']),int)
+        self.assertIn(b'owner_ping',canonical(result))
+
     def test_invalid_challenge_rejected(self):
         for value in [None, True, '', 'a' * 31, 'G' * 32, {'shell': 'x'}]:
             with self.assertRaises(Rejected): pong(self.f.service, value)

@@ -1,6 +1,6 @@
 # Skill interface and extension SDK
 
-Commons Relay exposes 21 built-in skills. Their schemas are returned by
+Commons Relay exposes the 21 LP-0008 default skills plus `agent.ping`, a zero-cost liveness check for known peers. Their schemas are returned by
 `meta.skills()` and are the same schemas shown to an optional planner. The task
 engine validates those schemas before reserving a budget or calling an adapter.
 A model response cannot create a new skill, alter a schema, or select a different
@@ -25,7 +25,8 @@ spending ceiling.
 | `program.deploy` | `binary_path` | zero LEZ transfer ceiling; always owner approval |
 | `agent.card` | none | zero |
 | `agent.discover` | `topic` | zero |
-| `agent.task` | `agent_address`, `skill`, `params` | exact price from the pinned peer's signed Agent Card |
+| `agent.ping` | `agent_address` | zero; authenticated liveness check for a known peer |
+| `agent.task` | `agent_address`, `skill`, `params` | exact price from the verified provider's signed Agent Card |
 | `agent.subscribe` | `agent_address`, `task_id` | zero |
 | `agent.cancel` | `agent_address`, `task_id` | zero |
 | `meta.skills` | none | zero |
@@ -52,9 +53,14 @@ trusted extension directory, pins its SHA-256 in a manifest, and lists the
 manifest in the agent profile. Restarting the agent extends the immutable skill
 registry from those manifests.
 
-The current extension SDK is **zero-spend only**. This is a safety boundary, not
-a missing price field: an extension cannot debit the agent wallet. Financial
-extensions should be implemented as typed core adapters with explicit receipt
+The extension execution SDK is **zero-spend**: an extension cannot debit the
+provider's wallet. This does **not** prohibit a paid remote service. The provider
+sets a service price in its signed listing; the A2A payment engine collects and
+verifies that fee separately before running the extension. A public-eligible
+extension can be installed and offered without editing the core module. See
+`PROVIDERS.md` for `scripts/install-skill.py`, one-command deployment options and
+the Basecamp listing editor. Extensions that themselves spend wallet funds need
+a separately designed typed core adapter with explicit receipt
 semantics rather than asking a generic subprocess to report its own cost.
 
 Example `extensions.json` in the agent profile:
@@ -96,8 +102,10 @@ schemas with optional or additional fields. A manifest cannot replace a built-in
 
 The executable receives one bounded JSON object on stdin and writes one bounded
 JSON object on stdout. It gets an explicit environment containing only `PATH`,
-`HOME`, `TMPDIR` and `LANG`; Relay does not copy API keys or the parent process
-environment into it. Stderr is never interpreted as a result.
+`HOME`, `TMPDIR` and `LANG`, plus only credential names explicitly declared by
+that manifest and provisioned as owner-only files by the installer. Relay does
+not copy ambient API keys or the parent process environment. The operator must
+trust installed executables; subprocess separation is not an OS sandbox. Stderr is never interpreted as a result.
 
 Prepare has no side effect:
 

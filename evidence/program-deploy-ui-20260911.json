@@ -1,0 +1,15 @@
+{
+  "observed_at": 1789093187,
+  "task_id": "5b4cb442fec74f328b737725569e55a1",
+  "state": "completed",
+  "initiated_from": "Basecamp Skills and explicit owner approval",
+  "program_id": "f863b88a398597e3f869d6ea831738c74ad36063c87fce84d6a9e4bf0c8f4829",
+  "transaction_hash": "e32cd689b2695d7d3902f309cb8e1a3f829d967b0b7100aaf3b528017d404772",
+  "confirmed_block": 3639,
+  "packed_bytes": 344300,
+  "binary_sha256": "102e126f9ba19a484c9dac02d9e1eb4e8cf89d9415b592c9b9b9cc05d6ac234e",
+  "private_proof_required": false,
+  "token_ceiling": "0",
+  "previous_failed_raw_elf_task": "b3c1d5c5ad5349b094c65a7ef4b03db3",
+  "new_transfer_started_by_check": false
+}

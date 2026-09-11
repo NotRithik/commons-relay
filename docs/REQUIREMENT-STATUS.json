@@ -1,0 +1,200 @@
+{
+  "observed_at": 1789105255,
+  "basis": "23 equally weighted official Success Criteria checkboxes; no partial credit",
+  "verified": 14,
+  "open": 9,
+  "verified_percent": 60.87,
+  "open_percent": 39.13,
+  "not_an_effort_estimate": true,
+  "not_submission_clearance": true,
+  "criteria": [
+    {
+      "number": 1,
+      "criterion": "The agent module loads and runs inside Logos Core alongside the wallet, storage, and messaging modules without requiring modifications to those modules.",
+      "status": "verified",
+      "note": "Native module in Basecamp and fresh headless Linux deployment. Final source/assets must match.",
+      "evidence": [
+        "fresh-one-command-windows-20260911.json"
+      ]
+    },
+    {
+      "number": 2,
+      "criterion": "The agent has its own shielded LEZ account and can send and receive tokens independently of the owner's wallet.",
+      "status": "verified",
+      "note": "The agent wallets are separate; private wallet.send confirmed at block 3703.",
+      "evidence": [
+        "default-wallet-program-ui-20260911.json"
+      ]
+    },
+    {
+      "number": 3,
+      "criterion": "The owner can deploy the agent and configure it with a single CLI command on any machine using Logos Core headless.",
+      "status": "verified",
+      "note": "Fresh one-command Linux deployment and in-app local setup observed; dependencies must first be installed.",
+      "evidence": [
+        "fresh-one-command-windows-20260911.json",
+        "create-agent-recovery-ui-20260911.json"
+      ]
+    },
+    {
+      "number": 4,
+      "criterion": "The owner can interact with the agent in real time from a separate Logos app instance using Logos Messaging, with no intermediary server.",
+      "status": "verified",
+      "note": "Separate owner app communicates over authenticated encrypted Logos Messaging; cross-machine Exa flow is also recorded.",
+      "evidence": [
+        "chat-windows-exa-verified-20260911.json"
+      ]
+    },
+    {
+      "number": 5,
+      "criterion": "The spending threshold mechanism correctly holds above-threshold transactions for owner approval and executes below-threshold transactions autonomously.",
+      "status": "verified",
+      "note": "Recorded above-threshold hold and no-owner-click private paid task. Public payments intentionally require a fresh explicit review.",
+      "evidence": [
+        "current-approval-ui.json",
+        "paid-public-extension-20260911.json"
+      ]
+    },
+    {
+      "number": 6,
+      "criterion": "All default skills listed above are implemented and documented.",
+      "status": "open",
+      "note": "All required skill entrypoints are implemented. wallet.send, program.call and program.deploy now have confirmed UI receipts. Current-version cancellation/refund and failure checks remain open.",
+      "evidence": [
+        "default-wallet-program-ui-20260911.json"
+      ]
+    },
+    {
+      "number": 7,
+      "criterion": "Agent-to-agent coordination is A2A-compatible: Agent Cards follow the A2A schema, task interactions follow the A2A task lifecycle, and the implementation is documented as an A2A transport binding over Logos Messaging.",
+      "status": "verified",
+      "note": "Cards and lifecycle use the documented Logos Messaging transport binding. Unmodified HTTP-only A2A clients still need that binding.",
+      "evidence": [
+        "a2a-stream-after-inbox-recovery.json"
+      ]
+    },
+    {
+      "number": 8,
+      "criterion": "Two or more agents can discover each other via Agent Cards, execute a task following the A2A lifecycle, and transfer LEZ payment autonomously, without owner intervention.",
+      "status": "verified",
+      "note": "Publicly discovered, non-owner-contact text-statistics provider was paid without an owner payment click.",
+      "evidence": [
+        "paid-public-extension-20260911.json"
+      ]
+    },
+    {
+      "number": 9,
+      "criterion": "At least 3 of the illustrative use cases above are demonstrated end-to-end on LEZ testnet.",
+      "status": "verified",
+      "note": "File-vault round trip, paid marketplace and two-provider aggregation have end-to-end receipts.",
+      "evidence": [
+        "current-three-use-cases.json"
+      ]
+    },
+    {
+      "number": 10,
+      "criterion": "Three separate agents are deployed on LEZ testnet \u2014 one per default skill category (Storage, Messaging, and Blockchain) \u2014 each with a demonstrated, reproducible deployment and evidence provided.",
+      "status": "verified",
+      "note": "Separate Storage, Messaging and Blockchain role identities and deployments are recorded.",
+      "evidence": [
+        "three-current-roles-20260911.json"
+      ]
+    },
+    {
+      "number": 11,
+      "criterion": "Full documentation \u2014 including the skill interface spec, deployment guide, and owner interaction guide \u2014 and a clean public repository are delivered.",
+      "status": "open",
+      "note": "Current source is not yet a clean matching public release."
+    },
+    {
+      "number": 12,
+      "criterion": "Provide a documented skill interface (module/SDK) that can be used to add new skills without modifying the core agent module.",
+      "status": "verified",
+      "note": "Hash-pinned subprocess skill interface and installation documentation; actual third-party text-statistics service was called and paid.",
+      "evidence": [
+        "paid-public-extension-20260911.json"
+      ]
+    },
+    {
+      "number": 13,
+      "criterion": "The owner-facing interface is accessible from the Logos app (Basecamp) via the owner channel \u2014 local build instructions and loadable assets are provided.",
+      "status": "verified",
+      "note": "Basecamp owner-channel UI and local setup are working. The newest service-review dialog fix still needs live visual validation and matching release assets.",
+      "evidence": [
+        "create-agent-recovery-ui-20260911.json"
+      ]
+    },
+    {
+      "number": 14,
+      "criterion": "The agent module recovers from transient failures (network interruptions, node restarts) without losing pending task state.",
+      "status": "open",
+      "note": "Mailbox recovery and same-identity setup recovery are observed. The old malformed program call remains honestly unresolved; final-version transient-failure validation remains open.",
+      "evidence": [
+        "mailbox-recovery-20260911.json",
+        "create-agent-recovery-ui-20260911.json"
+      ]
+    },
+    {
+      "number": 15,
+      "criterion": "Above-threshold transactions that fail to reach the owner for approval are not executed \u2014 the agent retries notification before timing out and reports the failure.",
+      "status": "verified",
+      "note": "Verified in recorded UI/runtime observations; final release must retain it."
+    },
+    {
+      "number": 16,
+      "criterion": "Skill failures are isolated: a failing skill does not crash the module or affect other concurrently running skills.",
+      "status": "open",
+      "note": "New independent I/O scheduling/failure isolation needs live checks."
+    },
+    {
+      "number": 17,
+      "criterion": "Document the compute unit (CU) cost of each on-chain operation the agent performs (token transfers, program calls, deployments) on LEZ devnet/testnet. Note: LEZ's per-transaction compute budget may change during testnet.",
+      "status": "open",
+      "note": "CU notes need final reconciliation with the measured operations."
+    },
+    {
+      "number": 18,
+      "criterion": "The agent module is deployed and tested on LEZ devnet/testnet.",
+      "status": "verified",
+      "note": "Current-testnet default wallet/program and paid-service receipts exist.",
+      "evidence": [
+        "default-wallet-program-ui-20260911.json",
+        "chat-windows-exa-verified-20260911.json"
+      ]
+    },
+    {
+      "number": 19,
+      "criterion": "End-to-end integration tests run against a LEZ sequencer (standalone mode) and are included in CI.",
+      "status": "open",
+      "note": "Real local proof passed; final-version CI integration still pending."
+    },
+    {
+      "number": 20,
+      "criterion": "CI must be green on the default branch.",
+      "status": "open",
+      "note": "No green default-branch run for the unfinished current tree."
+    },
+    {
+      "number": 21,
+      "criterion": "A README documents end-to-end usage: deployment steps, agent configuration, and step-by-step instructions for deploying and interacting with the agent via CLI and the Logos app owner channel.",
+      "status": "open",
+      "note": "README exists but needs final current setup/payment instructions."
+    },
+    {
+      "number": 22,
+      "criterion": "A reproducible end-to-end demo script is provided and works against a real local sequencer with `RISC0_DEV_MODE=0`.",
+      "status": "verified",
+      "note": "Real standalone private proof completed using prerequisites already installed. This does not verify clean dependency installation or the later public-payment changes.",
+      "evidence": [
+        "local-current-wallet-proof-20260911.json"
+      ]
+    },
+    {
+      "number": 23,
+      "criterion": "A recorded video demo of the end-to-end flow is included in the submission; the recording must show terminal output (including proof generation) to confirm `RISC0_DEV_MODE=0` was active.",
+      "status": "open",
+      "note": "Builder-narrated video is intentionally last."
+    }
+  ],
+  "official_file_blob": "ceaa20d8db59e4f6f78850521cd7b39ed7d4ce6a"
+}

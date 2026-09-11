@@ -134,8 +134,14 @@ class Vault:
         with self.guard:row=self.db.execute('SELECT * FROM files WHERE address=?',(address,)).fetchone()
         if not row:raise Rejected('FILE_KEY_NOT_AVAILABLE')
         return row
-    def download(self,address:str,relative:str,store:StorePort)->dict:
+    def download(self,address:str,relative:str,store:StorePort,operation:str|None=None)->dict:
         self.output.parts(relative);row=self._file(address)
+        if operation is not None:
+            operation_id(operation)
+            with self.tx() as db:
+                db.execute('CREATE TABLE IF NOT EXISTS verified_downloads(operation TEXT PRIMARY KEY,address TEXT NOT NULL,path TEXT NOT NULL,bytes INTEGER NOT NULL,plaintext_sha256 TEXT NOT NULL)')
+                prior=db.execute('SELECT address,path FROM verified_downloads WHERE operation=?',(operation,)).fetchone()
+                if prior and (prior['address']!=address or prior['path']!=relative):raise Rejected('DOWNLOAD_OPERATION_REUSED')
         temp=self.downloads/(secrets.token_hex(16)+'.bin')
         try:
             store.download(address,temp,row['ciphertext_bytes'])
@@ -145,6 +151,13 @@ class Vault:
             with temp.open('rb') as source,self.output.create(relative) as destination:
                 info=self.crypto.decrypt(source,destination,bytes(row['key']),maximum=self.maximum)
                 if info['plaintext_bytes']!=row['bytes'] or info['metadata'].get('label')!=row['label']:raise Rejected('FILE_METADATA_MISMATCH')
+                if operation is not None:
+                    # Only a fully authenticated stream reaches this point. Save
+                    # the digest before FileRoot's exclusive atomic link commit.
+                    with self.tx() as db:
+                        previous=db.execute('SELECT * FROM verified_downloads WHERE operation=?',(operation,)).fetchone()
+                        if previous and previous['plaintext_sha256']!=info['plaintext_sha256']:raise Rejected('DOWNLOAD_CONTENT_CHANGED')
+                        db.execute('INSERT OR IGNORE INTO verified_downloads VALUES (?,?,?,?,?)',(operation,address,relative,row['bytes'],info['plaintext_sha256']))
             return {'address':address,'path':relative,'bytes':row['bytes'],'authenticated':True}
         finally:
             if temp.exists() and not temp.is_symlink():temp.unlink()

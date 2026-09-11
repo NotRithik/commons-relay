@@ -14,7 +14,25 @@
 #include <QPointer>
 #include "logos_types.h"
 #include <dlfcn.h>
-namespace { void locationAnchor() {} }
+namespace {
+void locationAnchor() {}
+bool privateLanIp(const QString& value) {
+    const auto parts=value.split('.');
+    if(parts.size()!=4)return false;
+    int octets[4];
+    for(int n=0;n<4;++n) {
+        bool ok=false;octets[n]=parts[n].toInt(&ok);
+        if(!ok || octets[n]<0 || octets[n]>255 || QString::number(octets[n])!=parts[n])return false;
+    }
+    return octets[0]==10 || (octets[0]==172 && octets[1]>=16 && octets[1]<=31)
+        || (octets[0]==192 && octets[1]==168);
+}
+bool privateLanPeer(const QString& value) {
+    const auto match=QRegularExpression("^/ip4/([0-9.]+)/tcp/([0-9]{1,5})/p2p/([A-Za-z0-9]{20,100})$").match(value);
+    return match.hasMatch() && privateLanIp(match.captured(1))
+        && match.captured(2).toInt()>=1024 && match.captured(2).toInt()<=65535;
+}
+}
 CommonsRelayModule::CommonsRelayModule() {
     process_.setProcessChannelMode(QProcess::SeparateChannels);
     connect(&process_,&QProcess::readyReadStandardOutput,this,&CommonsRelayModule::readOutput);
@@ -78,7 +96,7 @@ QString CommonsRelayModule::request(const QString& raw) {
     auto doc=QJsonDocument::fromJson(raw.toUtf8(),&parse);
     if(parse.error!=QJsonParseError::NoError || !doc.isObject())return "INVALID_REQUEST_JSON";
     auto object=doc.object();QString method=object.value("method").toString();
-    const QSet<QString> methods={"status","skills","submit","approve","grant","revoke","recover","diagnostics","run","reconcile","task","messaging.contact","messaging.start","messaging.messages","messaging.pump","messaging.reload_contacts","controller.start","controller.status","schedule","owner.send","cancel","agent.start","agent.cards","storage.connect_local","transport.status","owner.inbox","planner.status","planner.history","planner.goal","planner.start","planner.cancel"};
+    const QSet<QString> methods={"status","skills","submit","approve","grant","revoke","recover","diagnostics","run","reconcile","task","messaging.contact","messaging.start","messaging.messages","messaging.pump","messaging.reload_contacts","controller.start","controller.status","schedule","owner.send","cancel","agent.start","agent.cards","storage.connect_local","transport.status","owner.inbox","owner.inbox_cursor","planner.status","planner.history","planner.goal","planner.start","planner.cancel","provider.status","provider.directory","provider.configure","a2a.client.card","a2a.client.verified_card","a2a.client.discover","a2a.client.request","a2a.client.response","a2a.client.events"};
     if(!methods.contains(method) || !object.value("params").isObject() || object.size()!=2)return "METHOD_NOT_ALLOWED";
     const auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);
     object.insert("id",id);pending_.insert(id);
@@ -209,7 +227,7 @@ void CommonsRelayModule::handleBridge(const QJsonObject& request) {
     }
     else if(action=="storage.publish-card" && params.size()==1 && params.value("path").isString()) {
         const QFileInfo file(params.value("path").toString());const auto allowed=QFileInfo(profile_+"/public").canonicalFilePath();
-        if(allowed.isEmpty() || file.isSymLink() || !file.isFile() || file.canonicalPath()!=allowed || file.fileName()!="agent-card.json" || file.size()>60000){bridgeReply(id,false,{},"PUBLIC_CARD_PATH_REJECTED");return;}
+        if(allowed.isEmpty() || file.isSymLink() || !file.isFile() || file.canonicalPath()!=allowed || (file.fileName()!="agent-card.json" && file.fileName()!="public-agent-card.json") || file.size()>60000){bridgeReply(id,false,{},"PUBLIC_CARD_PATH_REJECTED");return;}
         QFile input(file.canonicalFilePath());if(!input.open(QIODevice::ReadOnly)){bridgeReply(id,false,{},"PUBLIC_CARD_UNAVAILABLE");return;}
         const auto doc=QJsonDocument::fromJson(input.readAll());
         if(!doc.isObject() || !doc.object().value("signatures").isArray() || !doc.object().value("supportedInterfaces").isArray()){bridgeReply(id,false,{},"SIGNED_AGENT_CARD_REQUIRED");return;}
@@ -330,14 +348,20 @@ void CommonsRelayModule::handleDeliveryBridge(const QString& id,const QString& a
         const auto doc=QJsonDocument::fromJson(input.readAll());
         if(!doc.isObject()){bridgeReply(id,false,{},"DELIVERY_CONFIGURATION_INVALID");return;}
         const auto config=doc.object();
-        const QSet<QString> allowed={"mode","clusterId","tcpPort","entryNodes"};
+        const QSet<QString> allowed={"mode","clusterId","tcpPort","entryNodes","advertiseAddress"};
         for(const auto& key:config.keys())if(!allowed.contains(key)){bridgeReply(id,false,{},"DELIVERY_CONFIGURATION_KEY_DENIED");return;}
         const auto port=config.value("tcpPort").toInt();const auto mode=config.value("mode").toString("local");
-        if(port<1024 || port>65535 || (mode!="local" && mode!="logos.dev")){bridgeReply(id,false,{},"DELIVERY_CONFIGURATION_INVALID");return;}
-        if(mode=="local"){
+        if(port<1024 || port>65535 || (mode!="local" && mode!="lan" && mode!="logos.dev")){bridgeReply(id,false,{},"DELIVERY_CONFIGURATION_INVALID");return;}
+        if(mode!="lan" && config.contains("advertiseAddress")){bridgeReply(id,false,{},"LAN_ADDRESS_REQUIRES_EXPLICIT_LAN_MODE");return;}
+        if(mode=="lan" && !privateLanIp(config.value("advertiseAddress").toString())){bridgeReply(id,false,{},"PRIVATE_LAN_ADDRESS_REQUIRED");return;}
+        if(mode=="local" || mode=="lan"){
             const auto cluster=config.value("clusterId").toInt();const auto nodes=config.value("entryNodes").toArray();
             if(cluster<2 || cluster>65535 || !config.value("entryNodes").isArray() || nodes.size()>8){bridgeReply(id,false,{},"DELIVERY_CONFIGURATION_INVALID");return;}
-            for(const auto& node:nodes)if(!node.isString() || !QRegularExpression("^/ip4/127[.]0[.]0[.]1/tcp/[0-9]{4,5}/p2p/[A-Za-z0-9]{20,100}$").match(node.toString()).hasMatch()){bridgeReply(id,false,{},"LOCAL_TEST_PEER_REQUIRED");return;}
+            for(const auto& node:nodes) {
+                const bool valid=node.isString() && (mode=="lan" ? privateLanPeer(node.toString())
+                    : QRegularExpression("^/ip4/127[.]0[.]0[.]1/tcp/[0-9]{4,5}/p2p/[A-Za-z0-9]{20,100}$").match(node.toString()).hasMatch());
+                if(!valid){bridgeReply(id,false,{},mode=="lan" ? "PRIVATE_LAN_PEER_REQUIRED" : "LOCAL_TEST_PEER_REQUIRED");return;}
+            }
         }else if(config.contains("clusterId") || config.contains("entryNodes")){
             // Public mode is deliberately a named preset rather than an arbitrary
             // internet peer list. The reviewed Delivery module owns the current
@@ -359,7 +383,7 @@ void CommonsRelayModule::handleDeliveryBridge(const QString& id,const QString& a
             random.fill(0);QSaveFile keyFile(nodeKeyPath);if(!keyFile.open(QIODevice::WriteOnly)){bridgeReply(id,false,{},"DELIVERY_NODE_KEY_WRITE_FAILED");return;}
             keyFile.setPermissions(QFile::ReadOwner|QFile::WriteOwner);keyFile.write(nodeKey);if(!keyFile.commit()){bridgeReply(id,false,{},"DELIVERY_NODE_KEY_WRITE_FAILED");return;}
         }
-        QJsonObject cfg{{"nodekey",QString::fromLatin1(nodeKey)},{"tcpPort",port},{"listenAddress","127.0.0.1"},
+        QJsonObject cfg{{"nodekey",QString::fromLatin1(nodeKey)},{"tcpPort",port},{"listenAddress",mode=="lan" ? "0.0.0.0" : "127.0.0.1"},
             {"relay",true},{"rest",false},{"restAdmin",false},{"metricsServer",false},{"metricsLogging",false},{"websocketSupport",false},
             {"logLevel","ERROR"},{"store",false},{"storeMessageDbUrl","sqlite://"+profile_+"/delivery-store.sqlite3"}};
         if(mode=="logos.dev"){
@@ -369,7 +393,7 @@ void CommonsRelayModule::handleDeliveryBridge(const QString& id,const QString& a
         }else{
             cfg.insert("mode","noMode");cfg.insert("clusterId",config.value("clusterId"));cfg.insert("entryNodes",config.value("entryNodes"));
             cfg.insert("rlnRelay",false);cfg.insert("numShardsInNetwork",1);cfg.insert("shards",QJsonArray{0});
-            cfg.insert("relayPeerExchange",false);cfg.insert("peerExchange",false);cfg.insert("dnsDiscovery",false);cfg.insert("discv5Discovery",false);cfg.insert("nat","extip:127.0.0.1");
+            cfg.insert("relayPeerExchange",false);cfg.insert("peerExchange",false);cfg.insert("dnsDiscovery",false);cfg.insert("discv5Discovery",false);cfg.insert("nat",mode=="lan" ? "extip:"+config.value("advertiseAddress").toString() : "extip:127.0.0.1");
         }
         method="createNode";args={QString::fromUtf8(QJsonDocument(cfg).toJson(QJsonDocument::Compact))};
     }else if(action=="delivery.start" && params.isEmpty()) {
@@ -385,7 +409,15 @@ void CommonsRelayModule::handleDeliveryBridge(const QString& id,const QString& a
         const auto topic=params.value("topic").toString();const auto payload=params.value("payload").toString();
         if(!QRegularExpression("^/commons-relay/1/discovery-[a-f0-9]{32}/json$").match(topic).hasMatch() || payload.toUtf8().size()>48000){bridgeReply(id,false,{},"DISCOVERY_TOPIC_DENIED");return;}
         const auto doc=QJsonDocument::fromJson(payload.toUtf8());
-        if(!doc.isObject() || doc.object().value("kind").toString()!="agent-card" || !doc.object().value("card").isObject() || !doc.object().value("card").toObject().value("signatures").isArray()){bridgeReply(id,false,{},"SIGNED_AGENT_CARD_REQUIRED");return;}
+        const auto frame=doc.object(); const auto body=frame.value("body").toObject();
+        const auto kind=body.value("kind").toString();
+        const bool legacy=frame.value("kind").toString()=="agent-card"
+            && frame.value("card").toObject().value("signatures").isArray();
+        const bool publicFrame=frame.value("key_id").isString() && frame.value("signature").isString()
+            && body.value("domain").toString()=="commons/relay/public-discovery/v1"
+            && body.value("sender").isObject() && body.value("topic").isString()
+            && (kind=="query" || (kind=="agent-card" && body.value("card").toObject().value("signatures").isArray()));
+        if(!doc.isObject() || (!legacy && !publicFrame)){bridgeReply(id,false,{},"SIGNED_AGENT_CARD_REQUIRED");return;}
         method="send";args={topic,payload};
     }else if(action=="delivery.send" && params.size()==2 && params.value("topic").isString() && params.value("payload").isString()) {
         const auto topic=params.value("topic").toString();const auto payload=params.value("payload").toString();

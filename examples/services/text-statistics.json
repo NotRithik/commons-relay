@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "id": "example.text_statistics",
+  "description": "Count words and characters in text",
+  "executable": "text-statistics",
+  "executable_sha256": "7444eccc3bfaac8be67abccab516097690be222fc3f29863a2c31d2159813b45",
+  "timeout_seconds": 5,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 10000
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "public": true,
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "characters": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "words": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "lines": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "utf8_bytes": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "characters",
+      "words",
+      "lines",
+      "utf8_bytes"
+    ],
+    "additionalProperties": false
+  }
+}

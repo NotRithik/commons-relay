@@ -1,99 +1,43 @@
 {
-  "checked_at": "2026-09-09T03:42:19.926170+00:00",
-  "passed": true,
-  "current_network": true,
-  "network": "https://testnet.lez.logos.co/",
-  "observed_block_range": [
-    848,
-    849
-  ],
-  "source_commit": "d6024bf63c3a7836cdc9ffdb8b6c1eb110d8b0df",
+  "observed_at": 1789105255,
+  "acceptance_basis": "actual Basecamp chat/Services flows plus independent task, provider and byte checks",
+  "all_submission_gates_passed": false,
   "use_cases": [
     {
-      "name": "personal-file-vault",
-      "passed": true,
-      "mock": false,
-      "ui_initiated": true,
-      "ui_result_verified": true,
-      "evidence": "evidence/current-file-vault-ui.json",
-      "bytes": 49,
-      "sha256": "93c08c74fb27f4d4b81159d5d8828eee0f8dcee8bfbcd01e9099fd681ce92834",
-      "task_ids": [
-        "5f163da7e7a848fc921514919079db21"
-      ],
-      "verification": "Encrypted upload and authenticated retrieval; downloaded bytes match original."
+      "name": "Personal file vault",
+      "evidence": "chat-vault-observed-20260911.json",
+      "state": "completed",
+      "bytes": 222,
+      "scope": "A synthetic file already present in the agent inputs directory was encrypted, uploaded and restored through chat; restored bytes match. This is not proof of a new owner-side attachment picker."
     },
     {
-      "name": "multi-agent-workflow",
-      "passed": true,
-      "mock": false,
-      "ui_initiated": true,
-      "ui_result_verified": true,
-      "evidence": "evidence/current-multiagent-ui.json",
-      "goal_id": "chat-6aa7e928db0d9d7c6ecd7b44",
-      "task_ids": [
-        "1e22c73b7f1b45c68f2de0df9fc4f831",
-        "b3a993c7a8844b24bda4d836ed5d2422",
-        "43c151921a944e4984b1ddfabe7e0f1a"
-      ],
-      "distinct_peers": 2,
-      "testnet_tokens_spent": "0",
-      "verification": "One owner conversation requests both peer capability lists; recorded counts and final reply agree."
+      "name": "Paid skill marketplace",
+      "evidence": "paid-public-extension-20260911.json",
+      "state": "completed",
+      "amount": "1",
+      "asset": "LEZ-testnet",
+      "scope": "Client discovered and paid a public third-party text-statistics extension; both agents were on the Mac. No extra owner payment click."
     },
     {
-      "name": "agent-services-marketplace",
-      "passed": true,
-      "mock": false,
-      "ui_initiated": false,
-      "ui_result_verified": true,
-      "evidence": "evidence/current-paid-a2a.json",
-      "task_ids": [
-        "2413626123624383bdf15cf5167be534"
-      ],
-      "task_id": "2413626123624383bdf15cf5167be534",
-      "paid_amount": "3",
-      "transaction_hash": "fa9d319f2d39f2c183981416f5a3675f8f0b00a6255379fcf6769a36f676d274",
-      "block_id": 604,
-      "verification": "Signed Core command; autonomous paid task; both private balances and current-chain transaction match. UI observation is recorded separately."
+      "name": "Multi-agent workflow",
+      "evidence": "chat-multiagent-complete-20260911.json",
+      "state": "completed",
+      "amount": "0",
+      "scope": "One chat goal discovered peers, obtained real file-catalogue and capability results from two separate agents, and combined them in its answer. It did not run a paid text analysis."
     }
   ],
-  "source_receipt_sha256": {
-    "relay-reset-paid-a2a.json": "1e1a076c7fb4f26b9780e1162d253f28a51310bc439f5056f842a7bec97a1c0d",
-    "relay-reset-private-funding.json": "e37cdeac76c13ec39446e7ac79500d98361be020b193cb822feaf157e6345d58",
-    "relay-current-file-vault-ui.json": "4708d7a763f01433ca87cd851e73a918c4f535588602ce06139758b8baf9e495",
-    "relay-current-multiagent-chat.json": "6cf2086468bcfc7ce365740ad1a95cb78ee4a3342496501eff0425faa9fb7f03",
-    "relay-current-approval-ui.json": "85e9dbf577a7bc4562cd37afc8d6ce2bd377c3ed927903d7c15fa34d944597ae"
-  },
-  "all_default_skills_verified_by_this_report": false,
-  "above_limit_ui_test": {
-    "task_id": "e06a226181c5427c951df258ed0aea9e",
-    "held_then_canceled": true,
-    "tokens_spent": 0
-  },
-  "paid_balances": {
-    "before": {
-      "storage": {
-        "balance": "50",
-        "block": 559
-      },
-      "blockchain": {
-        "balance": "50",
-        "block": 559
-      }
-    },
-    "after": {
-      "storage": {
-        "balance": "47",
-        "block": 604
-      },
-      "blockchain": {
-        "balance": "53",
-        "block": 604
-      }
-    }
-  },
-  "transactions_submitted_by_verifier": 0,
-  "model_calls_by_verifier": 0,
-  "narrated_video_verified": false,
-  "eligibility_confirmed": false
+  "remaining": [
+    "Public-payment and refund acceptance for the newest optional mode",
+    "Final-version failure/recovery checks and matching native assets",
+    "Clean public source and matching default-branch CI",
+    "Builder-narrated video and final submission review"
+  ],
+  "additional_verified_flow": {
+    "name": "Chat-discovered Windows Exa service",
+    "evidence": "chat-windows-exa-verified-20260911.json",
+    "task_id": "c248909274dc4882a3011cd9978efe04",
+    "state": "completed",
+    "paid_amount": "1",
+    "scope": "Separate Mac client and Windows provider; exact action approval; two linked excerpts retained from a truncated provider response. This is not the no-owner-click autonomy demonstration."
+  }
 }

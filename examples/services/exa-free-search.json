@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "id": "exa.search_free",
+  "description": "Search the web using the free Exa MCP endpoint; rate limits apply",
+  "executable": "exa-free-search",
+  "executable_sha256": "cb79863393c5290182fa55db3006ed4f6e4a97668889c5b51dcc267805ad166f",
+  "timeout_seconds": 30,
+  "public": true,
+  "credentials": [],
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400,
+        "description": "This search query is sent to the provider and Exa."
+      },
+      "num_results": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      }
+    },
+    "required": [
+      "query",
+      "num_results"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "maxLength": 400
+      },
+      "text": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 8000
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "requested_results": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "provider": {
+        "type": "string",
+        "enum": [
+          "Exa MCP free plan"
+        ]
+      },
+      "retrieved_at": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "query",
+      "text",
+      "truncated",
+      "requested_results",
+      "provider",
+      "retrieved_at"
+    ],
+    "additionalProperties": false
+  }
+}

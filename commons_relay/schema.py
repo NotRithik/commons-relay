@@ -65,3 +65,28 @@ def validate(value,schema:dict,depth=0)->None:
         if type(value)is not bool:raise Rejected('SKILL_BOOLEAN_REQUIRED')
     elif kind=='null':
         if value is not None:raise Rejected('SKILL_NULL_REQUIRED')
+
+
+def check_public_schema(schema:dict)->None:
+    """Accept the documented schema subset without untrusted regex programs.
+
+    Public providers may use enum and size/range constraints. Patterns are
+    restricted to an anchored character class with one repetition, plus the
+    decimal-amount pattern used by Relay. Nested repeats, lookarounds and back
+    references cannot run in a client's controller from an advertisement.
+    """
+    check_schema(schema)
+    def walk(node):
+        pattern=node.get('pattern')
+        if pattern is not None:
+            simple=re.fullmatch(r'\^\[([A-Za-z0-9_./:@\\-]+)\](?:[+*?]|\{[0-9]{1,5}(?:,[0-9]{0,5})?\})\$',pattern)
+            if pattern!='^(0|[1-9][0-9]{0,38})$' and simple is None:
+                raise Rejected('UNSUPPORTED_PUBLIC_SCHEMA_PATTERN')
+        for lower,upper in [('minLength','maxLength'),('minItems','maxItems'),('minimum','maximum')]:
+            if lower in node and upper in node and node[lower]>node[upper]:raise Rejected('INVALID_SCHEMA_LIMIT')
+            if lower!='minimum' and any(node.get(k,0)<0 for k in (lower,upper)):raise Rejected('INVALID_SCHEMA_LIMIT')
+        if 'uniqueItems' in node and type(node['uniqueItems'])is not bool:raise Rejected('INVALID_SCHEMA_UNIQUENESS')
+        if node.get('type')=='object':
+            for child in node.get('properties',{}).values():walk(child)
+        elif node.get('type')=='array':walk(node['items'])
+    walk(schema)

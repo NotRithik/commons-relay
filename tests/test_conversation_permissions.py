@@ -263,3 +263,23 @@ class ConversationPermissionTests(unittest.TestCase):
         self.assertEqual(result['goal']['prompt'],'p'*4000);self.assertEqual(result['goal']['reply'],'r'*5800)
         self.assertTrue(result['goal']['permission_preview']);self.assertLess(len(canonical(result)),13500)
         self.assertEqual(self.planner.permission_review(self.grant['grant_id'])['permission']['request'],request)
+
+    def test_paid_action_has_separate_review_and_execution_windows(self):
+        self.params={'skill':'wallet.send','arguments':{'recipient':'fixture-peer','amount':'3'},'reason':'Pay the requested service.'}
+        request=self.propose()['request']
+        self.assertGreater(request['execution_expires_at'],self.now+3600)
+        envelope=self.decision(request)
+        self.assertLessEqual(envelope['body']['expires_at'],self.now+600)
+        self.assertEqual(envelope['body']['task_envelope']['body']['expires_at'],request['execution_expires_at'])
+        self.planner.permissions.decide(envelope)
+        goal=self.planner.view(self.grant['grant_id'])['goal']
+        task=self.engine.get(goal['permission']['task_id'])
+        self.assertEqual(task['deadline'],request['execution_expires_at'])
+        self.engine.clock=lambda:self.now+1200
+        self.assertEqual(self.planner.permissions.reconcile_existing(self.grant['grant_id'])['id'],task['id'])
+
+    def test_paid_execution_window_cannot_be_changed_after_review(self):
+        self.params={'skill':'wallet.send','arguments':{'recipient':'fixture-peer','amount':'3'},'reason':'Pay the requested service.'}
+        request=self.propose()['request'];request['execution_expires_at']+=1
+        with self.assertRaises(Rejected):self.decision(request)
+        self.assertEqual(self.task_count(),0)

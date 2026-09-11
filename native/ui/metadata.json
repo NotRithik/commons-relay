@@ -1,1 +1,22 @@
-{"name":"commons_relay_owner_ui","display_name":"Commons Relay","version":"0.1.0","type":"ui_qml","interface":"universal","category":"utilities","description":"Owner controls for the Commons Relay agent runtime","main":"commons_relay_owner_ui_plugin","icon":"icons/commons_relay.svg","view":"qml/Main.qml","dependencies":["commons_relay_module"],"provides":[],"uses":[],"codegen":{"rep":"src/commons_relay_owner_ui.rep","backend_class":"CommonsRelayUiBackend","backend_header":"commons_relay_ui_backend.h"}}
+{
+  "name": "commons_relay_owner_ui",
+  "display_name": "Kite",
+  "version": "0.1.0",
+  "type": "ui_qml",
+  "interface": "universal",
+  "category": "utilities",
+  "description": "Private agents and services on Logos",
+  "main": "commons_relay_owner_ui_plugin",
+  "icon": "icons/commons_relay.svg",
+  "view": "qml/Main.qml",
+  "dependencies": [
+    "commons_relay_module"
+  ],
+  "provides": [],
+  "uses": [],
+  "codegen": {
+    "rep": "src/commons_relay_owner_ui.rep",
+    "backend_class": "CommonsRelayUiBackend",
+    "backend_header": "commons_relay_ui_backend.h"
+  }
+}

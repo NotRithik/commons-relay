@@ -90,7 +90,9 @@ class OwnerUi:
             if (not isinstance(label, str) or not 1 <= len(label.strip()) <= 80
                 or any(ord(char) < 32 or ord(char) == 127 for char in label)):
                 label = directory.name.replace('-', ' ').replace('_', ' ').title()
-            profiles.append({'name': directory.name, 'label': label.strip(), 'agent_id': agent})
+            clean_label=label.strip()
+            profiles.append({'name': directory.name, 'label': clean_label, 'agent_id': agent,
+                             'archived': clean_label.lower().startswith('archive -')})
         return {'profiles': profiles, 'unavailable_profiles': unavailable,
                 'signing': 'local-owner-only', 'network_requests': 0}
 
@@ -99,6 +101,22 @@ class OwnerUi:
             raise Rejected('INVALID_OWNER_UI_REQUEST')
         kind = command['kind']
         now = int(self.clock())
+        if kind == 'provider_status':
+            exact(command, {'kind'})
+            return {'method':'provider.status','params':{}}
+        if kind == 'service_directory':
+            exact(command, {'kind','topic','offset','refresh'})
+            if not isinstance(command['topic'],str) or not 1<=len(command['topic'])<=128 or type(command['offset'])is not int or not 0<=command['offset']<=1000 or type(command['refresh'])is not bool:
+                raise Rejected('INVALID_DIRECTORY_REQUEST')
+            return {'method':'provider.directory','params':{k:command[k] for k in ('topic','offset','refresh')}}
+        if kind == 'provider_configure':
+            exact(command, {'kind','settings','expected_hash'})
+            if not isinstance(command['settings'],dict) or len(canonical(command['settings']))>10000 or not DIGEST.fullmatch(str(command['expected_hash'])):
+                raise Rejected('INVALID_PROVIDER_SETTINGS')
+            from .provider import SETTINGS_DOMAIN
+            body={'domain':SETTINGS_DOMAIN,'agent_id':agent,'request_id':secrets.token_hex(16),
+                  'settings':command['settings'],'expected_hash':command['expected_hash'],'expires_at':now+120}
+            return {'method':'provider.configure','params':{'envelope':sign_envelope(body,private,signer)}}
         if kind == 'heartbeat':
             exact(command, {'kind', 'nonce'})
             if not isinstance(command['nonce'], str) or not re.fullmatch('[0-9a-f]{32}', command['nonce']):
@@ -168,6 +186,12 @@ class OwnerUi:
         if kind == 'skill':
             exact(command, {'kind', 'name'})
             return {'method': 'owner.skill', 'params': {'name': identifier(command['name'])}}
+        if kind == 'task_page':
+            exact(command, {'kind','task_id','offset','digest'})
+            if type(command['offset']) is not int or command['offset'] < 0 or not isinstance(command['digest'],str) or not DIGEST.fullmatch(command['digest']):
+                raise Rejected('INVALID_RESULT_PAGE')
+            return {'method':'owner.task','params':{'task_id':identifier(command['task_id']),
+                    'result_offset':command['offset'],'result_digest':command['digest']}}
         if kind == 'task':
             exact(command, {'kind', 'task_id'})
             return {'method': 'owner.task', 'params': {'task_id': identifier(command['task_id'])}}
@@ -175,8 +199,8 @@ class OwnerUi:
         if type(ttl) is not int or not 30 <= ttl <= 86400:
             raise Rejected('INVALID_OWNER_COMMAND_EXPIRY')
         expiry = int(self.clock()) + ttl
-        if kind == 'submit':
-            exact(command, {'kind', 'skill', 'arguments', 'expires_in'})
+        if kind in ('submit','service_submit'):
+            exact(command, {'kind', 'skill', 'arguments', 'expires_in'} | ({'reviewed_price'} if kind=='service_submit' else set()))
             name = identifier(command['skill'])
             arguments = command['arguments']
             if not isinstance(arguments, dict) or len(canonical(arguments)) > 18000:
@@ -189,6 +213,10 @@ class OwnerUi:
             body = {'domain': REQUEST_DOMAIN, 'agent_id': agent,
                     'request_id': secrets.token_hex(16), 'skill': name,
                     'arguments': arguments, 'expires_at': expiry}
+            if kind=='service_submit':
+                from .codec import amount
+                if name!='agent.task':raise Rejected('INVALID_SERVICE_TASK')
+                amount(command['reviewed_price']);body['reviewed_price']=command['reviewed_price']
             return {'method': 'submit', 'params': {
                 'envelope': sign_envelope(body, private, signer), 'public_key': b64(public)}}
         if kind == 'approve':
@@ -211,6 +239,9 @@ class OwnerUi:
         raise Rejected('OWNER_UI_ACTION_NOT_ALLOWED')
 
     def handle(self, request: dict) -> dict:
+        if isinstance(request, dict) and request.get('action') in {'setup_preview', 'setup_start', 'setup_status', 'setup_recovery', 'setup_latest'}:
+            from .agent_setup import handle
+            return handle(self.root, request)
         if request == {'action': 'catalog'}:
             return self.catalog()
         exact(request, {'action', 'profile', 'command'})

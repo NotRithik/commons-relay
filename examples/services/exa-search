@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Paid-service example: bounded Exa search with a durable no-retry journal.
+
+Only execute contacts Exa. prepare and lookup never make an upstream call.
+Provision EXA_API_KEY explicitly with install-skill.py; the key is never part
+of the request, response, Agent Card or journal. Exa receives the search query.
+API reference: https://exa.ai/docs/reference/search-api-guide-for-coding-agents
+"""
+from __future__ import annotations
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sqlite3
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+ENDPOINT = 'https://api.exa.ai/search'
+MAX_RESPONSE = 1024 * 1024
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, newurl):
+        raise ValueError('UPSTREAM_REDIRECT_REFUSED')
+
+
+def request_shape():
+    raw = sys.stdin.buffer.read(65537)
+    if len(raw) > 65536: raise ValueError('REQUEST_LIMIT')
+    value = json.loads(raw)
+    phase = value.get('phase') if isinstance(value, dict) else None
+    fields = {'protocol', 'phase', 'task_id', 'arguments'} | ({'effect_id'} if phase in ('execute', 'lookup') else set())
+    if not isinstance(value, dict) or set(value) != fields or value['protocol'] != 'commons-relay-extension/v1' or phase not in ('prepare', 'execute', 'lookup'):
+        raise ValueError('INVALID_REQUEST')
+    if not isinstance(value['task_id'], str) or not re.fullmatch('[A-Za-z0-9_-]{1,80}', value['task_id']):
+        raise ValueError('INVALID_TASK')
+    args = value['arguments']
+    if not isinstance(args, dict) or set(args) != {'query', 'num_results'}:
+        raise ValueError('INVALID_ARGUMENTS')
+    if not isinstance(args['query'], str) or not 1 <= len(args['query'].strip()) <= 400:
+        raise ValueError('INVALID_QUERY')
+    if type(args['num_results']) is not int or not 1 <= args['num_results'] <= 5:
+        raise ValueError('INVALID_RESULT_LIMIT')
+    fingerprint = hashlib.sha256(encode({'task_id': value['task_id'], 'arguments': args}).encode()).hexdigest()
+    effect = 'exa-' + fingerprint
+    if phase != 'prepare' and value['effect_id'] != effect:
+        raise ValueError('EFFECT_CHANGED')
+    return value, fingerprint, effect
+
+
+def search(args):
+    key = os.environ.get('EXA_API_KEY', '')
+    if not key or any(c in key for c in ('\r', '\n', '\x00')):
+        raise ValueError('EXA_CREDENTIAL_REQUIRED')
+    payload = {'query': args['query'], 'type': 'auto', 'numResults': args['num_results'],
+               'contents': {'text': {'maxCharacters': 1200}}}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+                                        urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    request = urllib.request.Request(ENDPOINT, data=encode(payload).encode(), method='POST',
+        headers={'Content-Type': 'application/json', 'x-api-key': key, 'User-Agent': 'CommonsRelay-ExaService/1'})
+    with opener.open(request, timeout=20) as response:
+        if response.status != 200: raise ValueError('UPSTREAM_SEARCH_FAILED')
+        raw = response.read(MAX_RESPONSE + 1)
+        if len(raw) > MAX_RESPONSE: raise ValueError('UPSTREAM_RESPONSE_TOO_LARGE')
+    value = json.loads(raw)
+    if not isinstance(value, dict) or not isinstance(value.get('results'), list):
+        raise ValueError('UPSTREAM_RESPONSE_INVALID')
+    output = {'query': args['query'], 'results': [], 'returned': 0, 'provider': 'Exa',
+              'retrieved_at': int(time.time())}
+    for item in value['results'][:args['num_results']]:
+        if not isinstance(item, dict): continue
+        url = item.get('url')
+        if not isinstance(url, str) or len(url) > 1500: continue
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.username or parsed.password: continue
+        title = item.get('title', '')
+        text = item.get('text', '')
+        if not isinstance(title, str) or not isinstance(text, str): continue
+        result = {'title': title[:160], 'url': url, 'excerpt': text[:800]}
+        candidate = {**output, 'results': output['results'] + [result], 'returned': len(output['results']) + 1}
+        if len(encode(candidate).encode()) > 8500:
+            result['excerpt'] = text[:120]
+            candidate = {**output, 'results': output['results'] + [result], 'returned': len(output['results']) + 1}
+        if len(encode(candidate).encode()) <= 8500: output = candidate
+    return output
+
+
+def main():
+    os.umask(0o077)
+    request, fingerprint, effect = request_shape()
+    path = Path('exa-requests.sqlite')
+    if path.is_symlink(): raise ValueError('JOURNAL_SYMLINK')
+    if not path.exists():
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600); os.close(fd)
+    if path.stat().st_mode & 0o077: raise ValueError('JOURNAL_PERMISSIONS')
+    with sqlite3.connect(path, timeout=5, isolation_level=None) as db:
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA journal_mode=WAL'); db.execute('PRAGMA synchronous=FULL')
+        db.execute('CREATE TABLE IF NOT EXISTS requests(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,state TEXT NOT NULL,result TEXT,updated INTEGER NOT NULL)')
+        db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT * FROM requests WHERE id=?', (request['task_id'],)).fetchone()
+        if row and row['fingerprint'] != fingerprint: raise ValueError('TASK_REUSED')
+        if request['phase'] == 'prepare':
+            if not row:
+                if db.execute('SELECT COUNT(*) FROM requests').fetchone()[0] >= 10000: raise ValueError('JOURNAL_LIMIT')
+                db.execute("INSERT INTO requests VALUES (?,?,'prepared',NULL,?)", (request['task_id'], fingerprint, int(time.time())))
+            db.commit(); print(encode({'effect_id': effect})); return
+        if not row: raise ValueError('EFFECT_NOT_PREPARED')
+        if row['state'] in ('confirmed', 'rejected'):
+            db.commit(); print(encode({'state': row['state'], 'result': json.loads(row['result']) if row['result'] else None})); return
+        if request['phase'] == 'lookup' or row['state'] == 'started':
+            # A process may die after Exa handled its POST. Never issue it again.
+            if row['state'] == 'prepared' or int(time.time()) - row['updated'] > 30:
+                reason = {'error': 'No saved search result is available. The upstream request will not be repeated automatically.'}
+                db.execute("UPDATE requests SET state='rejected',result=?,updated=? WHERE id=?", (encode(reason), int(time.time()), request['task_id']))
+                db.commit(); print(encode({'state': 'rejected', 'result': reason})); return
+            db.commit(); print(encode({'state': 'pending', 'result': None})); return
+        db.execute("UPDATE requests SET state='started',updated=? WHERE id=?", (int(time.time()), request['task_id']))
+        db.commit()
+        try:
+            result = search(request['arguments']); state = 'confirmed'
+        except (ValueError, OSError, urllib.error.URLError):
+            result = {'error': 'Exa search did not return a usable response. No automatic upstream retry was made.'}
+            state = 'rejected'
+        db.execute('BEGIN IMMEDIATE')
+        db.execute('UPDATE requests SET state=?,result=?,updated=? WHERE id=?', (state, encode(result), int(time.time()), request['task_id']))
+        db.commit(); print(encode({'state': state, 'result': result}))
+
+
+if __name__ == '__main__':
+    try: main()
+    except (ValueError, OSError, sqlite3.Error, TypeError, KeyError):
+        # Never echo an upstream response, header, key, or arbitrary traceback.
+        raise SystemExit(2)

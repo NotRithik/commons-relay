@@ -25,7 +25,10 @@ export class TokenBudget {
     return this.locked(state=>{
       const held=Object.values(state.reservations).reduce((a,b)=>a+b,0);
       if(state.settled_micro_usd+held+upper>state.maximum_micro_usd)throw new Error('TEST_BUDGET_EXHAUSTED');
-      if(state.requests.length+Object.keys(state.reservations).length>=100)throw new Error('TEST_REQUEST_LIMIT');
+      // A long-lived agent must not stop after 100 successful low-cost turns.
+      // This bounds bookkeeping only; the monetary reservation check above
+      // remains authoritative and neither balances nor old receipts are reset.
+      if(state.requests.length+Object.keys(state.reservations).length>=10000)throw new Error('MODEL_REQUEST_HISTORY_LIMIT');
       const id=randomUUID();state.reservations[id]=upper;return id;
     });
   }

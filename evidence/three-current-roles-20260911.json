@@ -1,0 +1,28 @@
+{
+  "observed_at": 1789091837,
+  "agents": [
+    {
+      "role": "storage",
+      "agent_id": "lez-4ae3a141934b5b4b1ac6896c12af2b60f6f1786d50ae2b97dd9a711d6e63cd1c",
+      "identity_matches": true,
+      "configured": true,
+      "worker_running": true
+    },
+    {
+      "role": "messaging",
+      "agent_id": "lez-a9a5fa584a25ce62828a8980a8e83b1b0246f395c0a95841686a303a2c4007aa",
+      "identity_matches": true,
+      "configured": true,
+      "worker_running": true
+    },
+    {
+      "role": "blockchain",
+      "agent_id": "lez-f66f3fb8aa1bee88c6084f8bafd1f5b3af23be2e6c07599400c8c41922912949",
+      "identity_matches": true,
+      "configured": true,
+      "worker_running": true
+    }
+  ],
+  "scope": "Existing native worker status and identity, not a new balance or task check",
+  "new_wallets_created": 0
+}

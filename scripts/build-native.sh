@@ -15,6 +15,7 @@ cmake --build "$OUT/generator" --parallel "$JOBS"
 cmake -S "$ROOT/native" -B "$OUT/plugin" -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$QT_PREFIX" -DLOGOS_DEPS_DIR="$LOGOS_DEPS_DIR" \
   -DLOGOS_VIEW_GENERATOR="$OUT/generator/logos-view-generator" \
+  -DLOGOS_RUNTIME_LIBRARY_DIR="${LOGOS_RUNTIME_LIBRARY_DIR:-}" \
   -DCMAKE_INSTALL_PREFIX="$PREFIX"
 cmake --build "$OUT/plugin" --parallel "$JOBS"
 cmake --install "$OUT/plugin" --prefix "$PREFIX"

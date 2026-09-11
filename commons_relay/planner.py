@@ -21,9 +21,10 @@ import time
 from .codec import Rejected, canonical, parse, identifier, unb64, amount
 from .signing import Ed25519, key_id, protected_directory, verify_envelope
 from .engine import GRANT_DOMAIN, DELEGATED_DOMAIN
+from .result_plain import describe_tasks, result_plain, service_result_text
 
 READ_SKILLS = frozenset({'storage.list', 'wallet.balance', 'wallet.history',
-    'program.query', 'agent.card', 'agent.discover', 'meta.skills', 'meta.status'})
+    'program.query', 'agent.card', 'agent.discover', 'agent.ping', 'meta.skills', 'meta.status'})
 MAX_TURN_SECONDS = 600
 MAX_FRAME = 60000
 
@@ -63,8 +64,10 @@ class Configuration:
         required = {'schema_version', 'node', 'runner', 'runner_sha256', 'model',
                     'api_key_file', 'budget_file', 'budget_micro_usd',
                     'input_micro_per_million', 'output_micro_per_million'}
-        if set(raw) != required or raw['schema_version'] != 1:
+        if set(raw) not in (required, required | {'require_owner_setup'}) or raw['schema_version'] != 1:
             raise Rejected('INVALID_PLANNER_CONFIGURATION')
+        if type(raw.get('require_owner_setup', False)) is not bool: raise Rejected('INVALID_PLANNER_CONFIGURATION')
+        raw.pop('require_owner_setup',None)
         from .inference_settings import effective, MODEL
         raw = effective(path, raw, owner_key=owner_key, crypto=crypto, agent_id=agent_id)
         if not isinstance(raw.get('model'), str) or not MODEL.fullmatch(raw['model']):
@@ -147,6 +150,10 @@ class Planner:
         path = self.service.root / 'planner.json'
         return Configuration.load(path, owner_key=self.engine.owner_key, crypto=self.engine.crypto, agent_id=self.engine.agent) if path.exists() else None
 
+    def requires_configuration(self):
+        path=self.service.root/'planner.json'
+        return path.is_file() and private_json(path).get('require_owner_setup') is True and not (self.service.root/'inference.json').is_file()
+
     def status(self) -> dict:
         try:
             config = self.configuration()
@@ -157,12 +164,15 @@ class Planner:
         read = [name for name in registered if name in READ_SKILLS]
         actions = [name for name in registered if name != 'meta.configure']
         result = {'planner_status': True, 'agent_id': self.engine.agent,
-            'enabled': config is not None, 'model': config.model if config else None,
+            'enabled': config is not None and not (self.requires_configuration()),
+            'model': config.model if config and not (self.requires_configuration()) else None,
             'provider': ('OpenAI' if config.endpoint == 'https://api.openai.com/v1' else __import__('urllib.parse', fromlist=['urlsplit']).urlsplit(config.endpoint).netloc) if config else None, 'delegate_key_id': self.delegate_id,
             'read_skills': read, 'action_skills': actions, 'active_goal': self.active,
             'maximum_steps': 8, 'error': error,
             'privacy': 'Messages, relevant conversation history and requested tool results go to the selected inference endpoint. Private signing keys are not supplied.'}
         if config:
+            if config.endpoint == 'https://api.openai.com/v1' and not config.api_key_file and not self.requires_configuration():
+                result.update(enabled=False,error='INFERENCE_CREDENTIAL_REQUIRED')
             result.update(endpoint=config.endpoint, api=config.api, configuration_hash=config.configuration_hash,
                 max_output_tokens=config.max_output_tokens, credential_configured=bool(config.api_key_file),
                 credential_digest=config.credential_sha256, input_micro_per_million=config.input_micro_per_million,
@@ -204,11 +214,15 @@ class Planner:
             # Display a recorded tool outcome, not a new model answer or a retry.
             # This derived view also works after a restart without modifying history.
             if task['state'] == 'completed':
-                goal.update(state='completed', error=None,
-                    reply='The action you approved completed. Open the linked tool result for the recorded output.')
+                summary = result_plain(task.get('skill'), task.get('result'), state='completed')
+                content=service_result_text(task.get('result')) if task.get('skill')=='agent.task' else ''
+                reply=summary or 'The action you approved finished. The recorded result is attached.'
+                if content:reply+='\n\nReturned by the service:\n'+content
+                goal.update(state='completed', error=None, reply=reply, outcome_from_receipts=True)
             elif task['state'] in ('failed', 'rejected', 'canceled'):
                 goal.update(state='cancelled' if task['state'] == 'canceled' else 'failed', error=task['error'],
-                    reply='The action you approved did not complete. Open the linked tool result for its status and error.')
+                    reply=result_plain(task.get('skill'), task.get('result'), state=task['state'], error=task.get('error'))
+                    or 'The action you approved did not finish. Open its details for the recorded reason.')
         elif goal['state']=='waiting' and goal['task_ids'] and not (permission and permission['decision']=='pending'):
             if len(goal['task_ids'])>16:raise Rejected('PLANNER_TASK_HISTORY_LIMIT')
             receipts=[self.engine.get(task_id) for task_id in goal['task_ids']]
@@ -218,10 +232,27 @@ class Planner:
                 goal['updated']=max([goal['updated']]+[task['updated'] for task in receipts])
                 goal['state']='failed' if failed else 'completed'
                 goal['error']=failed[0].get('error') if failed else None
-                goal['reply']=('One or more linked tasks did not complete. Open their results for the recorded status.' if failed
-                    else 'The requested task completed. Open the linked tool result for its recorded output.' if len(receipts)==1
-                    else 'All '+str(len(receipts))+' linked tasks completed. Open their tool results for the recorded outputs.')
+                summary = describe_tasks(receipts)
+                if failed:
+                    goal['reply'] = summary or 'One or more linked tasks did not finish. Open their details for the recorded reason.'
+                elif summary:
+                    goal['reply'] = summary
+                elif len(receipts) == 1:
+                    goal['reply'] = 'The requested action finished. Open its details if you want the raw record.'
+                else:
+                    goal['reply'] = f'All {len(receipts)} linked actions finished.'
                 goal['outcome_from_receipts']=True
+        elif (goal['task_ids'] and goal['state'] in ('completed', 'failed', 'cancelled')
+              and not (permission and permission['decision'] == 'approve')):
+            reply = goal.get('reply') or ''
+            generic = (not reply) or ('Open Activity' in reply) or reply.startswith('The agent finished this turn')
+            if generic:
+                if len(goal['task_ids']) > 16:
+                    raise Rejected('PLANNER_TASK_HISTORY_LIMIT')
+                summary = describe_tasks([self.engine.get(task_id) for task_id in goal['task_ids']])
+                if summary:
+                    goal['reply'] = summary
+                    goal['outcome_from_receipts'] = True
         response={'planner_goal': True, 'agent_id': self.engine.agent, 'goal': goal}
         if len(canonical(response))>13200 and permission:
             request=permission['request']
@@ -314,6 +345,8 @@ class Planner:
                 raise Rejected('PLANNER_HISTORY_LIMIT')
             config = self.configuration()
             if config is None: raise Rejected('PLANNER_NOT_CONFIGURED')
+            if self.requires_configuration(): raise Rejected('MODEL_SETTINGS_REQUIRED')
+            if config.endpoint == 'https://api.openai.com/v1' and not config.api_key_file: raise Rejected('INFERENCE_CREDENTIAL_REQUIRED')
             if body.get('inference_hash') != config.configuration_hash:
                 raise Rejected('INFERENCE_SETTINGS_CHANGED_REVIEW_AGAIN')
             if config.public_budget()['remaining_micro_usd'] <= 0: raise Rejected('TEST_BUDGET_EXHAUSTED')
@@ -414,7 +447,14 @@ class Planner:
             initial={'grant':grant,'delegate_key_file':str(self.key_path),'skills':skills,
                      'permission_skills':permission_skills,
                      'maximum_task_ttl':self.engine.policy.approval_ttl,
-                     'history':self.history(0)['goals'][1:4]}
+                     'history':self.history(0)['goals'][1:4],
+                     'discovery_topic':'commons',
+                     'known_programs':[
+                         {'name':'Commons shared group',
+                          'program_id':'4865d6e70a30b8f2aa95dd63a866d3c95adffd52ce1e888077d584c3bcb685d6',
+                          'account':'eb038d5a8a9e154c9d23ff8f9c48656ac970e061d688d5262d736770020c9ac6',
+                          'use':'program.query to read the current shared value, members and threshold'}
+                     ]}
             child.stdin.write(canonical({'kind':'start','value':initial})+b'\n');child.stdin.flush()
             finished=False
             for _ in range(100):
@@ -445,6 +485,11 @@ class Planner:
                         error='MODEL_TRANSPORT_FAILED'
                     with self.lock:
                         if self._row(goal_id)['state'] != 'cancelled':
+                            ids=json.loads(self._row(goal_id)['task_ids'] or '[]')
+                            generic=(not text) or ('Open Activity' in text) or text.startswith('The agent finished this turn')
+                            if ids and generic:
+                                summary=describe_tasks([self.engine.get(task_id) for task_id in ids])
+                                if summary: text=summary
                             self._set(goal_id,state='failed' if error else ('waiting' if frame.get('waiting') else 'completed'),reply=text,error=error)
                     finished=True;break
                 else:raise Rejected('INVALID_PLANNER_FRAME')

@@ -1,87 +1,47 @@
-# LP-0008 criterion map
+# LP-0008 requirement checklist
 
-This file maps the September 2026 LP-0008 requirements to source, tests, and sanitized live evidence. It is meant to make independent review faster; it does not replace the prize specification.
+The requirements below preserve the official Success Criteria order. **The submission is not cleared yet.** A recorded demonstration is not proof that a later uncommitted build, a public release or its CI has passed.
 
-## Functionality
+Official requirement file: `logos-co/lambda-prize/prizes/LP-0008.md`, blob `ceaa20d8db59e4f6f78850521cd7b39ed7d4ce6a`.
 
-| Criterion | Current evidence |
-| --- | --- |
-| Core module loads beside wallet, Storage, and Messaging | `evidence/module-load.json`; native modules under `native/` |
-| Independent shielded LEZ wallet | `evidence/three-testnet-agents.json`; paid balance movement in `evidence/paid-a2a-private-lez.json` |
-| One-command headless deployment | `scripts/deploy-agent.py`; `evidence/one-command-deployment.json`; `docs/DEPLOYMENT.md` |
-| Separate owner Logos instance, no intermediary app server | `evidence/owner-channel-live.json`; `docs/OWNER.md` |
-| Spending threshold | `evidence/above-threshold-live.json`; policy tests in `tests/test_engine.py` |
-| All default skills | Registry in `commons_relay/skills.py`; `docs/SKILLS.md`; schema and adapter suites under `tests/` |
-| A2A-compatible coordination | `docs/a2a-logos-binding-v1.md`; A2A tests; `evidence/a2a-free-task.json` |
-| Autonomous paid agent task | `evidence/paid-a2a-private-lez.json`: private 3-unit payment and completed `program.query` on public LEZ testnet |
-| Three illustrative use cases | File vault: `evidence/luna-live-storage-check.json` + `evidence/live-storage-share.json`; paid skill marketplace: `evidence/paid-a2a-private-lez.json`; multi-agent workflow: `evidence/multi-agent-workflow.json` |
-| Three deployed role agents | `evidence/three-testnet-agents.json` and `evidence/module-load.json` |
-| Public repo and docs | `README.md`, `docs/`, MIT + Apache-2.0 licenses |
+| # | Official requirement | Current observation | Evidence / next step |
+| --- | --- | --- | --- |
+| 1 | The agent module loads and runs inside Logos Core alongside the wallet, storage, and messaging modules without requiring modifications to those modules. | Demonstrated; retain in final release | Native module in Basecamp and fresh headless Linux deployment. Final source/assets must match. [fresh-one-command-windows-20260911.json](../evidence/fresh-one-command-windows-20260911.json) |
+| 2 | The agent has its own shielded LEZ account and can send and receive tokens independently of the owner's wallet. | Demonstrated; retain in final release | The agent wallets are separate; private wallet.send confirmed at block 3703. [default-wallet-program-ui-20260911.json](../evidence/default-wallet-program-ui-20260911.json) |
+| 3 | The owner can deploy the agent and configure it with a single CLI command on any machine using Logos Core headless. | Demonstrated; retain in final release | Fresh one-command Linux deployment and in-app local setup observed; dependencies must first be installed. [fresh-one-command-windows-20260911.json](../evidence/fresh-one-command-windows-20260911.json) [create-agent-recovery-ui-20260911.json](../evidence/create-agent-recovery-ui-20260911.json) |
+| 4 | The owner can interact with the agent in real time from a separate Logos app instance using Logos Messaging, with no intermediary server. | Demonstrated; retain in final release | Separate owner app communicates over authenticated encrypted Logos Messaging; cross-machine Exa flow is also recorded. [chat-windows-exa-verified-20260911.json](../evidence/chat-windows-exa-verified-20260911.json) |
+| 5 | The spending threshold mechanism correctly holds above-threshold transactions for owner approval and executes below-threshold transactions autonomously. | Demonstrated; retain in final release | Recorded above-threshold hold and no-owner-click private paid task. Public payments intentionally require a fresh explicit review. [current-approval-ui.json](../evidence/current-approval-ui.json) [paid-public-extension-20260911.json](../evidence/paid-public-extension-20260911.json) |
+| 6 | All default skills listed above are implemented and documented. | Open | All required skill entrypoints are implemented. wallet.send, program.call and program.deploy now have confirmed UI receipts. Current-version cancellation/refund and failure checks remain open. [default-wallet-program-ui-20260911.json](../evidence/default-wallet-program-ui-20260911.json) |
+| 7 | Agent-to-agent coordination is A2A-compatible: Agent Cards follow the A2A schema, task interactions follow the A2A task lifecycle, and the implementation is documented as an A2A transport binding over Logos Messaging. | Demonstrated; retain in final release | Cards and lifecycle use the documented Logos Messaging transport binding. Unmodified HTTP-only A2A clients still need that binding. [a2a-stream-after-inbox-recovery.json](../evidence/a2a-stream-after-inbox-recovery.json) |
+| 8 | Two or more agents can discover each other via Agent Cards, execute a task following the A2A lifecycle, and transfer LEZ payment autonomously, without owner intervention. | Demonstrated; retain in final release | Publicly discovered, non-owner-contact text-statistics provider was paid without an owner payment click. [paid-public-extension-20260911.json](../evidence/paid-public-extension-20260911.json) |
+| 9 | At least 3 of the illustrative use cases above are demonstrated end-to-end on LEZ testnet. | Demonstrated; retain in final release | File-vault round trip, paid marketplace and two-provider aggregation have end-to-end receipts. [current-three-use-cases.json](../evidence/current-three-use-cases.json) |
+| 10 | Three separate agents are deployed on LEZ testnet — one per default skill category (Storage, Messaging, and Blockchain) — each with a demonstrated, reproducible deployment and evidence provided. | Demonstrated; retain in final release | Separate Storage, Messaging and Blockchain role identities and deployments are recorded. [three-current-roles-20260911.json](../evidence/three-current-roles-20260911.json) |
+| 11 | Full documentation — including the skill interface spec, deployment guide, and owner interaction guide — and a clean public repository are delivered. | Open | Current source is not yet a clean matching public release.  |
+| 12 | Provide a documented skill interface (module/SDK) that can be used to add new skills without modifying the core agent module. | Demonstrated; retain in final release | Hash-pinned subprocess skill interface and installation documentation; actual third-party text-statistics service was called and paid. [paid-public-extension-20260911.json](../evidence/paid-public-extension-20260911.json) |
+| 13 | The owner-facing interface is accessible from the Logos app (Basecamp) via the owner channel — local build instructions and loadable assets are provided. | Demonstrated; retain in final release | Basecamp owner-channel UI and local setup are working. The newest service-review dialog fix still needs live visual validation and matching release assets. [create-agent-recovery-ui-20260911.json](../evidence/create-agent-recovery-ui-20260911.json) |
+| 14 | The agent module recovers from transient failures (network interruptions, node restarts) without losing pending task state. | Open | Mailbox recovery and same-identity setup recovery are observed. The old malformed program call remains honestly unresolved; final-version transient-failure validation remains open. [mailbox-recovery-20260911.json](../evidence/mailbox-recovery-20260911.json) [create-agent-recovery-ui-20260911.json](../evidence/create-agent-recovery-ui-20260911.json) |
+| 15 | Above-threshold transactions that fail to reach the owner for approval are not executed — the agent retries notification before timing out and reports the failure. | Demonstrated; retain in final release | Verified in recorded UI/runtime observations; final release must retain it.  |
+| 16 | Skill failures are isolated: a failing skill does not crash the module or affect other concurrently running skills. | Open | New independent I/O scheduling/failure isolation needs live checks.  |
+| 17 | Document the compute unit (CU) cost of each on-chain operation the agent performs (token transfers, program calls, deployments) on LEZ devnet/testnet. Note: LEZ's per-transaction compute budget may change during testnet. | Open | CU notes need final reconciliation with the measured operations.  |
+| 18 | The agent module is deployed and tested on LEZ devnet/testnet. | Demonstrated; retain in final release | Current-testnet default wallet/program and paid-service receipts exist. [default-wallet-program-ui-20260911.json](../evidence/default-wallet-program-ui-20260911.json) [chat-windows-exa-verified-20260911.json](../evidence/chat-windows-exa-verified-20260911.json) |
+| 19 | End-to-end integration tests run against a LEZ sequencer (standalone mode) and are included in CI. | Open | Real local proof passed; final-version CI integration still pending.  |
+| 20 | CI must be green on the default branch. | Open | No green default-branch run for the unfinished current tree.  |
+| 21 | A README documents end-to-end usage: deployment steps, agent configuration, and step-by-step instructions for deploying and interacting with the agent via CLI and the Logos app owner channel. | Open | README exists but needs final current setup/payment instructions.  |
+| 22 | A reproducible end-to-end demo script is provided and works against a real local sequencer with `RISC0_DEV_MODE=0`. | Demonstrated; retain in final release | Real standalone private proof completed using prerequisites already installed. This does not verify clean dependency installation or the later public-payment changes. [local-current-wallet-proof-20260911.json](../evidence/local-current-wallet-proof-20260911.json) |
+| 23 | A recorded video demo of the end-to-end flow is included in the submission; the recording must show terminal output (including proof generation) to confirm `RISC0_DEV_MODE=0` was active. | Open | Builder-narrated video is intentionally last.  |
 
-## Usability
+## Important distinctions
 
-| Criterion | Current evidence |
-| --- | --- |
-| Third-party skill interface | `docs/SKILLS.md`; `commons_relay/external_skills.py`; extension tests |
-| Basecamp owner interface | `native/ui/`; uses `Logos.Theme` and `Logos.Controls`; same-instance visual acceptance in `evidence/basecamp-ui.json`; owner flow in `docs/OWNER.md` |
+The no-extra-owner-click proof is the private paid text-statistics task. The Windows Exa chat used an explicit exact-action approval. Both are useful demonstrations, but they prove different claims.
 
-## Reliability
+Public discovery grants access only to advertised services. It does not turn a stranger into an owner or expose private files or wallet controls. An installed extension can earn its service fee without permission to spend the provider wallet.
 
-| Criterion | Current evidence |
-| --- | --- |
-| Recover pending tasks after restart/network ambiguity | engine, Storage, Messaging, Wallet and A2A recovery tests |
-| Failed owner delivery never becomes approval | notification retry/timeout tests; live held task in `evidence/above-threshold-live.json` |
-| Skill failure isolation | service/bridge/adapter tests; native worker uses bounded concurrent dispatch |
-| Payment is not duplicated after uncertainty | `tests/test_wallet_adapter.py`, A2A adapter tests, exact persisted transaction hashes |
+The original malformed program.call and the later successful corrected call have different IDs and transactions. The first must not be relabeled as the second. See the default-wallet/program receipt for the successful call at block 3711.
 
-## Performance
+Public payments are an optional addition, not a replacement for the required shielded wallet. They use separate public funds and never silently unshield money. Their new flow is not considered accepted until the actual payment, service result and refund behavior have been checked.
 
-`docs/PERFORMANCE.md` records the quantities the pinned LEZ testnet actually exposes. The public executor does not currently return a finalized gas-used/CU-used receipt, so the document reports guest RISC0 user cycles, program byte size, confirmed blocks, and real proof wall time instead of inventing a fee number.
+## Submission deliverables still requiring final release review
 
-The successful public paid A2A proof is recorded in `evidence/paid-a2a-private-lez.json`.
+Public source must include the Core module, CLI and default skills under the repository license. The native packages and build manifest must identify the exact source revision. Default-branch CI and the real standalone workflow must pass for that revision. The builder-narrated video is deliberately last; show the actual proof terminal and `RISC0_DEV_MODE=0`, plus at least three complete use cases. No silent video or receipt-only slide deck is being treated as that deliverable.
 
-## Supportability
-
-| Criterion | Current state |
-| --- | --- |
-| Testnet deployment | Verified; sanitized public evidence committed |
-| Standalone LEZ integration workflow | `.github/workflows/real-local-proof.yml` and `scripts/demo-local.py` |
-| Core CI | `.github/workflows/core-tests.yml`; must be green on the submission commit |
-| Clean local proof with `RISC0_DEV_MODE=0` | Script and workflow implemented; final submission should link the successful workflow run for the submission commit |
-| README and deployment/owner instructions | Present |
-| Narrated end-to-end video | Human recording still required by the prize rules before the solution PR is sent for review |
-
-## Historical acceptance snapshot, before the reset
-
-The sanitized evidence currently records:
-
-- three role wallets shielded on public LEZ testnet with real proofs;
-- one historical autonomous private 3-unit A2A payment, confirmed at block 42557;
-- paid client balance 50 → 47 and provider balance 50 → 53;
-- one above-threshold 6-unit request held under a 5-unit per-transaction limit with no wallet effect;
-- encrypted owner-channel response;
-- file upload/download/share, group messaging, and a two-provider multi-agent workflow;
-- a fresh one-command headless deployment with inference disabled.
-
-The submission video and final CI URLs should be added here immediately before opening the Lambda Prize solution PR.
-
-
-## Current acceptance after the reset
-
-Use the current evidence, not the earlier block-42557 receipt, for the deployed demo:
-
-| Requirement | Current receipt and exact boundary |
-| --- | --- |
-| Independent shielded wallets and autonomous paid task | `evidence/current-paid-a2a.json`: 3 units at block 604, client 50 to 47 and provider 50 to 53; transaction rechecked on the current network. |
-| Three illustrated use cases | `evidence/current-three-use-cases.json`: file vault, two-peer workflow and paid services marketplace. |
-| Owner chat and custom skills | `evidence/owner-chat-ui-acceptance.json`, `evidence/custom-skill-ui-acceptance.json`, and `evidence/current-multiagent-ui.json`. |
-| Spending control | `evidence/current-approval-ui.json`: 6-unit request held under a 5-unit automatic limit, then canceled with no wallet effect. |
-| Real local proof CI and downloadable artifacts | Check the exact final release commit. Earlier successful CI does not automatically cover later source changes. |
-| Builder narration and understanding | Required before submission; not supplied by an automated acceptance receipt. |
-
-The marketplace request was owner-signed through Core, not initiated through a
-model conversation. Its payment and provider execution occurred automatically
-within policy; opening its result in Basecamp did not repeat the payment. The
-file and multi-agent requests were initiated through chat and observed in Activity.
-A live successful refund has not been demonstrated. Do not check that claim merely
-because cancellation/refund unit tests exist.
+The owner must personally confirm eligibility, rights and submission terms. No prize submission has been made by this checklist.

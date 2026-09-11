@@ -1,0 +1,56 @@
+{
+  "observed_at": 1789075191,
+  "ui_driven": true,
+  "chat_led": true,
+  "role": "blockchain",
+  "synthetic_input": true,
+  "original_bytes": 222,
+  "restored_bytes": 222,
+  "original_sha256": "06a1732cfd884436078c43c34403c4286ddb68b3a3092698a35cbe98b1c56385",
+  "restored_sha256": "06a1732cfd884436078c43c34403c4286ddb68b3a3092698a35cbe98b1c56385",
+  "ui_reply_observed": true,
+  "initial_path_prefix_failure_retained": "69f11a934de44bbeac0ee1ce98b27e06",
+  "tasks": [
+    {
+      "id": "cef885edbaf7432a9d50e69adf5e6c49",
+      "skill": "storage.upload",
+      "state": "completed",
+      "phase": "settled",
+      "amount": "0",
+      "args": {
+        "label": "Kite vault acceptance",
+        "path": "kite-vault-20260911.txt"
+      },
+      "result": {
+        "address": "zDvZRwzm4vdebVRBmyuSBx8DyRKWyVKnX2qRa8beUxX1GribaDYs",
+        "bytes": 222,
+        "label": "Kite vault acceptance"
+      },
+      "error": null,
+      "created": 1789074967,
+      "updated": 1789074968
+    },
+    {
+      "id": "43ac3d3edd2843ad8a494db18694f489",
+      "skill": "storage.download",
+      "state": "completed",
+      "phase": "settled",
+      "amount": "0",
+      "args": {
+        "address": "zDvZRwzm4vdebVRBmyuSBx8DyRKWyVKnX2qRa8beUxX1GribaDYs",
+        "path": "kite-vault-restored-20260911.txt"
+      },
+      "result": {
+        "address": "zDvZRwzm4vdebVRBmyuSBx8DyRKWyVKnX2qRa8beUxX1GribaDYs",
+        "authenticated": true,
+        "bytes": 222,
+        "path": "kite-vault-restored-20260911.txt"
+      },
+      "error": null,
+      "created": 1789074970,
+      "updated": 1789074970
+    }
+  ],
+  "bytes_equal": true,
+  "testnet_spend": 0
+}

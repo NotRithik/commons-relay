@@ -25,17 +25,32 @@ class WalletAdapter:
         if not isinstance(recipient,dict) or set(recipient)!={'account_id','npk','vpk_borsh','identifier'}:raise Rejected('INVALID_RECIPIENT_DESCRIPTOR')
         # The Rust companion independently derives and matches the account ID.
         return recipient
+    def public_recipient(self,name):
+        if isinstance(name,str) and re.fullmatch('[0-9a-f]{64}',name):return name
+        path=self.root/'public-payment-addresses.json'
+        if path.is_symlink() or not path.is_file() or path.stat().st_size>100000:raise Rejected('PUBLIC_RECIPIENT_ADDRESS_REQUIRED')
+        values=parse(path.read_bytes());value=values.get(name) if isinstance(values,dict) else None
+        if not isinstance(value,str) or not re.fullmatch('[0-9a-f]{64}',value):raise Rejected('PUBLIC_RECIPIENT_ADDRESS_REQUIRED')
+        return value
     def prepare(self,task):
         skill=task['skill'];args=task['arguments'];id=task['id'];maximum=amount(task['maximum_spend'])
-        if skill not in ['wallet.balance','wallet.history','wallet.send','program.query']:raise Rejected('WALLET_SKILL_UNAVAILABLE')
+        if skill not in ['wallet.balance','wallet.history','wallet.send','wallet.public_account','wallet.initialize_public','program.query']:raise Rejected('WALLET_SKILL_UNAVAILABLE')
         with self.engine.tx() as db:
             old=db.execute('SELECT * FROM wallet_effects WHERE task_id=?',(id,)).fetchone()
             if old and (old['skill']!=skill or old['arguments']!=canonical(args).decode()):raise Rejected('WALLET_EFFECT_REUSED')
             db.execute('INSERT OR IGNORE INTO wallet_effects VALUES (?,?,?,NULL,NULL,?)',(id,skill,canonical(args).decode(),str(maximum)))
-        if skill=='wallet.send':
-            units=amount(args['amount'])
-            if units<=0 or units>maximum:raise Rejected('WALLET_QUOTE_MISMATCH')
-            intent={'kind':'transfer-private','arguments':{'recipient':self.recipient(args['recipient']),'amount':str(units)},'expires_at':task['deadline']}
+        if skill in ('wallet.send','wallet.initialize_public'):
+            units=0 if skill=='wallet.initialize_public' else amount(args['amount'])
+            if units>maximum or (skill=='wallet.send' and units<=0):raise Rejected('WALLET_QUOTE_MISMATCH')
+            mode=args.get('payment_mode','private')
+            if mode not in ('private','public'):raise Rejected('INVALID_PAYMENT_MODE')
+            if skill=='wallet.initialize_public':
+                intent={'kind':'initialize-public','arguments':{},'expires_at':task['deadline']}
+            else:
+                recipient=self.public_recipient(args['recipient']) if mode=='public' else self.recipient(args['recipient'])
+                intent={'kind':'transfer-'+mode,'arguments':{'recipient':recipient,'amount':str(units)},'expires_at':task['deadline']}
+                self.engine.set_progress(id,'payment-public' if mode=='public' else 'payment-proving',
+                    'Preparing the explicitly public payment. Sender, recipient and amount will be visible on-chain.' if mode=='public' else 'Preparing the private payment proof. Nothing has been sent yet.')
             result=self.invoke('prepare',{'operation_id':id,'intent':intent},timeout=7100)
             if result.get('state') not in ['prepared','confirmed'] or amount(result.get('maximum_spend'))!=units or not re.fullmatch('[a-f0-9]{64}',result.get('tx_hash','')):raise Rejected('WALLET_PREPARATION_MISMATCH')
             with self.engine.tx() as db:db.execute('UPDATE wallet_effects SET tx_hash=? WHERE task_id=?',(result['tx_hash'],id))
@@ -43,6 +58,7 @@ class WalletAdapter:
         if maximum!=0:raise Rejected('READ_OPERATION_HAS_SPEND')
         if skill=='wallet.balance':result=self.invoke('balance')
         elif skill=='wallet.history':result=self.invoke('history')
+        elif skill=='wallet.public_account':result=self.invoke('public-account')
         else:
             params=args['params']
             if not isinstance(params,dict) or set(params)!={'account'} or not isinstance(params['account'],str):raise Rejected('PROGRAM_QUERY_REQUIRES_ACCOUNT')
@@ -58,17 +74,17 @@ class WalletAdapter:
     def broadcast(self,effect):
         with self.engine.tx() as db:row=db.execute('SELECT * FROM wallet_effects WHERE task_id=?',(effect.opaque_handle,)).fetchone()
         if not row:raise Rejected('WALLET_EFFECT_MISSING')
-        if row['skill']!='wallet.send':return
+        if row['skill'] not in ('wallet.send','wallet.initialize_public'):return
         if row['tx_hash']!=effect.reference:raise Rejected('WALLET_HASH_BINDING_MISMATCH')
         result=self.invoke('broadcast',{'operation_id':effect.opaque_handle},timeout=120)
         if result.get('tx_hash')!=effect.reference:raise Rejected('WALLET_BROADCAST_HASH_MISMATCH')
     def lookup(self,effect):
         with self.engine.tx() as db:row=db.execute('SELECT * FROM wallet_effects WHERE task_id=?',(effect.opaque_handle,)).fetchone()
         if not row:return Receipt(effect.reference,'pending')
-        if row['skill']!='wallet.send':return Receipt(effect.reference,'confirmed',0,json.loads(row['result'])) if row['result'] else Receipt(effect.reference,'pending')
+        if row['skill'] not in ('wallet.send','wallet.initialize_public'):return Receipt(effect.reference,'confirmed',0,json.loads(row['result'])) if row['result'] else Receipt(effect.reference,'pending')
         result=self.invoke('reconcile',{'operation_id':effect.opaque_handle},timeout=120)
         if result.get('tx_hash')!=effect.reference:raise Rejected('WALLET_RECEIPT_HASH_MISMATCH')
         if result.get('state')=='confirmed':
             if type(result.get('block_id'))is not int or result['block_id']<0:raise Rejected('WALLET_CONFIRMATION_BLOCK_MISSING')
-            return Receipt(effect.reference,'confirmed',int(row['amount']),{'transaction_hash':effect.reference,'block_id':result['block_id'],'private':True})
+            return Receipt(effect.reference,'confirmed',int(row['amount']),{'transaction_hash':effect.reference,'block_id':result['block_id'],'private':result.get('private') is True,'payment_mode':'private' if result.get('private') is True else 'public'})
         return Receipt(effect.reference,'pending')

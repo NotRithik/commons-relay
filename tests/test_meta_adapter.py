@@ -38,7 +38,8 @@ class MetaTests(unittest.TestCase):
         self.assertEqual(self.engine.execute(task['id'],self.adapter())['state'],'failed')
     def test_meta_skills_returns_real_registry(self):
         task=self.task(skill='meta.skills',args={});result=self.engine.execute(task['id'],self.adapter())
-        self.assertEqual(result['state'],'completed');self.assertEqual(len(result['result']['skills']),21)
+        self.assertEqual(result['state'],'completed');self.assertEqual(len(result['result']['skills']),22)
+        self.assertIn('agent.ping',{item['id'] for item in result['result']['skills']})
     def test_config_cannot_modify_an_in_flight_effect(self):
         old=self.task();self.engine.start(old['id'],'worker');config=self.task(skill='meta.configure',args={'key':'spending_limit','value':'5'})
         result=self.engine.execute(config['id'],self.adapter());self.assertNotEqual(result['state'],'completed');self.assertEqual(self.engine.policy.version,1)
